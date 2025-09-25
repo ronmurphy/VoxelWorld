@@ -1,0 +1,723 @@
+/* new-ui.css - Modern styling for DnD Map Editor */
+
+/* Only apply new styles when body has new-ui class */
+body.new-ui {
+  /* CSS Variables for theming */
+  --primary-color: #4752c4;
+  --primary-light: #e8ebff;
+  --secondary-color: #384764;
+  --accent-color: #00c09a;
+  --dark-bg: #1e2538;
+  --medium-bg: #2a334a;
+  --light-bg: #384764;
+  --text-color: #e1e6f7;
+  --text-dim: #9da6c4;
+  --danger-color: #e53935;
+  --warning-color: #ffb74d;
+  --success-color: #4caf50;
+  
+  /* Layout measurements */
+  --header-height: 56px;
+  --sidebar-width: 350px;
+  --toolbar-width: 48px;
+  --footer-height: 28px;
+  
+  /* Override default body styling */
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--dark-bg);
+  color: var(--text-color);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Layout Modifications */
+body.new-ui .app-container {
+  display: grid;
+  grid-template-rows: var(--header-height) 1fr var(--footer-height);
+  grid-template-columns: var(--toolbar-width) 1fr var(--sidebar-width);
+  grid-template-areas: 
+    "header header header"
+    "toolbar canvas sidebar"
+    "footer footer footer";
+  height: 100vh;
+}
+
+/* Header Styling */
+body.new-ui .app-header {
+  grid-area: header;
+  background-color: var(--secondary-color);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  height: var(--header-height);
+}
+
+body.new-ui .app-logo {
+  display: flex;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-right: 24px;
+}
+
+body.new-ui .app-logo .material-icons {
+  margin-right: 8px;
+  color: var(--accent-color);
+}
+
+body.new-ui .header-title {
+  position: static;
+  transform: none;
+}
+
+body.new-ui .map-title {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  background-color: var(--medium-bg);
+  border-radius: 4px;
+  margin-right: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+body.new-ui .map-title:hover {
+  background-color: var(--light-bg);
+}
+
+body.new-ui .map-title .material-icons {
+  font-size: 18px;
+  margin-right: 8px;
+  color: var(--text-dim);
+}
+
+body.new-ui .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.new-ui .spacer {
+  flex-grow: 1;
+}
+
+/* Shoelace Button Styling */
+body.new-ui sl-button::part(base) {
+  border-radius: 4px;
+}
+
+body.new-ui sl-button::part(label) {
+  display: flex;
+  align-items: center;
+}
+
+body.new-ui sl-button[variant="primary"]::part(base) {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+body.new-ui sl-button[variant="primary"]:hover::part(base) {
+  background-color: var(--primary-color);
+  filter: brightness(1.1);
+}
+
+/* Vertical Toolbar Styling */
+body.new-ui .vertical-toolbar {
+  grid-area: toolbar;
+  background-color: var(--medium-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+}
+
+body.new-ui .tool-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.new-ui .tool-group:last-child {
+  border-bottom: none;
+}
+
+body.new-ui .tool-button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  margin: 4px 0;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  color: var(--text-dim);
+  position: relative;
+}
+
+body.new-ui .tool-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-color);
+}
+
+body.new-ui .tool-button.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+body.new-ui .tool-button .material-icons {
+  font-size: 20px;
+}
+
+body.new-ui .tool-button::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 48px;
+  background-color: var(--dark-bg);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+body.new-ui .tool-button:hover::after {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Main Canvas Area */
+body.new-ui .canvas-container {
+  grid-area: canvas;
+  background-color: var(--dark-bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Sidebar Styling */
+body.new-ui .sidebar {
+  grid-area: sidebar;
+  background-color: var(--medium-bg);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.new-ui .sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.new-ui .sidebar-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+body.new-ui .sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.new-ui .sidebar-tab {
+  padding: 8px 16px;
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 14px;
+}
+
+body.new-ui .sidebar-tab:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.new-ui .sidebar-tab.active {
+  background-color: var(--light-bg);
+  border-bottom: 2px solid var(--primary-color);
+}
+
+body.new-ui .sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* Layer Item Styling */
+/* body.new-ui .layer-item {
+  background-color: var(--light-bg);
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-bottom: 6px;
+} */
+
+body.new-ui .layer-item {
+	background-color: var(--light-bg);
+	/* border-radius: 4px; */
+	/* padding: 8px; */
+	cursor: pointer;
+	transition: background-color 0.2s;
+	margin-bottom: 6px;
+}
+
+body.new-ui .layer-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.new-ui .layer-item.selected {
+  background-color: rgba(71, 82, 196, 0.3);
+  border-left: 3px solid var(--primary-color);
+}
+
+body.new-ui .layer-item .material-icons {
+  font-size: 18px;
+}
+
+/* Layer Folder Styling */
+body.new-ui .layer-folder {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+body.new-ui .folder-header {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+body.new-ui .folder-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.new-ui .folder-name {
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+body.new-ui .folder-content {
+  padding: 4px 0 4px 12px;
+}
+
+/* Footer Styling */
+body.new-ui .app-footer {
+  grid-area: footer;
+  background-color: var(--secondary-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  height: var(--footer-height);
+}
+
+body.new-ui .status-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+body.new-ui .status-item {
+  display: flex;
+  align-items: center;
+}
+
+body.new-ui .status-item .material-icons {
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+/* 3D View toggle button */
+body.new-ui .view-3d-toggle {
+  background: linear-gradient(135deg, #4752c4, #00c09a);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+}
+
+body.new-ui .view-3d-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.new-ui .view-3d-toggle .material-icons {
+  margin-right: 6px;
+}
+
+/* Markers panel styling */
+body.new-ui #markersPanel {
+  height: 100%;
+  overflow-y: auto;
+}
+
+body.new-ui .marker-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background-color: var(--light-bg);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+body.new-ui .marker-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.new-ui .marker-icon {
+  margin-right: 8px;
+  width: 24px;
+  text-align: center;
+}
+
+body.new-ui .marker-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+body.new-ui .marker-name {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.new-ui .marker-location {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+body.new-ui .marker-controls {
+  display: flex;
+  gap: 4px;
+}
+
+body.new-ui .marker-controls .material-icons {
+  padding: 2px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+body.new-ui .marker-filter {
+  padding: 8px;
+  background-color: var(--dark-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 8px;
+}
+
+/* Override Shoelace drawer styles */
+body.new-ui sl-drawer::part(panel) {
+  background-color: var(--medium-bg);
+  color: var(--text-color);
+}
+
+body.new-ui sl-drawer::part(header) {
+  background-color: var(--secondary-color);
+}
+
+body.new-ui sl-drawer::part(close-button) {
+  color: var(--text-color);
+}
+
+body.new-ui sl-drawer::part(close-button):hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Override Shoelace dialog styles */
+body.new-ui sl-dialog::part(panel) {
+  /* background-color: var(--medium-bg); */
+  background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: var(--text-color);
+}
+
+body.new-ui sl-dialog::part(header) {
+  background-color: var(--secondary-color);
+}
+
+body.new-ui sl-dialog::part(close-button) {
+  color: var(--text-color);
+}
+
+body.new-ui sl-dialog::part(close-button):hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Input styling */
+body.new-ui sl-input::part(base),
+body.new-ui sl-select::part(base),
+body.new-ui sl-textarea::part(base) {
+  background-color: rgba(0, 0, 0, 0.2);
+  color: var(--text-color);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.new-ui sl-input::part(input),
+body.new-ui sl-select::part(display-input),
+body.new-ui sl-textarea::part(textarea) {
+  color: var(--text-color);
+}
+
+body.new-ui sl-input:focus-within::part(base),
+body.new-ui sl-select:focus-within::part(base),
+body.new-ui sl-textarea:focus-within::part(base) {
+  border-color: var(--primary-color);
+}
+
+/* Animation for highlight pulse */
+@keyframes highlight-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(33, 150, 243, 0.5); }
+  50% { box-shadow: 0 0 30px rgba(33, 150, 243, 0.8); }
+}
+
+body.new-ui .highlight-pulse {
+  animation: highlight-pulse 1.5s ease-in-out;
+}
+
+/* Map elements - ensure compatibility with existing canvas elements */
+body.new-ui .room-block {
+  /* Maintain existing styles for compatibility */
+}
+
+body.new-ui .map-marker {
+  /* Maintain existing styles for compatibility */
+}
+
+/* Dark theme for layer item properties */
+body.new-ui .layer-item {
+  color: var(--text-color);
+}
+
+body.new-ui .layer-item .layer-name {
+  color: var(--text-color);
+}
+
+body.new-ui .layer-item .layer-dimensions {
+  color: var(--text-dim);
+}
+
+/* Reset any conflicting styles from original CSS */
+body.new-ui .header {
+  display: none; /* Hide original header */
+}
+
+body.new-ui .app-header {
+  display: flex; /* Show new header */
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  body.new-ui {
+    --sidebar-width: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  body.new-ui {
+    --sidebar-width: 160px;
+    --toolbar-width: 40px;
+  }
+  
+  body.new-ui .tool-button {
+    width: 36px;
+    height: 36px;
+  }
+  
+  body.new-ui .tool-button .material-icons {
+    font-size: 18px;
+  }
+}
+
+/* Additional CSS for drawer management - add to new-ui.css */
+
+/* Ensure drawers appear above other components but below header */
+body.new-ui sl-drawer::part(base) {
+    z-index: 1100; /* High value to appear above most elements */
+    transition: visibility 0s, transform 0.3s;
+  }
+  
+  /* Styles for the header to keep it above drawers */
+  body.new-ui .app-header {
+    z-index: 1200; /* Even higher than drawers */
+  }
+  
+  /* Sidebar transition for smoother hiding/showing */
+  body.new-ui .sidebar {
+    transition: visibility 0.3s ease;
+  }
+  
+  /* 
+   * Default drawer positioning for better appearance with vertical toolbar 
+   * These ensure drawers appear properly positioned
+   */
+  body.new-ui sl-drawer::part(panel) {
+    height: calc(100% - var(--header-height));
+    top: var(--header-height);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  
+  /* 
+   * Ensure drawer overlay covers everything except toolbar and header 
+   * This creates a more polished appearance
+   */
+  body.new-ui sl-drawer::part(overlay) {
+    position: fixed;
+    top: var(--header-height);
+    left: var(--toolbar-width);
+    width: calc(100% - var(--toolbar-width));
+    height: calc(100% - var(--header-height));
+  }
+  
+  /* 
+   * Make all drawer content panels same height and handle internal scrolling properly
+   * This creates consistent drawer behavior
+   */
+  body.new-ui sl-drawer::part(body) {
+    height: calc(100% - 56px - 64px); /* header and footer heights */
+    overflow-y: auto;
+  }
+  
+  /* Specific styles for the 3D view drawer */
+  body.new-ui .drawer-3d-view::part(panel) {
+    max-width: calc(100% - var(--toolbar-width));
+  }
+  
+  /* Ensure buttons in drawers are visible */
+  body.new-ui sl-drawer sl-button::part(base) {
+    background-color: var(--medium-bg);
+    color: var(--text-color);
+  }
+  
+  body.new-ui sl-drawer sl-button[variant="primary"]::part(base) {
+    background-color: var(--primary-color);
+    color: white;
+  }
+  
+  /*
+   * Dialog adjustments to coordinate with drawers
+   * These ensure proper layering of components
+   */
+  body.new-ui sl-dialog::part(panel) {
+    z-index: 1300; /* Above drawers and header */
+  }
+  
+  body.new-ui sl-dialog::part(overlay) {
+    z-index: 1250; /* Between drawers and dialog panels */
+  }
+
+  /* Override the inline style for resource-manager-drawer */
+body.new-ui .resource-manager-drawer {
+    /* Important flag to override inline styles */
+    --size: calc(100vw - var(--toolbar-width)) !important;
+    left: var(--toolbar-width) !important;
+  }
+  
+  /* Additional styles to ensure proper placement */
+  body.new-ui .resource-manager-drawer::part(panel) {
+    max-width: calc(100% - var(--toolbar-width)) !important;
+  }
+
+  /* 
+ * Add this to your new-ui.css file or include it in the initStyles method
+ * This ensures dialogs always appear on top of other UI elements
+ */
+
+/* Increase z-index for dialog components */
+sl-dialog::part(base) {
+  --sl-z-index-dialog: 9999;
+  z-index: 9999 !important; /* Higher than any other UI element */
+}
+
+
+
+/* For nested dialogs, we need to ensure proper stacking */
+sl-dialog + sl-dialog::part(base) {
+  z-index: 10000 !important; /* Even higher for nested dialogs */
+}
+
+
+
+/* Ensure modal dialogs are always topmost */
+sl-dialog[data-modal]::part(base),
+sl-dialog[data-important]::part(base) {
+  z-index: 10001 !important; /* Highest priority */
+}
+
+/* Make sure all dialog content is visible (for any dialog children) */
+sl-dialog::part(panel) {
+  z-index: 1; /* Local z-index within the dialog context */
+}
+
+/* For drawers and other UI components, set lower z-indexes */
+sl-drawer::part(base) {
+  --sl-z-index-drawer: 9000;
+  z-index: 9000 !important; /* Lower than dialogs */
+}
+
+
+
+/* Ensure tooltip and notification remain visible */
+sl-tooltip::part(base) {
+  z-index: 9500 !important; /* Between drawers and dialogs */
+}
+
+sl-alert {
+  z-index: 9600 !important; /* Also between drawers and dialogs */
+}
+
+.material-icons.md-18 { font-size: 18px; }
+.material-icons.md-24 { font-size: 24px; }
+.material-icons.md-36 { font-size: 36px; }
+.material-icons.md-48 { font-size: 48px; }
+
+/* sl-drawer::part(header) {
+	background: #333;
+	border-bottom: 1px solid #444;
+	height: 32px;
+	padding: 0px;
+} */
+
+body.new-ui sl-drawer::part(header) {
+	background-color: var(--secondary-color);
+	height: 32px;
+}
+
+body.new-ui sl-drawer::part(title) {
+  background-color: var(--secondary-color);
+  padding:4px;
+}
+
+body.new-ui sl-input::part(form-control-label) {
+	color: white;
+}
