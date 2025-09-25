@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MapGate - Your Gateway to Mapping</title>
+
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+
+  <!-- CSS - Minimal set -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/new-ui.css">
+  <link rel="stylesheet" href="css/new-rm-ui.css">
+  <link rel="stylesheet" href="css/standalone-fixes.css">
+
+  <!-- Load Shoelace components -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/themes/light.css" />
+
+  <!-- Load required Shoelace components -->
+  <script type="module">
+    import { setBasePath } from "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/utilities/base-path.js";
+    setBasePath("https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/");
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/button/button.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/button-group/button-group.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/dialog/dialog.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/drawer/drawer.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/icon/icon.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/input/input.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/select/select.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/option/option.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/range/range.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/color-picker/color-picker.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tooltip/tooltip.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tab/tab.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tab-group/tab-group.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tab-panel/tab-panel.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/progress-bar/progress-bar.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/radio/radio.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/radio-group/radio-group.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/checkbox/checkbox.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/switch/switch.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/alert/alert.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/divider/divider.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/dropdown/dropdown.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/menu/menu.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/menu-item/menu-item.js"></script>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.138.0/examples/js/controls/PointerLockControls.js"></script>
+
+  <!-- FPS Counter -->
+  <script src="js/libs/stats.min.js"></script>
+
+  <!-- Shared Modules (Local Copies) -->
+  <script src="js/classes/ShapeForgeBrowser.js"></script>
+
+  <!-- Core Dependencies -->
+  <script src="js/classes/Token.js"></script>
+  <script src="js/classes/Room.js"></script>
+  <script src="js/classes/resource-manager.js"></script>
+  <script src="js/classes/texture-manager.js"></script>
+  <script src="js/classes/day-night-cycle.js"></script>
+  <script src="js/classes/PhysicsController.js"></script>
+  <script src="js/classes/Storyboard.js"></script>
+  <script src="js/classes/ShaderEffectsManager.js"></script>
+  <script src="js/classes/Scene3DController.js"></script>
+  <script src="js/classes/ShapeForge.js"></script>
+  <script src="js/classes/ShapeForgeParser.js"></script>
+
+  <!-- Initialize Everything -->
+  <script src="js/main.js"></script>
+  
+  <!-- Custom Space Optimization Styles -->
+  <style>
+    /* Remove default tab panel padding for space efficiency */
+    sl-tab-panel {
+      --padding: 0 !important;
+    }
+    
+    /* Add small bottom margin to prevent touching browser edge */
+    .main-content {
+      margin-bottom: 8px;
+    }
+    
+    /* Ensure header is compact */
+    .app-header {
+      height: 46px !important;
+      min-height: 46px !important;
+    }
+  </style>
+</head>
+
+<body class="new-ui">
+  <div class="app-container">
+    <!-- Modern Header with Branding -->
+    <header class="app-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0px 20px; display: flex; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <div class="app-logo" style="display: flex; align-items: center; font-size: 20px; font-weight: 600;">
+        <span class="material-icons" style="font-size: 26px; margin-right: 10px;">travel_explore</span>
+        <span>MapGate</span>
+        <span style="font-size: 12px; font-weight: 400; margin-left: 6px; opacity: 0.8;">Your Gateway to Mapping</span>
+      </div>
+      
+      <div style="flex: 1;"></div>
+      
+      <!-- Quick Actions -->
+      <div style="display: flex; gap: 8px;">
+        <sl-button size="small" variant="neutral" style="--sl-color-neutral-50: rgba(255,255,255,0.1); --sl-color-neutral-600: white;">
+          <span slot="prefix" class="material-icons">help</span>
+          Help
+        </sl-button>
+      </div>
+    </header>
+
+    <!-- Main Content with Tabs -->
+    <main class="main-content" style="height: calc(100vh - 46px); overflow: hidden;">
+      <sl-tab-group style="height: 100%; --sl-panel-background-color: #f8f9fa;">
+        
+        <!-- ShapeForge Tab -->
+        <sl-tab slot="nav" panel="shapeforge">
+          <span class="material-icons" style="margin-right: 8px;">3d_rotation</span>
+          3D Modeler
+        </sl-tab>
+        
+        <!-- 3D Viewer Tab -->
+        <sl-tab slot="nav" panel="viewer">
+          <span class="material-icons" style="margin-right: 8px;">view_in_ar</span>
+          3D Viewer
+        </sl-tab>
+        
+        <!-- Map Editor Tab -->
+        <sl-tab slot="nav" panel="mapeditor">
+          <span class="material-icons" style="margin-right: 8px;">map</span>
+          Map Editor
+        </sl-tab>
+        
+        <!-- Resources Tab -->
+        <sl-tab slot="nav" panel="resources">
+          <span class="material-icons" style="margin-right: 8px;">inventory_2</span>
+          Resources
+        </sl-tab>
+
+        <!-- ShapeForge Panel -->
+        <sl-tab-panel name="shapeforge" style="height: 100%; padding: 0;">
+          <div style="height: 100%; display: flex; flex-direction: column;">
+            <!-- ShapeForge Toolbar -->
+            <div style="padding: 6px 16px; background: white; border-bottom: 1px solid #e1e5e9; display: flex; gap: 8px; align-items: center;">
+              <sl-button size="small" variant="primary" onclick="initializeShapeForgeWorkspace()">
+                <span slot="prefix" class="material-icons">add_box</span>
+                New Object
+              </sl-button>
+              
+              <sl-button size="small" variant="neutral" id="loadObjectBtn">
+                <span slot="prefix" class="material-icons">folder_open</span>
+                Load
+              </sl-button>
+              
+              <sl-button size="small" variant="neutral" id="saveObjectBtn">
+                <span slot="prefix" class="material-icons">save</span>
+                Save
+              </sl-button>
+              
+              <div style="margin-left: auto;">
+                <sl-button size="small" variant="neutral" onclick="showSampleObjects()">
+                  <span slot="prefix" class="material-icons">inventory_2</span>
+                  Browse Samples
+                </sl-button>
+              </div>
+            </div>
+            
+            <!-- ShapeForge Workspace Container -->
+            <div id="shapeforge-workspace" style="flex: 1; background: #f8f9fa;">
+              <!-- Welcome State -->
+              <div id="shapeforge-welcome" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center; padding: 40px;">
+                  <span class="material-icons" style="font-size: 64px; color: #667eea; margin-bottom: 16px;">3d_rotation</span>
+                  <h2 style="margin: 0 0 12px 0; color: #2c3e50;">3D Object Modeler</h2>
+                  <p style="color: #7f8c8d; margin-bottom: 24px;">Create and edit 3D objects with visual effects</p>
+                  <sl-button variant="primary" onclick="initializeShapeForgeWorkspace()">
+                    <span slot="prefix" class="material-icons">add_box</span>
+                    Start Creating
+                  </sl-button>
+                </div>
+              </div>
+              
+              <!-- ShapeForge Editor Container (hidden initially) -->
+              <div id="shapeforge-editor" style="height: calc(100vh - 100px); display: none; overflow: hidden;">
+                <!-- ShapeForge will be rendered here -->
+              </div>
+            </div>
+          </div>
+        </sl-tab-panel>
+
+        <!-- 3D Viewer Panel -->
+        <sl-tab-panel name="viewer" style="height: 100%; padding: 0;">
+          <div style="height: 100%; display: flex; flex-direction: column;">
+            <!-- Viewer Toolbar -->
+            <div style="padding: 16px; background: white; border-bottom: 1px solid #e1e5e9; display: flex; gap: 8px; align-items: center;">
+              <sl-button size="small" variant="primary" onclick="showSampleObjects()">
+                <span slot="prefix" class="material-icons">inventory_2</span>
+                Load Sample
+              </sl-button>
+              
+              <sl-button size="small" variant="neutral" onclick="open3DViewer()">
+                <span slot="prefix" class="material-icons">view_in_ar</span>
+                Open Viewer
+              </sl-button>
+              
+              <div style="margin-left: auto; color: #7f8c8d; font-size: 14px;">
+                WASD: Move | Mouse: Look | E: Exit
+              </div>
+            </div>
+            
+            <!-- 3D Viewer Content -->
+            <div style="flex: 1; position: relative;">
+              <!-- 3D Viewer Container -->
+              <div id="viewer3d" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #1a1a1a; display: none;">
+                <div id="viewer-controls" style="position: absolute; top: 10px; left: 10px; z-index: 100; color: white;">
+                  <div>WASD: Move | Mouse: Look | E: Exit</div>
+                </div>
+              </div>
+              
+              <!-- Welcome Screen for Viewer -->
+              <div id="viewerWelcome" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div style="text-align: center; padding: 40px; background: rgba(255,255,255,0.95); border-radius: 12px; max-width: 400px;">
+                  <span class="material-icons" style="font-size: 64px; color: #667eea; margin-bottom: 16px;">view_in_ar</span>
+                  <h2 style="margin: 0 0 12px 0; color: #2c3e50;">3D Object Viewer</h2>
+                  <p style="color: #7f8c8d; margin-bottom: 24px;">Load and explore 3D objects with immersive controls</p>
+                  <sl-button variant="primary" onclick="showSampleObjects()">
+                    <span slot="prefix" class="material-icons">inventory_2</span>
+                    Browse Objects
+                  </sl-button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sl-tab-panel>
+
+        <!-- Map Editor Panel -->
+        <sl-tab-panel name="mapeditor" style="height: 100%; padding: 0;">
+          <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+            <div style="text-align: center; padding: 40px;">
+              <span class="material-icons" style="font-size: 64px; color: #27ae60; margin-bottom: 16px;">map</span>
+              <h2 style="margin: 0 0 12px 0; color: #2c3e50;">Map Editor</h2>
+              <p style="color: #7f8c8d; margin-bottom: 24px;">Design and build 2D/3D maps and dungeons</p>
+              <sl-button variant="primary" disabled>
+                <span slot="prefix" class="material-icons">construction</span>
+                Coming Soon
+              </sl-button>
+            </div>
+          </div>
+        </sl-tab-panel>
+
+        <!-- Resources Panel -->
+        <sl-tab-panel name="resources" style="height: 100%; padding: 0;">
+          <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+            <div style="text-align: center; padding: 40px;">
+              <span class="material-icons" style="font-size: 64px; color: #e74c3c; margin-bottom: 16px;">inventory_2</span>
+              <h2 style="margin: 0 0 12px 0; color: #2c3e50;">Resource Manager</h2>
+              <p style="color: #7f8c8d; margin-bottom: 24px;">Manage textures, sounds, and other game assets</p>
+              <sl-button id="openResourceDrawerBtn" variant="primary" size="large">
+                <span slot="prefix" class="material-icons">palette</span>
+                Open Resource Manager
+              </sl-button>
+            </div>
+          </div>
+        </sl-tab-panel>
+        
+      </sl-tab-group>
+    </main>
+  </div>
+</body>
+
+</html>

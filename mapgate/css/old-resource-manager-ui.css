@@ -1,0 +1,464 @@
+            .resource-categories {
+                margin-bottom: 1rem;
+            }
+    
+            .gallery-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 1rem;
+                padding: 1rem;
+            }
+    
+            .resource-item {
+                border: 1px solid var(--sl-color-neutral-200);
+                border-radius: var(--sl-border-radius-medium);
+                padding: 0.5rem;
+                transition: all 0.2s ease;
+            }
+    
+            .resource-item:hover {
+                border-color: var(--sl-color-primary-500);
+                transform: translateY(-2px);
+            }
+    
+            .resource-thumbnail {
+                width: 100%;
+                aspect-ratio: 1;
+                object-fit: cover;
+                border-radius: var(--sl-border-radius-small);
+                margin-bottom: 0.5rem;
+            }
+    
+            .resource-info {
+                font-size: var(--sl-font-size-small);
+            }
+
+                .view-controls {
+        margin: 1rem 0;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .gallery-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 1rem;
+    }
+
+    .gallery-list .resource-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.5rem;
+    }
+
+    .gallery-list .resource-thumbnail {
+        width: 50px;
+        height: 50px;
+    }
+
+    .resource-preview-tooltip {
+        position: fixed;
+        z-index: 10000;
+        background: white;
+        padding: 4px;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        pointer-events: none;
+        display: none;
+    }
+
+    .resource-preview-tooltip img {
+        max-width: 200px;
+        max-height: 200px;
+        object-fit: contain;
+    }
+
+        .gallery-container {
+        margin-top: 1rem;
+        min-height: 200px;
+    }
+
+    .gallery-container.gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+    }
+
+    .gallery-container.gallery-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .add-resources {
+        display: flex;
+        gap: 1rem;
+    }
+
+    sl-tab-panel {
+        height: calc(100vh - 200px);
+        overflow-y: auto;
+    }
+
+        .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .flex-spacer {
+        flex: 1;
+    }
+
+    .panel-header sl-button-group {
+        flex: 0 0 auto;
+    }
+
+    .panel-header .material-icons {
+        font-size: 18px;
+    }
+
+    .bestiary-buttons {
+    margin-left: auto;
+}
+
+#bestiaryGallery .resource-item {
+    transition: all 0.2s ease;
+    border: 1px solid var(--sl-color-neutral-200);
+}
+
+#bestiaryGallery .resource-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--sl-color-primary-300);
+}
+
+#bestiaryGallery .resource-name {
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+#bestiaryGallery .resource-meta {
+    font-size: 0.8em;
+    color: var(--sl-color-neutral-600);
+}
+
+#bestiaryGallery .monster-badge {
+    font-size: 0.75rem;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    position: absolute;
+    top: 6px;
+    right: 6px;
+}
+
+.gallery-grid .resource-thumbnail {
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.gallery-list .resource-thumbnail {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.monster-filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.monster-filter-bar sl-select {
+    min-width: 150px;
+}
+
+/* Monster detail dialog styles */
+.monster-detail-dialog::part(panel) {
+    max-width: 800px;
+}
+
+.monster-stat-block {
+    font-family: "Noto Serif", serif;
+    line-height: 1.5;
+}
+
+.monster-stat-block h3 {
+    border-bottom: 1px solid #D3C4A2;
+    padding-bottom: 4px;
+    font-size: 1.3em;
+}
+
+.monster-abilities {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    text-align: center;
+    background: #F5F0E5;
+    padding: 10px;
+    border-radius: 5px;
+    margin: 16px 0;
+}
+
+.monster-ability-name {
+    font-weight: bold;
+}
+
+    .resource-manager-drawer::part(panel) {
+        --size: calc(100vw - 280px);
+        background: #242424;
+        color: #e0e0e0;
+    }
+    
+    .resource-manager-drawer::part(header) {
+        background: #333;
+        padding: 16px;
+        border-bottom: 1px solid #444;
+        height: 48px;
+    }
+    
+    .resource-manager-drawer::part(body) {
+        padding: 0;
+    }
+    
+    .resource-manager-drawer::part(footer) {
+        background: #333;
+        border-top: 1px solid #444;
+        padding: 12px;
+    }
+    
+    /* Tab styling */
+    .resource-manager-drawer sl-tab-group::part(base) {
+        background: #242424;
+    }
+    
+    .resource-manager-drawer sl-tab-group::part(nav) {
+        background: #333;
+        border-bottom: 1px solid #444;
+    }
+    
+    .resource-manager-drawer sl-tab::part(base) {
+        color: #e0e0e0;
+        border: none;
+    }
+    
+    .resource-manager-drawer sl-tab[active]::part(base) {
+        color: #673ab7;
+        border-bottom-color: #673ab7;
+    }
+    
+    .resource-manager-drawer sl-tab-panel::part(base) {
+        padding: 16px;
+    }
+    
+    /* Button styling */
+    .resource-manager-drawer sl-button::part(base) {
+        border: none;
+    }
+    
+    .resource-manager-drawer sl-button[variant='primary']::part(base) {
+        background: #673ab7;
+        color: white;
+    }
+    
+    .resource-manager-drawer sl-button[variant='primary']:hover::part(base) {
+        background: #7e57c2;
+    }
+    
+    .resource-manager-drawer sl-button[variant='default']::part(base) {
+        background: #333;
+        color: #e0e0e0;
+    }
+    
+    .resource-manager-drawer sl-button[variant='default']:hover::part(base) {
+        background: #444;
+    }
+    
+    .resource-manager-drawer sl-button[variant='danger']::part(base) {
+        background: #d32f2f;
+        color: white;
+    }
+    
+    /* Form elements */
+    .resource-manager-drawer sl-input::part(base),
+    .resource-manager-drawer sl-select::part(base),
+    .resource-manager-drawer sl-textarea::part(base) {
+        background: #333;
+        color: #e0e0e0;
+        border-color: #444;
+    }
+    
+    .resource-manager-drawer sl-input:focus-within::part(base),
+    .resource-manager-drawer sl-select:focus-within::part(base),
+    .resource-manager-drawer sl-textarea:focus-within::part(base) {
+        border-color: #673ab7;
+    }
+    
+    /* Card styling */
+    .resource-manager-drawer sl-card::part(base) {
+        background: #333;
+        color: #e0e0e0;
+        border: 1px solid #444;
+    }
+    
+    /* Gallery items */
+    .resource-categories {
+        margin-bottom: 1rem;
+        background: #333;
+        padding: 8px;
+        border-radius: 4px;
+    }
+
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .resource-item {
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 0.5rem;
+        transition: all 0.2s ease;
+        background: #333;
+    }
+
+    .resource-item:hover {
+        border-color: #673ab7;
+        transform: translateY(-2px);
+    }
+
+    .resource-thumbnail {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+    }
+
+    .resource-info {
+        font-size: 0.9rem;
+        color: #e0e0e0;
+    }
+
+    .view-controls {
+        margin: 1rem 0;
+        display: flex;
+        justify-content: flex-end;
+        background: #333;
+        padding: 8px;
+        border-radius: 4px;
+    }
+
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .gallery-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 1rem;
+    }
+    
+    /* Props section styling */
+    .props-tag-sidebar {
+        background: #333 !important;
+        border: 1px solid #444;
+    }
+    
+    .tag-entry {
+        background: #242424 !important;
+        border: 1px solid #444 !important;
+        color: #e0e0e0 !important;
+    }
+    
+    .tag-entry:hover {
+        background: #333 !important;
+    }
+    
+    /* Dialog styling */
+    sl-dialog::part(panel) {
+        background: #242424;
+        color: #e0e0e0;
+    }
+    
+    sl-dialog::part(header) {
+        background: #333;
+        border-bottom: 1px solid #444;
+    }
+    
+    sl-dialog::part(footer) {
+        background: #333;
+        border-top: 1px solid #444;
+    }
+    
+    /* Toast notifications */
+    .notification-toast {
+        background-color: #242424 !important;
+        color: #e0e0e0 !important;
+        border: 1px solid #444;
+    }
+
+        .resource-manager-drawer::part(panel) {
+        --size: calc(100vw - 280px);
+        background: #242424;
+        color: #e0e0e0;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .resource-manager-drawer::part(header) {
+        background: #333;
+        padding: 16px;
+        border-bottom: 1px solid #444;
+        height: 48px;
+        min-height: 48px; /* Ensure consistent height */
+        flex-shrink: 0; /* Prevent shrinking */
+    }
+    
+    .resource-manager-drawer::part(body) {
+        padding: 0;
+        flex: 1; /* Take up available space */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* Important for proper scrolling */
+    }
+    
+    .resource-manager-drawer::part(footer) {
+        background: #333;
+        border-top: 1px solid #444;
+        padding: 12px;
+        flex-shrink: 0; /* Prevent shrinking */
+    }
+    
+    /* Make tab panels fill the container */
+    .resource-manager-drawer sl-tab-group {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .resource-manager-drawer sl-tab-panel::part(base) {
+        height: 100%;
+        overflow-y: auto; /* Allow scrolling within tabs */
+    }
