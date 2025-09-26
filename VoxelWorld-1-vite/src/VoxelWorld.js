@@ -1714,6 +1714,9 @@ class NebulaVoxelApp {
                     const emoji = this.getItemIcon(item.type);
                     const name = item.type.charAt(0).toUpperCase() + item.type.slice(1);
 
+                    // Store item type for transfers
+                    slot.dataset.itemType = item.type;
+
                     // Create item icon
                     const itemIcon = document.createElement('div');
                     itemIcon.textContent = emoji;
@@ -1755,6 +1758,8 @@ class NebulaVoxelApp {
                     slotData.itemCount = item.count;
                 } else {
                     // Empty slot
+                    slot.dataset.itemType = '';
+
                     const emptyIcon = document.createElement('div');
                     emptyIcon.textContent = '📦';
                     emptyIcon.style.cssText = `
@@ -1792,18 +1797,39 @@ class NebulaVoxelApp {
             const itemCount = this.inventory[itemType];
 
             if (itemCount > 0) {
-                // Find first empty backpack slot (placeholder - will implement actual storage later)
-                console.log(`Right-clicked hotbar slot ${hotbarIndex + 1}: ${itemType} (${itemCount} available)`);
-                this.updateStatus(`Would transfer ${itemType} to backpack (feature coming soon)`);
+                // Transfer 1 item from hotbar to general inventory
+                // Note: Backpack shows all non-hotbar items, so just removing from hotbar is enough
+                this.inventory[itemType]--;
+                this.updateHotbarCounts();
+                this.updateBackpackInventoryDisplay();
+                console.log(`Transferred 1 ${itemType} from hotbar to storage`);
+                this.updateStatus(`📦 Moved ${itemType} to storage`, 'success');
             } else {
-                this.updateStatus(`No ${itemType} to transfer`);
+                this.updateStatus(`No ${itemType} to transfer`, 'warning');
             }
         };
 
         // Transfer item from backpack to hotbar
         this.transferItemToHotbar = (backpackIndex) => {
-            console.log(`Right-clicked backpack slot ${backpackIndex + 1}`);
-            this.updateStatus(`Would transfer item to hotbar (feature coming soon)`);
+            // Get the item type from the backpack slot
+            if (!this.backpackSlots || !this.backpackSlots[backpackIndex]) return;
+
+            const slotData = this.backpackSlots[backpackIndex];
+            if (!slotData.element || !slotData.element.dataset.itemType) return;
+
+            const itemType = slotData.element.dataset.itemType;
+            const itemCount = this.inventory[itemType];
+
+            if (itemCount > 0) {
+                // Add 1 item back to inventory for hotbar use
+                this.inventory[itemType]++;
+                this.updateHotbarCounts();
+                this.updateBackpackInventoryDisplay();
+                console.log(`Transferred 1 ${itemType} from storage to hotbar`);
+                this.updateStatus(`🔧 Moved ${itemType} to hotbar`, 'success');
+            } else {
+                this.updateStatus(`No ${itemType} available`, 'warning');
+            }
         };
 
         // Get harvesting time for block type with current tool
@@ -3102,6 +3128,8 @@ class NebulaVoxelApp {
                     if (this.inventory[selectedBlock] > 0) {
                         this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
                         this.inventory[selectedBlock]--;
+                        this.updateHotbarCounts(); // Update hotbar display
+                        this.updateBackpackInventoryDisplay(); // Update backpack display
                         console.log(`Placed ${selectedBlock}, ${this.inventory[selectedBlock]} remaining`);
                     } else {
                         console.log(`No ${selectedBlock} in inventory!`);
