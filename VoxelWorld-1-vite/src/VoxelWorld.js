@@ -64,7 +64,125 @@ class NebulaVoxelApp {
             cube.position.set(x, y, z);
             cube.userData = { type, playerPlaced };
             this.scene.add(cube);
-            this.world[`${x},${y},${z}`] = { type, mesh: cube, playerPlaced };
+
+            // Create billboard sprite for special items
+            let billboard = null;
+            if (this.shouldUseBillboard(type)) {
+                billboard = this.createBillboard(x, y, z, type);
+                if (billboard) {
+                    this.scene.add(billboard);
+                }
+            }
+
+            this.world[`${x},${y},${z}`] = { type, mesh: cube, playerPlaced, billboard };
+        };
+
+        // Check if block type should use billboard
+        this.shouldUseBillboard = (type) => {
+            const billboardTypes = ['backpack']; // Can expand: 'flower', 'crystal', etc.
+            return billboardTypes.includes(type);
+        };
+
+        // Create emoji billboard sprite
+        this.createBillboard = (x, y, z, type) => {
+            const emojiConfig = {
+                backpack: {
+                    emoji: '🎒',
+                    float: true,
+                    rotate: true,
+                    floatSpeed: 2.0,
+                    floatAmount: 0.15
+                },
+                shrub: {
+                    emoji: '🌿',
+                    float: true,
+                    rotate: false,
+                    floatSpeed: 1.0,
+                    floatAmount: 0.08
+                },
+                flower: {
+                    emoji: '🌸',
+                    float: true,
+                    rotate: false,
+                    floatSpeed: 0.8,
+                    floatAmount: 0.05
+                },
+                crystal: {
+                    emoji: '💎',
+                    float: false,
+                    rotate: true,
+                    floatSpeed: 3.0,
+                    floatAmount: 0.0
+                }
+            };
+
+            const config = emojiConfig[type];
+            if (!config) return null;
+
+            // Create canvas with emoji
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            // Clear background
+            ctx.clearRect(0, 0, 128, 128);
+
+            // Draw emoji
+            ctx.font = '96px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(config.emoji, 64, 64);
+
+            // Create texture and sprite
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.LinearFilter;
+            texture.minFilter = THREE.LinearFilter;
+
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                alphaTest: 0.1,
+                sizeAttenuation: true // Proper perspective - smaller when far away
+            });
+
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(x, y + 0.6, z); // Float above block
+            sprite.scale.set(0.8, 0.8, 1); // Size
+
+            // Add floating animation
+            sprite.userData = {
+                type: 'billboard',
+                blockType: type,
+                initialY: y + 0.6,
+                animationTime: Math.random() * Math.PI * 2, // Random start phase
+                config: config // Store animation config
+            };
+
+            return sprite;
+        };
+
+        // Animate floating billboards
+        this.animateBillboards = (currentTime) => {
+            for (const key in this.world) {
+                const worldItem = this.world[key];
+                if (worldItem.billboard && worldItem.billboard.userData.type === 'billboard') {
+                    const billboard = worldItem.billboard;
+                    const userData = billboard.userData;
+                    const config = userData.config;
+
+                    // Floating animation - if enabled
+                    if (config.float) {
+                        userData.animationTime += config.floatSpeed * 0.016; // Assume ~60fps (16ms)
+                        const offset = Math.sin(userData.animationTime) * config.floatAmount;
+                        billboard.position.y = userData.initialY + offset;
+                    }
+
+                    // Rotation animation - if enabled
+                    if (config.rotate) {
+                        billboard.material.rotation += 0.005; // Slow rotation
+                    }
+                }
+            }
         };
 
         this.removeBlock = (x, y, z) => {
@@ -87,6 +205,12 @@ class NebulaVoxelApp {
                 }
 
                 this.scene.remove(this.world[key].mesh);
+
+                // Also remove billboard if it exists
+                if (this.world[key].billboard) {
+                    this.scene.remove(this.world[key].billboard);
+                }
+
                 delete this.world[key];
             }
         };
@@ -461,7 +585,7 @@ class NebulaVoxelApp {
             flowers: { color: 0xFF69B4, texture: 'flower' }, // Hot pink with flower pattern
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
-            backpack: { color: 0x8B4513, texture: 'backpack' } // Leather brown with strap pattern
+            backpack: { color: 0x8B4513, texture: 'transparent' } // Transparent for billboard
         };
 
         // Create textured materials
@@ -635,6 +759,12 @@ class NebulaVoxelApp {
                 return new THREE.MeshLambertMaterial({
                     map: texture,
                     emissive: new THREE.Color(0x444400)
+                });
+            } else if (blockType.texture === 'transparent') {
+                return new THREE.MeshLambertMaterial({
+                    transparent: true,
+                    opacity: 0.0, // Completely invisible
+                    alphaTest: 0.1
                 });
             } else {
                 return new THREE.MeshLambertMaterial({ map: texture });
@@ -1173,7 +1303,10 @@ class NebulaVoxelApp {
             // Calculate delta time for FPS-independent movement
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
-            
+
+            // Animate billboards (even when paused - they should keep floating)
+            this.animateBillboards(currentTime);
+
             // Always continue animation loop, but skip input processing if paused or controls disabled
             if (this.isPaused || !this.controlsEnabled) {
                 // Still render the scene even when paused
