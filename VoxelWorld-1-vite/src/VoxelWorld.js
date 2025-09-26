@@ -717,6 +717,9 @@ class NebulaVoxelApp {
             // Show modal
             this.workbenchModal.style.display = 'block';
             this.updateStatus('🔨 Workbench opened - Create custom objects!', 'craft', false);
+
+            // Show tutorial on first use
+            this.showWorkbenchTutorial();
         };
 
         // Create workbench modal UI
@@ -905,6 +908,27 @@ class NebulaVoxelApp {
                         // Highlight this material
                         materialItem.style.borderColor = '#4CAF50';
                         this.selectedMaterial = materialType;
+                        console.log('📦 Material selected:', materialType);
+
+                        // Auto-select cube shape if no shape is selected
+                        if (!this.selectedShape) {
+                            this.selectedShape = 'cube';
+                            console.log('🔷 Auto-selected cube shape');
+
+                            // Highlight the cube button
+                            setTimeout(() => {
+                                const cubeButton = document.querySelector('button[data-shape="cube"]');
+                                if (cubeButton) {
+                                    // Remove highlight from other shapes
+                                    document.querySelectorAll('button[data-shape]').forEach(btn => {
+                                        btn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                                    });
+                                    // Highlight cube
+                                    cubeButton.style.borderColor = '#2196F3';
+                                }
+                            }, 50);
+                        }
+
                         this.updateWorkbenchPreview();
                         this.updateStatus(`Selected material: ${name}`);
                     });
@@ -961,6 +985,7 @@ class NebulaVoxelApp {
             `;
 
             // Create Three.js scene for 3D preview
+            console.log('🎬 Creating workbench 3D scene...');
             this.workbenchScene = new THREE.Scene();
             this.workbenchScene.background = new THREE.Color(0x0a0a0a);
 
@@ -972,6 +997,12 @@ class NebulaVoxelApp {
             this.workbenchRenderer.setSize(400, 300); // Will resize based on container
             this.workbenchRenderer.shadowMap.enabled = true;
             this.workbenchRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            console.log('✅ Workbench scene created:', {
+                scene: !!this.workbenchScene,
+                camera: !!this.workbenchCamera,
+                renderer: !!this.workbenchRenderer
+            });
 
             // Add lighting
             const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
@@ -1128,6 +1159,7 @@ class NebulaVoxelApp {
 
             shapes.forEach(shape => {
                 const shapeBtn = document.createElement('button');
+                shapeBtn.setAttribute('data-shape', shape.type);
                 shapeBtn.style.cssText = `
                     background: rgba(40, 40, 40, 0.8);
                     border: 2px solid rgba(255, 255, 255, 0.2);
@@ -1151,6 +1183,7 @@ class NebulaVoxelApp {
                     // Highlight this shape
                     shapeBtn.style.borderColor = '#2196F3';
                     this.selectedShape = shape.type;
+                    console.log('🔷 Shape selected:', shape.type);
                     this.updateWorkbenchPreview();
                     this.updateStatus(`Selected shape: ${shape.name}`);
                 });
@@ -1210,6 +1243,7 @@ class NebulaVoxelApp {
                     // Highlight this position
                     positionBtn.style.background = 'rgba(76, 175, 80, 0.8)';
                     this.selectedPosition = { x, y: 0, z }; // Y=0 for now (ground level)
+                    console.log('📍 Position selected:', { x, y: 0, z });
                     this.updateWorkbenchPreview();
                     this.updateStatus(`Position: ${x}, 0, ${z}`);
                 });
@@ -1364,9 +1398,19 @@ class NebulaVoxelApp {
 
         // Update workbench 3D preview based on current selections
         this.updateWorkbenchPreview = () => {
+            console.log('🔧 updateWorkbenchPreview called', {
+                workbenchScene: !!this.workbenchScene,
+                selectedShape: this.selectedShape,
+                selectedMaterial: this.selectedMaterial,
+                selectedPosition: this.selectedPosition
+            });
+
             if (!this.workbenchScene || !this.selectedShape || !this.selectedMaterial) {
+                console.log('⚠️ Preview update skipped - missing requirements');
                 return;
             }
+
+            console.log('✅ Creating 3D preview...');
 
             // Remove current preview object
             if (this.currentPreviewObject) {
@@ -1444,6 +1488,99 @@ class NebulaVoxelApp {
                 }
             };
             rotatePreview();
+        };
+
+        // Show workbench tutorial for first-time users
+        this.showWorkbenchTutorial = () => {
+            // Check if user has seen the tutorial before
+            const tutorialSeen = localStorage.getItem('voxelworld_workbench_tutorial_seen');
+            if (tutorialSeen) return;
+
+            // Create tutorial overlay
+            const tutorialOverlay = document.createElement('div');
+            tutorialOverlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.8);
+                z-index: 5000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: tutorialFadeIn 0.5s ease-out;
+            `;
+
+            const tutorialContent = document.createElement('div');
+            tutorialContent.style.cssText = `
+                background: rgba(30, 30, 30, 0.95);
+                color: white;
+                padding: 30px;
+                border-radius: 12px;
+                max-width: 500px;
+                text-align: center;
+                border: 2px solid #4CAF50;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+                backdrop-filter: blur(8px);
+            `;
+
+            tutorialContent.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 15px;">🔨</div>
+                <h2 style="color: #4CAF50; margin: 0 0 20px 0;">Welcome to the Workbench!</h2>
+                <div style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+                    <div style="margin-bottom: 12px;">📦 <strong>Step 1:</strong> Select a material from the left panel</div>
+                    <div style="margin-bottom: 12px;">🔷 <strong>Step 2:</strong> Choose a shape (cube auto-selected)</div>
+                    <div style="margin-bottom: 12px;">📍 <strong>Step 3:</strong> Pick a position on the 3×3 grid</div>
+                    <div style="margin-bottom: 12px;">✨ <strong>Step 4:</strong> Click "Create Object" to craft!</div>
+                    <div style="margin-top: 15px; font-size: 14px; opacity: 0.8;">
+                        🔄 Use the preview controls to rotate and zoom the 3D preview
+                    </div>
+                </div>
+                <button id="tutorial-got-it" style="
+                    background: linear-gradient(45deg, #4CAF50, #45a049);
+                    border: none;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                ">
+                    Got it! Let's craft! 🚀
+                </button>
+            `;
+
+            // Add animation CSS
+            if (!document.head.querySelector('style[data-tutorial-animation]')) {
+                const style = document.createElement('style');
+                style.setAttribute('data-tutorial-animation', 'true');
+                style.textContent = `
+                    @keyframes tutorialFadeIn {
+                        from { opacity: 0; transform: scale(0.9); }
+                        to { opacity: 1; transform: scale(1); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            tutorialOverlay.appendChild(tutorialContent);
+
+            // Handle "Got it" button
+            const gotItButton = tutorialContent.querySelector('#tutorial-got-it');
+            gotItButton.addEventListener('click', () => {
+                localStorage.setItem('voxelworld_workbench_tutorial_seen', 'true');
+                tutorialOverlay.style.animation = 'tutorialFadeIn 0.3s ease-out reverse';
+                setTimeout(() => {
+                    tutorialOverlay.remove();
+                    this.updateStatus('📦 Select a material to get started!', 'info', false);
+                }, 300);
+            });
+
+            // Add to DOM
+            this.container.appendChild(tutorialOverlay);
         };
 
         // Check for nearby workbench and show interaction prompt
