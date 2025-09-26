@@ -2954,8 +2954,8 @@ class NebulaVoxelApp {
 
             // Mobile camera controls
             if (this.isMobile && this.rightJoystickActive) {
-                const cameraSpeed = 2.0 * deltaTime;
-                this.player.rotation.y += this.rightJoystickValue.x * cameraSpeed;
+                const cameraSpeed = 0.5 * deltaTime;
+                this.player.rotation.y -= this.rightJoystickValue.x * cameraSpeed;
                 this.player.rotation.x += this.rightJoystickValue.y * cameraSpeed;
 
                 // Clamp vertical rotation
