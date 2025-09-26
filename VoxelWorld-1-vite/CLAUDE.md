@@ -111,3 +111,8 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
    - Verify correct items are being placed in voxel world
    - Check if placed items match selected hotbar slot
    - Test harvesting returns correct item types
+
+4. **Check Collision**:
+   - I've upgraded the collision system from point-based to AABB (Axis-Aligned Bounding Box) collision detection.  i m not sure if this is right
+   - Trying to do a minecraft like auto-jump system.
+   - may need to check the collision system for errors
