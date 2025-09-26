@@ -15,18 +15,25 @@ class NebulaVoxelApp {
         this.selectedSlot = 0;
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
+
+        // Punch-to-harvest system
+        this.isHarvesting = false;
+        this.harvestingTarget = null;
+        this.harvestingStartTime = 0;
+        this.harvestingDuration = 0;
         this.inventory = {
-            grass: 50,
-            stone: 30,
-            wood: 25,
-            sand: 20,
-            glass: 15,
-            brick: 10,
-            glowstone: 8,
-            iron: 5,
-            flowers: 0
+            grass: 0,
+            stone: 0,
+            wood: 0,
+            sand: 0,
+            glass: 0,
+            brick: 0,
+            glowstone: 0,
+            iron: 0,
+            flowers: 0,
+            workbench: 0
         };
-        this.hotbarSlots = ['grass', 'stone', 'wood', 'sand', 'glass', 'brick', 'glowstone', 'iron'];
+        this.hotbarSlots = ['grass', 'stone', 'wood', 'workbench', 'glass', 'brick', 'glowstone', 'iron'];
         this.container = container;
         this.controlsEnabled = true;
         this.isPaused = false;
@@ -79,7 +86,7 @@ class NebulaVoxelApp {
 
         // Check if block type should use billboard
         this.shouldUseBillboard = (type) => {
-            const billboardTypes = ['backpack']; // Can expand: 'flower', 'crystal', etc.
+            const billboardTypes = ['backpack', 'shrub']; // Can expand: 'flower', 'crystal', etc.
             return billboardTypes.includes(type);
         };
 
@@ -199,6 +206,7 @@ class NebulaVoxelApp {
                 else if (this.world[key].type === 'backpack' && !this.hasBackpack) {
                     this.hasBackpack = true; // Mark backpack as found
                     this.backpackPosition = null; // Remove from minimap
+                    this.generateBackpackLoot(); // Add random starting items
                     this.showHotbarTutorial(); // Show hotbar and tutorial
                     console.log(`Found backpack! Hotbar unlocked!`);
                     this.updateStatus(`Found backpack! Use 1-4 for quick access, 5 to open storage!`);
@@ -308,6 +316,40 @@ class NebulaVoxelApp {
             console.log(`Backpack spawned at ${backpackX}, ${groundY}, ${backpackZ}`);
         };
 
+        // Generate random loot when backpack is found
+        this.generateBackpackLoot = () => {
+            // Helper function for random range
+            const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
+
+            // Guaranteed items (survival essentials)
+            this.inventory.wood = randomRange(8, 16);      // Always get wood for tools
+            this.inventory.stone = randomRange(4, 10);     // Basic building material
+            this.inventory.workbench = 1;                  // ESSENTIAL - needed for crafting system!
+
+            // Common items (high chance)
+            if (this.seededRandom() > 0.2) this.inventory.sand = randomRange(2, 6);      // 80% chance
+            if (this.seededRandom() > 0.3) this.inventory.grass = randomRange(3, 8);     // 70% chance
+
+            // Uncommon items (medium chance)
+            if (this.seededRandom() > 0.5) this.inventory.glass = randomRange(1, 3);     // 50% chance
+            if (this.seededRandom() > 0.6) this.inventory.brick = randomRange(1, 2);     // 40% chance
+            if (this.seededRandom() > 0.7) this.inventory.flowers = randomRange(1, 3);   // 30% chance
+
+            // Rare items (low chance but exciting!)
+            if (this.seededRandom() > 0.8) this.inventory.glowstone = 1;                 // 20% chance - lucky!
+            if (this.seededRandom() > 0.9) this.inventory.iron = 1;                      // 10% chance - jackpot!
+
+            // Log what we found for excitement
+            const foundItems = [];
+            for (const [item, count] of Object.entries(this.inventory)) {
+                if (count > 0) foundItems.push(`${item}: ${count}`);
+            }
+            console.log(`Backpack contained: ${foundItems.join(', ')}`);
+
+            // Update UI
+            this.updateHotbarCounts();
+        };
+
         // Show hotbar and tutorial after backpack pickup
         this.showHotbarTutorial = () => {
             // Create hotbar if it doesn't exist
@@ -320,11 +362,11 @@ class NebulaVoxelApp {
 
             // Show tutorial message for a few seconds
             setTimeout(() => {
-                this.updateStatus('Hotbar unlocked! Slots 1-4 for quick access, slot 5 opens backpack storage.');
+                this.updateStatus('Backpack found! Check your hotbar - you got random starting supplies!');
             }, 1000);
 
             setTimeout(() => {
-                this.updateStatus('Try harvesting shrubs to collect wood for crafting!');
+                this.updateStatus('Slots 1-4 for quick access, slot 5 opens full inventory. Harvest shrubs for more wood!');
             }, 4000);
         };
 
@@ -412,13 +454,21 @@ class NebulaVoxelApp {
                 // Click handler for slot selection
                 slot.addEventListener('click', () => {
                     if (i === 4) {
-                        // Backpack button clicked - TODO: show backpack interface
-                        this.updateStatus('Backpack interface coming soon!');
+                        // Backpack button clicked - toggle inventory
+                        this.toggleBackpackInventory();
                     } else {
                         this.selectedSlot = i;
                         this.updateHotbarSelection();
                     }
                 });
+
+                // Right-click handler for item transfer to backpack
+                if (i < 4) { // Only for actual hotbar slots, not backpack button
+                    slot.addEventListener('contextmenu', (e) => {
+                        e.preventDefault(); // Prevent context menu
+                        this.transferItemToBackpack(i);
+                    });
+                }
 
                 this.hotbarElement.appendChild(slot);
             }
@@ -433,6 +483,7 @@ class NebulaVoxelApp {
                 grass: '🌱',
                 stone: '🪨',
                 wood: '🪵',
+                workbench: '🔨',
                 sand: '🏖️',
                 glass: '💎',
                 brick: '🧱',
@@ -466,6 +517,308 @@ class NebulaVoxelApp {
                     countElement.textContent = itemCount > 0 ? itemCount : '';
                 }
             }
+        };
+
+        // Toggle backpack inventory slide-down
+        this.toggleBackpackInventory = () => {
+            if (!this.backpackInventoryElement) {
+                this.createBackpackInventory();
+            }
+
+            const isVisible = this.backpackInventoryElement.style.transform.includes('translateY(0px)');
+
+            if (isVisible) {
+                // Slide up (hide) and re-enable pointer lock
+                this.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(-100%)';
+                this.updateStatus('Backpack closed');
+
+                // Re-request pointer lock after a short delay
+                setTimeout(() => {
+                    if (this.controlsEnabled) {
+                        this.renderer.domElement.requestPointerLock();
+                    }
+                }, 100);
+            } else {
+                // Slide down (show) and release pointer lock
+                this.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(0px)';
+                this.updateBackpackInventoryDisplay();
+                this.updateStatus('Backpack opened - 5x5 grid storage');
+
+                // Exit pointer lock to allow cursor interaction
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
+            }
+        };
+
+        // Create backpack inventory UI
+        this.createBackpackInventory = () => {
+            this.backpackInventoryElement = document.createElement('div');
+            this.backpackInventoryElement.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 50%;
+                transform: translateX(-50%) translateY(-100%);
+                width: 400px;
+                background: rgba(40, 40, 40, 0.95);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 0 0 12px 12px;
+                padding: 20px;
+                z-index: 3000;
+                transition: transform 0.3s ease-out;
+                backdrop-filter: blur(8px);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            `;
+
+            // Title header
+            const header = document.createElement('div');
+            header.textContent = '🎒 Backpack Storage (5x5 Grid)';
+            header.style.cssText = `
+                color: white;
+                font-family: monospace;
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 15px;
+                text-align: center;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+                padding-bottom: 10px;
+            `;
+            this.backpackInventoryElement.appendChild(header);
+
+            // 5x5 grid container
+            const gridContainer = document.createElement('div');
+            gridContainer.style.cssText = `
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                gap: 8px;
+                margin-bottom: 15px;
+            `;
+
+            // Create 25 inventory slots (5x5)
+            this.backpackSlots = [];
+            for (let i = 0; i < 25; i++) {
+                const slot = document.createElement('div');
+                slot.className = `backpack-slot slot-${i}`;
+                slot.style.cssText = `
+                    width: 60px;
+                    height: 60px;
+                    background: rgba(60, 60, 60, 0.8);
+                    border: 2px solid #555;
+                    border-radius: 6px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: monospace;
+                    font-size: 10px;
+                    color: white;
+                    cursor: pointer;
+                    position: relative;
+                `;
+
+                // Empty slot content
+                const slotIcon = document.createElement('div');
+                slotIcon.textContent = '📦';
+                slotIcon.style.cssText = `
+                    font-size: 16px;
+                    opacity: 0.3;
+                `;
+                slot.appendChild(slotIcon);
+
+                const slotLabel = document.createElement('div');
+                slotLabel.textContent = 'Empty';
+                slotLabel.style.cssText = `
+                    font-size: 8px;
+                    opacity: 0.5;
+                    margin-top: 2px;
+                `;
+                slot.appendChild(slotLabel);
+
+                // Right-click handler for item transfer to hotbar
+                slot.addEventListener('contextmenu', (e) => {
+                    e.preventDefault(); // Prevent context menu
+                    this.transferItemToHotbar(i);
+                });
+
+                // Store slot reference
+                this.backpackSlots.push({
+                    element: slot,
+                    itemType: null,
+                    itemCount: 0,
+                    maxStack: 8 // Starting stack size
+                });
+
+                gridContainer.appendChild(slot);
+            }
+
+            this.backpackInventoryElement.appendChild(gridContainer);
+
+            // Info footer
+            const footer = document.createElement('div');
+            footer.textContent = 'Click hotbar slots to move items • Each slot holds 8 items (upgradeable)';
+            footer.style.cssText = `
+                color: rgba(255, 255, 255, 0.6);
+                font-family: monospace;
+                font-size: 11px;
+                text-align: center;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                padding-top: 10px;
+            `;
+            this.backpackInventoryElement.appendChild(footer);
+
+            // Close button
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '×';
+            closeButton.style.cssText = `
+                position: absolute;
+                top: 8px;
+                right: 12px;
+                background: none;
+                border: none;
+                color: white;
+                font-size: 20px;
+                cursor: pointer;
+                opacity: 0.7;
+            `;
+            closeButton.addEventListener('click', () => this.toggleBackpackInventory());
+            this.backpackInventoryElement.appendChild(closeButton);
+
+            // Add to container
+            this.container.appendChild(this.backpackInventoryElement);
+        };
+
+        // Update backpack inventory display
+        this.updateBackpackInventoryDisplay = () => {
+            if (!this.backpackSlots) return;
+
+            // For now, just show that the system is ready
+            // Later we'll implement actual item storage logic
+            console.log('Backpack inventory display updated');
+        };
+
+        // Transfer item from hotbar to backpack
+        this.transferItemToBackpack = (hotbarIndex) => {
+            const itemType = this.hotbarSlots[hotbarIndex];
+            const itemCount = this.inventory[itemType];
+
+            if (itemCount > 0) {
+                // Find first empty backpack slot (placeholder - will implement actual storage later)
+                console.log(`Right-clicked hotbar slot ${hotbarIndex + 1}: ${itemType} (${itemCount} available)`);
+                this.updateStatus(`Would transfer ${itemType} to backpack (feature coming soon)`);
+            } else {
+                this.updateStatus(`No ${itemType} to transfer`);
+            }
+        };
+
+        // Transfer item from backpack to hotbar
+        this.transferItemToHotbar = (backpackIndex) => {
+            console.log(`Right-clicked backpack slot ${backpackIndex + 1}`);
+            this.updateStatus(`Would transfer item to hotbar (feature coming soon)`);
+        };
+
+        // Get harvesting time for block type with current tool
+        this.getHarvestTime = (blockType) => {
+            const currentTool = this.hotbarSlots[this.selectedSlot];
+
+            // Base harvest times (in milliseconds)
+            const baseTimes = {
+                grass: 500,
+                wood: 1000,
+                stone: 1500,
+                sand: 300,
+                shrub: 400,
+                backpack: 100, // Quick pickup
+                workbench: 800,
+                brick: 2000,
+                iron: 3000, // Very hard without proper tools
+                glass: 800,
+                glowstone: 1200,
+                flowers: 200
+            };
+
+            // Tool efficiency multipliers
+            const toolEfficiency = {
+                // Fists (no tool)
+                grass: { grass: 1.0, wood: 2.0, stone: 4.0 }, // Grass good for grass, bad for hard materials
+                stone: { stone: 0.7, wood: 1.2, grass: 1.1 }, // Stone tools better for stone
+                wood: { wood: 0.6, grass: 0.8, stone: 2.0 }, // Wood tools best for wood
+                workbench: { wood: 0.8, stone: 1.5 }, // Workbench is a tool itself
+                iron: { stone: 0.5, iron: 0.3, wood: 0.4 }, // Iron tools are best
+                // Other materials default to 1.5x (inefficient as tools)
+            };
+
+            const baseTime = baseTimes[blockType] || 1000;
+            const efficiency = toolEfficiency[currentTool]?.[blockType] || 1.5; // Default slow
+
+            // Some blocks require specific tools
+            if (blockType === 'iron' && !['iron', 'stone'].includes(currentTool)) {
+                return -1; // Cannot harvest without proper tool
+            }
+
+            return Math.floor(baseTime * efficiency);
+        };
+
+        // Start harvesting a block
+        this.startHarvesting = (x, y, z) => {
+            const key = `${x},${y},${z}`;
+            const blockData = this.world[key];
+
+            if (!blockData) return;
+
+            const harvestTime = this.getHarvestTime(blockData.type);
+
+            // Check if block can be harvested with current tool
+            if (harvestTime === -1) {
+                this.updateStatus(`Cannot harvest ${blockData.type} without proper tools!`);
+                return;
+            }
+
+            // Stop any existing harvesting
+            this.stopHarvesting();
+
+            // Start new harvesting
+            this.isHarvesting = true;
+            this.harvestingTarget = { x, y, z, blockType: blockData.type };
+            this.harvestingStartTime = Date.now();
+            this.harvestingDuration = harvestTime;
+
+            console.log(`Starting to harvest ${blockData.type} (${harvestTime}ms)`);
+            this.updateStatus(`Harvesting ${blockData.type}... (${(harvestTime/1000).toFixed(1)}s)`);
+        };
+
+        // Stop harvesting
+        this.stopHarvesting = () => {
+            if (this.isHarvesting) {
+                this.isHarvesting = false;
+                this.harvestingTarget = null;
+                console.log('Harvesting stopped');
+            }
+        };
+
+        // Update harvesting progress (called in game loop)
+        this.updateHarvesting = () => {
+            if (!this.isHarvesting || !this.harvestingTarget) return;
+
+            const elapsed = Date.now() - this.harvestingStartTime;
+            const progress = elapsed / this.harvestingDuration;
+
+            if (progress >= 1.0) {
+                // Harvesting complete!
+                const { x, y, z } = this.harvestingTarget;
+                this.completeHarvesting(x, y, z);
+            } else {
+                // Update progress display
+                const remaining = ((this.harvestingDuration - elapsed) / 1000).toFixed(1);
+                this.updateStatus(`Harvesting... ${remaining}s remaining`);
+            }
+        };
+
+        // Complete harvesting and remove block
+        this.completeHarvesting = (x, y, z) => {
+            console.log('Harvesting completed!');
+            this.removeBlock(x, y, z); // Use existing removal logic
+            this.stopHarvesting();
+            this.updateStatus('Block harvested!');
         };
 
         // Initialize seed system
@@ -585,7 +938,8 @@ class NebulaVoxelApp {
             flowers: { color: 0xFF69B4, texture: 'flower' }, // Hot pink with flower pattern
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
-            backpack: { color: 0x8B4513, texture: 'transparent' } // Transparent for billboard
+            backpack: { color: 0x8B4513, texture: 'transparent' }, // Transparent for billboard
+            workbench: { color: 0x8B7355, texture: 'workbench' } // Tan brown workbench
         };
 
         // Create textured materials
@@ -743,6 +1097,33 @@ class NebulaVoxelApp {
                 for (let i = 0; i < 12; i++) {
                     ctx.fillRect(12 + Math.random() * 40, 12 + Math.random() * 40, 2, 1);
                 }
+            } else if (blockType.texture === 'workbench') {
+                // Workbench texture - wood with tool marks
+                ctx.globalAlpha = 0.4;
+                // Wood grain
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 8; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 8 + i * 6);
+                    ctx.lineTo(64, 8 + i * 6);
+                    ctx.stroke();
+                }
+                // Tool marks and scratches
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(16, 20);
+                ctx.lineTo(48, 44);
+                ctx.moveTo(20, 40);
+                ctx.lineTo(44, 20);
+                ctx.stroke();
+                // Corner reinforcements
+                ctx.fillStyle = '#444444';
+                ctx.fillRect(4, 4, 6, 6);
+                ctx.fillRect(54, 4, 6, 6);
+                ctx.fillRect(4, 54, 6, 6);
+                ctx.fillRect(54, 54, 6, 6);
             }
 
             const texture = new THREE.CanvasTexture(canvas);
@@ -1450,6 +1831,9 @@ class NebulaVoxelApp {
             // Update mini-map
             this.updateMiniMap();
 
+            // Update harvesting progress
+            this.updateHarvesting();
+
             this.renderer.render(this.scene, this.camera);
         };
         animate();
@@ -1475,24 +1859,32 @@ class NebulaVoxelApp {
                 e.preventDefault();
             }
             
-            // Hotbar selection (1-9)
+            // Hotbar selection (1-4) and backpack toggle (5)
             if (key >= '1' && key <= '9') {
                 const slot = parseInt(key) - 1;
-                if (slot < this.hotbarSlots.length) {
+                if (slot < this.hotbarSlots.length && slot < 4) {
+                    // Keys 1-4: Select hotbar slots
                     this.selectedSlot = slot;
+                    this.updateHotbarSelection();
                     console.log(`Selected hotbar slot ${slot + 1}: ${this.hotbarSlots[slot]}`);
+                    e.preventDefault();
+                } else if (key === '5' && this.hasBackpack) {
+                    // Key 5: Toggle backpack inventory
+                    this.toggleBackpackInventory();
+                    e.preventDefault();
                 }
-                e.preventDefault();
             }
             
             // Q and E for hotbar navigation
             if (key === 'q') {
                 this.selectedSlot = (this.selectedSlot - 1 + this.hotbarSlots.length) % this.hotbarSlots.length;
+                this.updateHotbarSelection();
                 console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
                 e.preventDefault();
             }
             if (key === 'e') {
                 this.selectedSlot = (this.selectedSlot + 1) % this.hotbarSlots.length;
+                this.updateHotbarSelection();
                 console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
                 e.preventDefault();
             }
@@ -1560,8 +1952,8 @@ class NebulaVoxelApp {
                 const hit = intersects[0];
                 const pos = hit.object.position.clone();
                 
-                if (e.button === 0) { // Left click - remove block
-                    this.removeBlock(pos.x, pos.y, pos.z);
+                if (e.button === 0) { // Left click - start harvesting
+                    this.startHarvesting(pos.x, pos.y, pos.z);
                 } else if (e.button === 2) { // Right click - place block
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
@@ -1581,6 +1973,11 @@ class NebulaVoxelApp {
         const mouseupHandler = (e) => {
             // Reset highlight color to default (green for placement)
             this.targetHighlight.material.color.setHex(0x00ff00);
+
+            // Stop harvesting when left mouse button is released
+            if (e.button === 0) {
+                this.stopHarvesting();
+            }
         };
         
         document.addEventListener('mousedown', mousedownHandler);
@@ -1882,9 +2279,14 @@ class NebulaVoxelApp {
         // Block placement on mobile (tap on screen)
         this.renderer.domElement.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1 && !this.leftJoystickActive && !this.rightJoystickActive) {
-                // Single tap for block placement/removal
-                this.handleMobileBlockInteraction(e.touches[0]);
+                // Single tap to start harvesting
+                this.handleMobileTouchStart(e.touches[0]);
             }
+        });
+
+        this.renderer.domElement.addEventListener('touchend', (e) => {
+            // Stop harvesting when touch ends
+            this.stopHarvesting();
         });
     }
 
@@ -1923,7 +2325,7 @@ class NebulaVoxelApp {
     }
 
     // Handle mobile block placement/removal
-    handleMobileBlockInteraction(touch) {
+    handleMobileTouchStart(touch) {
         // Update raycaster for touch position
         const rect = this.renderer.domElement.getBoundingClientRect();
         const x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
@@ -1936,10 +2338,8 @@ class NebulaVoxelApp {
             const hit = intersects[0];
             const pos = hit.object.position.clone();
 
-            // For mobile, we'll use a simple tap-to-remove, double-tap-to-place system
-            // For now, just remove blocks on tap
-            this.removeBlock(pos.x, pos.y, pos.z);
-            this.updateStatus('Block removed (tap to remove)');
+            // Start harvesting on mobile touch and hold
+            this.startHarvesting(pos.x, pos.y, pos.z);
         }
     }
 }
