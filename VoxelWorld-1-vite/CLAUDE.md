@@ -39,6 +39,11 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 
 - **Chunk System**: 8x8 block chunks with configurable render distance
 - **Biome Generation**: Height-based terrain with biome-specific materials and colors
+- **Resource Gathering**: Shrub spawning system with biome-specific spawn rates
+- **Billboard System**: Floating emoji sprites for collectibles (backpack 🎒, shrubs 🌿)
+- **Discovery-Based Progression**: Backpack must be found to unlock inventory system
+- **Inventory Management**: 5x5 backpack grid with slide-down UI animation
+- **Tool-Based Harvesting**: Minecraft-style punch-to-harvest with tool efficiency
 - **Mobile Support**: Automatic device detection with virtual joysticks
 - **Performance Scaling**: Automatic render distance adjustment based on device performance
 - **Material System**: Procedural textures for different block types with normal/player-placed variants
@@ -50,8 +55,38 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - **Electron** - Desktop application wrapper
 - **Capacitor** - Mobile app framework (configured but not actively used)
 
+## Game Controls
+
+### Keyboard Controls
+- **WASD** - Movement
+- **Space** - Jump
+- **Mouse** - Look around (requires pointer lock)
+- **Left Click** - Hold to harvest blocks (tool-based efficiency)
+- **Right Click** - Place blocks from inventory
+- **Keys 1-4** - Select hotbar slots
+- **Key 5** - Toggle backpack inventory (releases/captures mouse pointer)
+- **Q/E** - Navigate hotbar slots
+
+### Mobile Controls
+- **Left Joystick** - Movement
+- **Right Joystick** - Look around
+- **Touch Hotbar** - Select items
+
+### Game Progression
+1. **Find the Backpack** - Red dot on minimap shows location
+2. **Harvest Resources** - Different tools have different efficiency
+3. **Manage Inventory** - 4-slot hotbar + 25-slot backpack storage
+4. **Tool Requirements** - Some blocks require specific tools (iron needs iron/stone tools)
+
 ## Development Notes
 
 The project uses ES modules throughout. The main application initializes VoxelWorld in fullscreen mode by default. A workbench mode is planned but not yet implemented (ShapeForgeWorkbench.js).
 
 The VoxelWorld class is fully self-contained with its own event handlers, save system, and UI elements. Performance is automatically optimized through chunk culling and device-specific render distance settings.
+
+### Recent Updates
+- Billboard system for collectibles with floating animations
+- Tool-based harvesting with efficiency calculations
+- Backpack discovery system with random loot generation
+- Keyboard hotbar selection with visual feedback
+- Pointer lock management for inventory interaction
