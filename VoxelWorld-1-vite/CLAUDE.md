@@ -96,23 +96,88 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Smart Notifications**: Enhanced notification system with icons and auto-dismiss
 - **Proximity Interaction**: Press E near workbench to open crafting interface
 
+### Latest Session - Collision System Overhaul
+- **Removed Auto-Jump System**: Eliminated problematic auto-jump that caused continuous jumping bugs
+- **Implemented Hitbox Collision**: Replaced point-based collision with industry-standard AABB hitbox system
+- **Player Hitbox**: 0.6w × 1.8h × 0.6d units with full volume coverage
+- **Block Hitboxes**: Perfect 1×1×1 cube collision detection
+- **Wall Sliding Preserved**: Maintains smooth movement along obstacles
+- **Issues Remaining**: Still has collision bypasses with multi-block structures (2+ stacked blocks)
+
 ### Next Session TODO
 1. **Fix 3D Preview**: Investigate `../mapgate/` ShapeForge system for working 3D preview implementation
    - Study how the 3D preview renders materials and shapes
    - Adapt/salvage code for workbench 3D preview area
    - Current issue: 3D preview not showing when selecting wood + cube
 
-2. **UI Updates for Item Transfers**:
+2. **Code Architecture Refactoring** (HIGH PRIORITY):
+   VoxelWorld.js has grown too large (~3700+ lines) and needs logical separation:
+   - **Physics.js**: Extract collision system, movement, gravity, and physics utilities
+   - **BlockTypes.js**: Extract block definitions, properties, material systems
+   - **WorldGeneration.js**: Extract chunk system, biome generation, terrain generation
+   - **PlayerController.js**: Extract player movement, input handling, camera controls
+   - **InventorySystem.js**: Extract backpack, hotbar, item management
+   - **SaveLoadSystem.js**: Extract save/load with LocalStorage → IndexedDB migration for large worlds
+   - **UI.js**: Extract notifications, minimap, status bar, mobile joysticks
+   - **Workbench.js**: Extract workbench modal and crafting system
+   - Keep VoxelWorld.js as main orchestrator class
+
+3. **Collision System Refinement** (OPTIONAL):
+   - Current hitbox system still allows clipping through multi-block structures
+   - Consider swept AABB or continuous collision detection for better accuracy
+   - May need to implement collision response with proper separation resolution
+
+4. **UI Updates for Item Transfers**:
    - Emoji icons don't update when items move between hotbar/backpack
    - Need real-time visual feedback for inventory changes
    - Ensure correct items are displayed after transfers
 
-3. **Item Placement Verification**:
-   - Verify correct items are being placed in voxel world
-   - Check if placed items match selected hotbar slot
-   - Test harvesting returns correct item types
+### Future Feature Ideas
 
-4. **Check Collision**:
-   - I've upgraded the collision system from point-based to AABB (Axis-Aligned Bounding Box) collision detection.  i m not sure if this is right
-   - Trying to do a minecraft like auto-jump system.
-   - may need to check the collision system for errors
+#### **Core Gameplay Enhancements**
+- **Block Variants**: Add stone bricks, wooden planks, glass, metal blocks for building variety
+- **Multi-Block Structures**: Doors, windows, stairs, slabs for detailed construction
+- **Water/Liquid System**: Flowing water, lakes, rivers with realistic physics
+- **Lighting System**: Torches, lanterns, dynamic shadows, proper day/night lighting
+- **Weather**: Rain, snow, fog effects that affect visibility and gameplay
+- **Sound System**: Ambient sounds, block placement/breaking sounds, footsteps, music
+
+#### **Advanced Crafting & Progression**
+- **Recipe Discovery**: Unlock recipes by finding/combining materials
+- **Tool Durability**: Tools wear out and need repair/replacement
+- **Advanced Workbench**: Multi-step recipes, furnaces for smelting
+- **Automation**: Conveyor belts, automated mining, item sorters
+- **Redstone-like System**: Wires, switches, logic gates for contraptions
+
+#### **World Features**
+- **Caves & Dungeons**: Underground exploration with rare materials
+- **Structures**: Villages, ruins, towers with loot and NPCs
+- **Biome-Specific Resources**: Unique materials only found in certain biomes
+- **Vertical World**: Much taller worlds with sky islands and deep caverns
+- **World Borders**: Defined playable area with visual boundaries
+
+#### **Technical Improvements**
+- **Save/Load Optimization**: Compress world data, faster loading
+- **Multiplayer Foundation**: Client-server architecture for future multiplayer
+- **Mod System**: Plugin architecture for custom blocks/items/features
+- **Performance**: Level-of-detail for distant chunks, occlusion culling
+- **Mobile Optimization**: Better touch controls, UI scaling, performance
+
+#### **Player Experience**
+- **Minecraft-Compatible Avatars**: Support MC skin format (64x64 PNG textures)
+  - Players provide skin URL (only store URL, fetch on load)
+  - Standard Steve/Alex box model with Three.js geometry
+  - Animated arms/legs for walking, tool swinging
+  - Familiar avatar system for instant personalization
+- **Material Icons for Tools**: Replace emoji with Google Material Icons
+  - Better scaling and recognition for tool indicators
+  - Professional look: ⛏️ pickaxe, 🔨 hammer, ⚒️ engineering tools
+  - Consistent UI design with scalable vector graphics
+
+#### **Quality of Life**
+- **Creative Mode**: Unlimited resources, flying, instant block placement
+- **Spectator Mode**: Fly through blocks, observe without interaction
+- **Screenshots**: Built-in screenshot system with metadata
+- **World Export**: Export builds as 3D models or images
+- **Undo System**: Ctrl+Z for recent block changes
+- **Copy/Paste**: Select and duplicate sections of builds
