@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Electron build outputs
+dist-electron/
+build/
+release/
+
+# Capacitor
+android/
+ios/
+capacitor.config.json
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini

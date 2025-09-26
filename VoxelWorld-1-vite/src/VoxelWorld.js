@@ -1519,10 +1519,20 @@ class NebulaVoxelApp {
 }
 
 export async function initVoxelWorld(container) {
-    const app = new NebulaVoxelApp(container);
+    console.log('🔧 initVoxelWorld called with container:', container);
+    
+    try {
+        const app = new NebulaVoxelApp(container);
+        console.log('📱 NebulaVoxelApp created');
 
-    // Run performance benchmark on first load
-    await app.runPerformanceBenchmark();
+        // Run performance benchmark on first load
+        console.log('🏃 Running performance benchmark...');
+        await app.runPerformanceBenchmark();
+        console.log('✅ Performance benchmark completed');
 
-    return app;
+        return app;
+    } catch (error) {
+        console.error('❌ Error in initVoxelWorld:', error);
+        throw error;
+    }
 }
