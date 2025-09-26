@@ -90,3 +90,24 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - Backpack discovery system with random loot generation
 - Keyboard hotbar selection with visual feedback
 - Pointer lock management for inventory interaction
+- **Workbench System**: Interactive workbench modal with material selection, shape builder, and 3D preview area
+- **Full Inventory Management**: Right-click transfers between hotbar and backpack storage
+- **Item Placement/Harvesting**: Items properly removed from inventory when placed, harvestable back
+- **Smart Notifications**: Enhanced notification system with icons and auto-dismiss
+- **Proximity Interaction**: Press E near workbench to open crafting interface
+
+### Next Session TODO
+1. **Fix 3D Preview**: Investigate `../mapgate/` ShapeForge system for working 3D preview implementation
+   - Study how the 3D preview renders materials and shapes
+   - Adapt/salvage code for workbench 3D preview area
+   - Current issue: 3D preview not showing when selecting wood + cube
+
+2. **UI Updates for Item Transfers**:
+   - Emoji icons don't update when items move between hotbar/backpack
+   - Need real-time visual feedback for inventory changes
+   - Ensure correct items are displayed after transfers
+
+3. **Item Placement Verification**:
+   - Verify correct items are being placed in voxel world
+   - Check if placed items match selected hotbar slot
+   - Test harvesting returns correct item types
