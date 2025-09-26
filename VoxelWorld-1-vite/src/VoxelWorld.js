@@ -2851,7 +2851,7 @@ class NebulaVoxelApp {
             }
             
             const speed = 4.0; // Units per second
-            const jumpSpeed = 8.0; // Jump velocity
+            const jumpSpeed = 9.0; // Jump velocity - increased for 2-block obstacles, was 8.0
             const gravity = 20.0; // Gravity acceleration
             
             // Handle movement
@@ -2887,6 +2887,33 @@ class NebulaVoxelApp {
                 const hasBlock = this.world[key] && this.world[key] !== 'air';
                 return hasBlock;
             };
+
+            // Player bounding box collision check
+            const checkPlayerCollision = (x, y, z) => {
+                const playerWidth = 0.8; // Player width/depth - increased for better collision
+                const playerHeight = 1.8; // Player height
+                const halfWidth = playerWidth / 2;
+
+                // Check blocks that the player's bounding box would occupy
+                const minX = Math.floor(x - halfWidth);
+                const maxX = Math.floor(x + halfWidth);
+                const minZ = Math.floor(z - halfWidth);
+                const maxZ = Math.floor(z + halfWidth);
+                const minY = Math.floor(y);
+                const maxY = Math.floor(y + playerHeight);
+
+                for (let bx = minX; bx <= maxX; bx++) {
+                    for (let bz = minZ; bz <= maxZ; bz++) {
+                        for (let by = minY; by <= maxY; by++) {
+                            const key = `${bx},${by},${bz}`;
+                            if (this.world[key] && this.world[key] !== 'air') {
+                                return true; // Collision detected
+                            }
+                        }
+                    }
+                }
+                return false; // No collision
+            };
             
             // Apply horizontal movement FIRST (before gravity/ground collision)
             const moveSpeed = speed * deltaTime;
@@ -2897,8 +2924,16 @@ class NebulaVoxelApp {
                 const currentY = Math.floor(this.player.position.y);
                 
                 // Check for wall collision at current height only
-                if (!checkBlockCollision(newX, currentY, this.player.position.z)) {
+                if (!checkPlayerCollision(newX, currentY, this.player.position.z)) {
                     this.player.position.x = newX;
+                } else {
+                    // Auto-jump: check if we can jump over a 1-2 block high obstacle
+                    if (!checkPlayerCollision(newX, currentY + 1, this.player.position.z) &&
+                        !checkPlayerCollision(newX, currentY + 2, this.player.position.z) &&
+                        Math.abs(this.player.velocity) < 0.1) { // on ground
+                        this.player.velocity = 8.0; // jump
+                        this.player.position.x = newX;
+                    }
                 }
             }
             
@@ -2908,8 +2943,16 @@ class NebulaVoxelApp {
                 const currentY = Math.floor(this.player.position.y);
                 
                 // Check for wall collision at current height only
-                if (!checkBlockCollision(this.player.position.x, currentY, newZ)) {
+                if (!checkPlayerCollision(this.player.position.x, currentY, newZ)) {
                     this.player.position.z = newZ;
+                } else {
+                    // Auto-jump: check if we can jump over a 1-2 block high obstacle
+                    if (!checkPlayerCollision(this.player.position.x, currentY + 1, newZ) &&
+                        !checkPlayerCollision(this.player.position.x, currentY + 2, newZ) &&
+                        Math.abs(this.player.velocity) < 0.1) { // on ground
+                        this.player.velocity = 8.0; // jump
+                        this.player.position.z = newZ;
+                    }
                 }
             }
             
