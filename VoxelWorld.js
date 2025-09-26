@@ -11,21 +11,25 @@
 //
 // This represents the first fully functional game created for the NebulaDesktop platform!
 
+
+export function initVoxelWorld(container) {
+    // VoxelWorldApp rewritten for web
+    const app = new NebulaVoxelApp(container);
+    return app;
+}
+
 class NebulaVoxelApp {
-    constructor() {
-        this.windowId = null;
+    constructor(container) {
         this.world = {};
-        this.loadedChunks = new Set(); // Track which chunks are loaded
-        this.chunkSize = 12; // Smaller chunks for better performance
-        this.renderDistance = 2; // Reduced render distance (5x5 chunks)
+        this.loadedChunks = new Set();
+        this.chunkSize = 12;
+        this.renderDistance = 2;
         this.player = {
-            position: { x: 0, y: 10, z: 0 }, // Start higher up and centered
+            position: { x: 0, y: 10, z: 0 },
             rotation: { x: 0, y: 0 }
         };
         this.keys = {};
-        this.selectedSlot = 0; // Currently selected hotbar slot
-        
-        // Expanded inventory system
+        this.selectedSlot = 0;
         this.inventory = {
             grass: 50,
             stone: 30,
@@ -35,45 +39,27 @@ class NebulaVoxelApp {
             brick: 10,
             glowstone: 8,
             iron: 5,
-            flowers: 0 // Collectible
+            flowers: 0
         };
-        
-        // Hotbar slots (what shows in the vertical bar)
         this.hotbarSlots = ['grass', 'stone', 'wood', 'sand', 'glass', 'brick', 'glowstone', 'iron'];
-        
-        // Three.js objects for cleanup
         this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.animationId = null;
         this.eventListeners = [];
-        
+        this.container = container;
         this.init();
     }
 
     async init() {
-        if (!window.windowManager) {
-            console.error('WindowManager not available');
-            return;
-        }
-
-        this.windowId = window.windowManager.createWindow({
-            title: 'Voxel World',
-            width: 1000,
-            height: 720,
-            resizable: true,
-            maximizable: true,
-            minimizable: true
-        });
-
-        window.windowManager.loadApp(this.windowId, this);
-        console.log(`VoxelApp initialized with window ${this.windowId}`);
+        // Create and attach Three.js renderer to the provided container
+        this.render();
     }
 
     render() {
-        const container = document.createElement('div');
-        container.className = 'voxelapp-container';
-        container.style.cssText = `
+        // Use the provided container for rendering
+        this.container.className = 'voxelapp-container';
+        this.container.style.cssText = `
             width: 100%;
             height: 100%;
             display: flex;
