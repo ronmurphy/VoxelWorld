@@ -13,6 +13,8 @@ class NebulaVoxelApp {
         };
         this.keys = {};
         this.selectedSlot = 0;
+        this.hasBackpack = false; // Track if player found backpack
+        this.backpackPosition = null; // Track backpack location for minimap
         this.inventory = {
             grass: 50,
             stone: 30,
@@ -68,6 +70,22 @@ class NebulaVoxelApp {
         this.removeBlock = (x, y, z) => {
             const key = `${x},${y},${z}`;
             if (this.world[key]) {
+                // Check if it's a shrub for harvesting
+                if (this.world[key].type === 'shrub') {
+                    this.inventory.wood += 1; // Add 1 wood to inventory
+                    console.log(`Harvested shrub! Wood: ${this.inventory.wood}`);
+                    this.updateStatus(`Harvested shrub! Wood: ${this.inventory.wood}`);
+                    this.updateHotbarCounts(); // Update hotbar display
+                }
+                // Check if it's a backpack for pickup
+                else if (this.world[key].type === 'backpack' && !this.hasBackpack) {
+                    this.hasBackpack = true; // Mark backpack as found
+                    this.backpackPosition = null; // Remove from minimap
+                    this.showHotbarTutorial(); // Show hotbar and tutorial
+                    console.log(`Found backpack! Hotbar unlocked!`);
+                    this.updateStatus(`Found backpack! Use 1-4 for quick access, 5 to open storage!`);
+                }
+
                 this.scene.remove(this.world[key].mesh);
                 delete this.world[key];
             }
@@ -133,7 +151,197 @@ class NebulaVoxelApp {
             // Reload initial chunks
             this.updateChunks();
 
+            // Spawn backpack near starting position
+            this.spawnStartingBackpack();
+
             this.updateStatus(`New world generated with seed: ${this.worldSeed}`);
+        };
+
+        // Spawn backpack near player starting position
+        this.spawnStartingBackpack = () => {
+            if (this.hasBackpack) return; // Don't spawn if already found
+
+            // Find a good spot 3-6 blocks away from spawn
+            const spawnRadius = 3 + Math.floor(this.seededRandom() * 4); // 3-6 blocks away
+            const angle = this.seededRandom() * Math.PI * 2; // Random direction
+
+            const backpackX = Math.floor(Math.cos(angle) * spawnRadius);
+            const backpackZ = Math.floor(Math.sin(angle) * spawnRadius);
+
+            // Find ground level at that position
+            let groundY = 0;
+            for (let y = 5; y >= -5; y--) {
+                const key = `${backpackX},${y},${backpackZ}`;
+                if (this.world[key]) {
+                    groundY = y + 1; // Place on top of ground
+                    break;
+                }
+            }
+
+            // Place backpack on ground
+            this.addBlock(backpackX, groundY, backpackZ, 'backpack', false);
+            this.backpackPosition = { x: backpackX, z: backpackZ }; // Store for minimap
+            console.log(`Backpack spawned at ${backpackX}, ${groundY}, ${backpackZ}`);
+        };
+
+        // Show hotbar and tutorial after backpack pickup
+        this.showHotbarTutorial = () => {
+            // Create hotbar if it doesn't exist
+            if (!this.hotbarElement) {
+                this.createHotbar();
+            }
+
+            // Show the hotbar
+            this.hotbarElement.style.display = 'flex';
+
+            // Show tutorial message for a few seconds
+            setTimeout(() => {
+                this.updateStatus('Hotbar unlocked! Slots 1-4 for quick access, slot 5 opens backpack storage.');
+            }, 1000);
+
+            setTimeout(() => {
+                this.updateStatus('Try harvesting shrubs to collect wood for crafting!');
+            }, 4000);
+        };
+
+        // Create the hotbar UI element
+        this.createHotbar = () => {
+            this.hotbarElement = document.createElement('div');
+            this.hotbarElement.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: none;
+                flex-direction: row;
+                gap: 8px;
+                background: rgba(0, 0, 0, 0.8);
+                padding: 12px;
+                border-radius: 8px;
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                z-index: 2000;
+                pointer-events: auto;
+                backdrop-filter: blur(4px);
+            `;
+
+            // Create 5 hotbar slots
+            for (let i = 0; i < 5; i++) {
+                const slot = document.createElement('div');
+                slot.className = `hotbar-slot slot-${i}`;
+                slot.style.cssText = `
+                    width: 60px;
+                    height: 60px;
+                    background: rgba(50, 50, 50, 0.9);
+                    border: 2px solid ${i === this.selectedSlot ? '#FFD700' : '#666'};
+                    border-radius: 8px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: monospace;
+                    font-size: 10px;
+                    color: white;
+                    position: relative;
+                    cursor: pointer;
+                `;
+
+                // Add slot number
+                const slotNumber = document.createElement('div');
+                slotNumber.textContent = i + 1;
+                slotNumber.style.cssText = `
+                    position: absolute;
+                    top: 2px;
+                    left: 4px;
+                    font-size: 8px;
+                    opacity: 0.7;
+                `;
+                slot.appendChild(slotNumber);
+
+                // Slot 5 is special - it's the backpack button
+                if (i === 4) {
+                    const backpackIcon = document.createElement('div');
+                    backpackIcon.textContent = '🎒';
+                    backpackIcon.style.fontSize = '20px';
+                    slot.appendChild(backpackIcon);
+
+                    const label = document.createElement('div');
+                    label.textContent = 'BAG';
+                    label.style.fontSize = '8px';
+                    slot.appendChild(label);
+                } else {
+                    // Regular inventory slots
+                    const itemName = this.hotbarSlots[i];
+                    const itemCount = this.inventory[itemName] || 0;
+
+                    const itemIcon = document.createElement('div');
+                    itemIcon.textContent = this.getItemIcon(itemName);
+                    itemIcon.style.fontSize = '16px';
+                    slot.appendChild(itemIcon);
+
+                    const itemCountDiv = document.createElement('div');
+                    itemCountDiv.textContent = itemCount > 0 ? itemCount : '';
+                    itemCountDiv.className = `item-count-${i}`;
+                    itemCountDiv.style.fontSize = '10px';
+                    slot.appendChild(itemCountDiv);
+                }
+
+                // Click handler for slot selection
+                slot.addEventListener('click', () => {
+                    if (i === 4) {
+                        // Backpack button clicked - TODO: show backpack interface
+                        this.updateStatus('Backpack interface coming soon!');
+                    } else {
+                        this.selectedSlot = i;
+                        this.updateHotbarSelection();
+                    }
+                });
+
+                this.hotbarElement.appendChild(slot);
+            }
+
+            // Add to the container
+            this.container.appendChild(this.hotbarElement);
+        };
+
+        // Get emoji icon for item types
+        this.getItemIcon = (itemType) => {
+            const icons = {
+                grass: '🌱',
+                stone: '🪨',
+                wood: '🪵',
+                sand: '🏖️',
+                glass: '💎',
+                brick: '🧱',
+                glowstone: '✨',
+                iron: '⚙️',
+                flowers: '🌸'
+            };
+            return icons[itemType] || '❓';
+        };
+
+        // Update hotbar visual selection
+        this.updateHotbarSelection = () => {
+            if (!this.hotbarElement) return;
+
+            const slots = this.hotbarElement.querySelectorAll('.hotbar-slot');
+            slots.forEach((slot, index) => {
+                slot.style.border = index === this.selectedSlot ?
+                    '2px solid #FFD700' : '2px solid #666';
+            });
+        };
+
+        // Update hotbar item counts
+        this.updateHotbarCounts = () => {
+            if (!this.hotbarElement) return;
+
+            for (let i = 0; i < 4; i++) {
+                const itemName = this.hotbarSlots[i];
+                const itemCount = this.inventory[itemName] || 0;
+                const countElement = this.hotbarElement.querySelector(`.item-count-${i}`);
+                if (countElement) {
+                    countElement.textContent = itemCount > 0 ? itemCount : '';
+                }
+            }
         };
 
         // Initialize seed system
@@ -251,7 +459,9 @@ class NebulaVoxelApp {
             glowstone: { color: 0xFFD700, texture: 'glow' }, // Gold with glowing effect
             iron: { color: 0x708090, texture: 'metal' },     // Slate gray with metallic shine
             flowers: { color: 0xFF69B4, texture: 'flower' }, // Hot pink with flower pattern
-            snow: { color: 0xFFFFFF, texture: 'snow' }       // Pure white with snow texture
+            snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
+            shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
+            backpack: { color: 0x8B4513, texture: 'backpack' } // Leather brown with strap pattern
         };
 
         // Create textured materials
@@ -362,6 +572,53 @@ class NebulaVoxelApp {
                     ctx.arc(Math.random() * 64, Math.random() * 64, size, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            } else if (blockType.texture === 'shrub') {
+                // Shrub texture - brown stem with green leafy top
+                ctx.globalAlpha = 0.6;
+                // Brown stem in center
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(28, 48, 8, 16); // Vertical stem
+                // Green leafy areas
+                ctx.fillStyle = '#90EE90';
+                for (let i = 0; i < 15; i++) {
+                    const x = 16 + Math.random() * 32;
+                    const y = 16 + Math.random() * 32;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3 + Math.random() * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                // Add some darker green depth
+                ctx.fillStyle = '#228B22';
+                for (let i = 0; i < 8; i++) {
+                    const x = 20 + Math.random() * 24;
+                    const y = 20 + Math.random() * 24;
+                    ctx.fillRect(x, y, 2, 2);
+                }
+            } else if (blockType.texture === 'backpack') {
+                // Backpack texture - leather with strap details
+                ctx.globalAlpha = 0.4;
+                // Leather stitching pattern
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 2;
+                // Outer border stitching
+                ctx.strokeRect(8, 8, 48, 48);
+                // Cross straps
+                ctx.beginPath();
+                ctx.moveTo(20, 8);
+                ctx.lineTo(20, 56);
+                ctx.moveTo(44, 8);
+                ctx.lineTo(44, 56);
+                ctx.stroke();
+                // Buckle details
+                ctx.fillStyle = '#444444';
+                ctx.fillRect(18, 16, 4, 6);
+                ctx.fillRect(42, 16, 4, 6);
+                // Wear marks for aged look
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = '#5D4037';
+                for (let i = 0; i < 12; i++) {
+                    ctx.fillRect(12 + Math.random() * 40, 12 + Math.random() * 40, 2, 1);
+                }
             }
 
             const texture = new THREE.CanvasTexture(canvas);
@@ -465,7 +722,8 @@ class NebulaVoxelApp {
                 surfaceBlock: 'grass',
                 subBlock: 'stone',
                 mapColor: '#228B22',
-                heightColorRange: { min: 0.6, max: 1.2 } // Brightness multiplier range
+                heightColorRange: { min: 0.6, max: 1.2 }, // Brightness multiplier range
+                shrubChance: 0.35 // High density - 35% chance per surface block
             },
             desert: {
                 name: 'Desert',
@@ -475,7 +733,8 @@ class NebulaVoxelApp {
                 surfaceBlock: 'sand',
                 subBlock: 'sand',
                 mapColor: '#DEB887',
-                heightColorRange: { min: 0.7, max: 1.1 }
+                heightColorRange: { min: 0.7, max: 1.1 },
+                shrubChance: 0.03 // Very rare - 3% chance (desert brush)
             },
             mountain: {
                 name: 'Mountain',
@@ -485,7 +744,8 @@ class NebulaVoxelApp {
                 surfaceBlock: 'stone',
                 subBlock: 'iron',
                 mapColor: '#696969',
-                heightColorRange: { min: 0.8, max: 1.4 }
+                heightColorRange: { min: 0.8, max: 1.4 },
+                shrubChance: 0.08 // Low density - 8% chance (hardy mountain shrubs)
             },
             plains: {
                 name: 'Plains',
@@ -495,7 +755,8 @@ class NebulaVoxelApp {
                 surfaceBlock: 'grass',
                 subBlock: 'stone',
                 mapColor: '#90EE90',
-                heightColorRange: { min: 0.65, max: 1.15 }
+                heightColorRange: { min: 0.65, max: 1.15 },
+                shrubChance: 0.20 // Medium density - 20% chance
             },
             tundra: {
                 name: 'Tundra',
@@ -505,7 +766,8 @@ class NebulaVoxelApp {
                 surfaceBlock: 'stone',
                 subBlock: 'iron',
                 mapColor: '#F0F8FF',
-                heightColorRange: { min: 0.5, max: 1.0 }
+                heightColorRange: { min: 0.5, max: 1.0 },
+                shrubChance: 0.01 // Extremely rare - 1% chance (hardy tundra plants)
             }
         };
 
@@ -577,6 +839,14 @@ class NebulaVoxelApp {
                     this.addBlock(worldX, height - 1, worldZ, biome.subBlock, false, subSurfaceColor);      // Sub-surface
                     this.addBlock(worldX, height - 2, worldZ, biome.subBlock, false, deepColor);            // More sub-surface
                     this.addBlock(worldX, height - 3, worldZ, "iron");                                     // Iron at bottom (unbreakable)
+
+                    // Generate shrubs on top of surface (if no snow)
+                    if (!hasSnow && biome.shrubChance > 0) {
+                        const shrubNoise = this.seededNoise(worldX + 3000, worldZ + 3000, this.worldSeed);
+                        if (shrubNoise > (1 - biome.shrubChance * 2)) { // Convert chance to noise threshold
+                            this.addBlock(worldX, height + 1, worldZ, 'shrub', false); // Place shrub on top of surface
+                        }
+                    }
                 }
             }
 
@@ -633,6 +903,9 @@ class NebulaVoxelApp {
         console.log('Loading initial chunks...');
         updateChunks();
         console.log('✅ Initial chunks loaded');
+
+        // Spawn starting backpack after terrain is ready
+        this.spawnStartingBackpack();
 
         // Save/Load system methods
         this.updateStatus = (message) => {
@@ -853,8 +1126,28 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Draw player position (red dot)
-            ctx.fillStyle = '#ff0000';
+            // Draw backpack position (red square) if not collected yet
+            if (this.backpackPosition && !this.hasBackpack) {
+                const relX = this.backpackPosition.x - this.player.position.x;
+                const relZ = this.backpackPosition.z - this.player.position.z;
+
+                // Convert to minimap coordinates
+                const backpackMapX = size/2 + relX / scale;
+                const backpackMapZ = size/2 + relZ / scale;
+
+                // Only draw if within minimap bounds
+                if (backpackMapX >= 0 && backpackMapX < size && backpackMapZ >= 0 && backpackMapZ < size) {
+                    ctx.fillStyle = '#ff0000'; // Bright red
+                    ctx.fillRect(backpackMapX - 2, backpackMapZ - 2, 4, 4); // 4x4 red square
+
+                    // Add a subtle glow effect
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                    ctx.fillRect(backpackMapX - 3, backpackMapZ - 3, 6, 6); // Outer glow
+                }
+            }
+
+            // Draw player position (white dot)
+            ctx.fillStyle = '#ffffff'; // Changed to white so backpack red stands out
             ctx.beginPath();
             ctx.arc(size/2, size/2, 3, 0, Math.PI * 2);
             ctx.fill();
@@ -1234,7 +1527,7 @@ class NebulaVoxelApp {
         this.miniMap.height = 120;
         this.miniMap.style.cssText = `
             position: absolute;
-            bottom: 16px;
+            top: 16px;
             right: 16px;
             z-index: 2000;
             border: 2px solid rgba(255,255,255,0.8);
