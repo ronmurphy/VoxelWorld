@@ -209,7 +209,7 @@ class NebulaVoxelApp {
                     this.generateBackpackLoot(); // Add random starting items
                     this.showHotbarTutorial(); // Show hotbar and tutorial
                     console.log(`Found backpack! Hotbar unlocked!`);
-                    this.updateStatus(`Found backpack! Use 1-4 for quick access, 5 to open storage!`);
+                    this.updateStatus(`🎒 Found backpack! Use 1-4 for quick access, 5 to open storage!`, 'discovery');
                 }
 
                 this.scene.remove(this.world[key].mesh);
@@ -489,7 +489,17 @@ class NebulaVoxelApp {
                 brick: '🧱',
                 glowstone: '✨',
                 iron: '⚙️',
-                flowers: '🌸'
+                flowers: '🌸',
+                snow: '❄️',
+                // Add crafted ShapeForge items
+                grass_cube: '🟩',
+                stone_cube: '🟫',
+                wood_cube: '🟤',
+                sand_cube: '🟨',
+                grass_sphere: '🟢',
+                stone_sphere: '⚫',
+                wood_sphere: '🟤',
+                sand_sphere: '🟡'
             };
             return icons[itemType] || '❓';
         };
@@ -687,13 +697,956 @@ class NebulaVoxelApp {
             this.container.appendChild(this.backpackInventoryElement);
         };
 
+        // Open workbench crafting modal
+        this.openWorkbenchModal = (x, y, z) => {
+            console.log(`Opening workbench at position ${x}, ${y}, ${z}`);
+
+            // Release pointer lock so user can interact with the modal
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+
+            // Create modal if it doesn't exist
+            if (!this.workbenchModal) {
+                this.createWorkbenchModal();
+            }
+
+            // Store workbench position for later use
+            this.currentWorkbench = { x, y, z };
+
+            // Show modal
+            this.workbenchModal.style.display = 'block';
+            this.updateStatus('🔨 Workbench opened - Create custom objects!', 'craft', false);
+        };
+
+        // Create workbench modal UI
+        this.createWorkbenchModal = () => {
+            // Create modal backdrop
+            this.workbenchModal = document.createElement('div');
+            this.workbenchModal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.8);
+                display: none;
+                z-index: 4000;
+                backdrop-filter: blur(4px);
+            `;
+
+            // Create modal content
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 90vw;
+                max-width: 1200px;
+                height: 80vh;
+                background: rgba(30, 30, 30, 0.95);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 12px;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            `;
+
+            // Header
+            const header = document.createElement('div');
+            header.style.cssText = `
+                background: rgba(50, 50, 50, 0.8);
+                padding: 15px 20px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            `;
+
+            const title = document.createElement('h2');
+            title.textContent = '🔨 Workbench - Shape Forge';
+            title.style.cssText = `
+                color: white;
+                margin: 0;
+                font-size: 24px;
+            `;
+
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '✕';
+            closeButton.style.cssText = `
+                background: none;
+                border: none;
+                color: white;
+                font-size: 24px;
+                cursor: pointer;
+                padding: 5px 10px;
+                border-radius: 4px;
+                transition: background 0.2s;
+            `;
+            closeButton.addEventListener('click', () => this.closeWorkbenchModal());
+            closeButton.addEventListener('mouseenter', () => {
+                closeButton.style.background = 'rgba(255, 255, 255, 0.2)';
+            });
+            closeButton.addEventListener('mouseleave', () => {
+                closeButton.style.background = 'none';
+            });
+
+            header.appendChild(title);
+            header.appendChild(closeButton);
+
+            // Main content area with three panels
+            const mainContent = document.createElement('div');
+            mainContent.style.cssText = `
+                flex: 1;
+                display: flex;
+                min-height: 0;
+            `;
+
+            // Materials Panel (left)
+            const materialsPanel = this.createMaterialsPanel();
+
+            // 3D Preview Panel (center)
+            const previewPanel = this.create3DPreviewPanel();
+
+            // Shape Builder Panel (right)
+            const builderPanel = this.createBuilderPanel();
+
+            mainContent.appendChild(materialsPanel);
+            mainContent.appendChild(previewPanel);
+            mainContent.appendChild(builderPanel);
+
+            modalContent.appendChild(header);
+            modalContent.appendChild(mainContent);
+            this.workbenchModal.appendChild(modalContent);
+
+            // Add to DOM
+            this.container.appendChild(this.workbenchModal);
+        };
+
+        // Close workbench modal
+        this.closeWorkbenchModal = () => {
+            if (this.workbenchModal) {
+                this.workbenchModal.style.display = 'none';
+            }
+            this.currentWorkbench = null;
+            this.updateStatus('Workbench closed', 'info');
+
+            // Re-request pointer lock after a short delay
+            setTimeout(() => {
+                if (this.controlsEnabled) {
+                    this.renderer.domElement.requestPointerLock();
+                }
+            }, 100);
+        };
+
+        // Create materials panel (left panel)
+        this.createMaterialsPanel = () => {
+            const panel = document.createElement('div');
+            panel.style.cssText = `
+                width: 300px;
+                background: rgba(20, 20, 20, 0.7);
+                border-right: 1px solid rgba(255, 255, 255, 0.2);
+                padding: 20px;
+                overflow-y: auto;
+            `;
+
+            const title = document.createElement('h3');
+            title.textContent = '📦 Materials';
+            title.style.cssText = `
+                color: white;
+                margin: 0 0 15px 0;
+                font-size: 18px;
+            `;
+            panel.appendChild(title);
+
+            // Create material list based on current inventory
+            const materialsList = document.createElement('div');
+            materialsList.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            `;
+
+            // Show available materials from inventory
+            Object.keys(this.inventory).forEach(materialType => {
+                const count = this.inventory[materialType];
+                if (count > 0 && materialType !== 'workbench') { // Don't show workbench as material
+                    const materialItem = document.createElement('div');
+                    materialItem.style.cssText = `
+                        background: rgba(40, 40, 40, 0.8);
+                        border: 2px solid rgba(255, 255, 255, 0.2);
+                        border-radius: 8px;
+                        padding: 10px;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    `;
+
+                    const emoji = this.getItemIcon(materialType);
+                    const name = materialType.charAt(0).toUpperCase() + materialType.slice(1);
+
+                    materialItem.innerHTML = `
+                        <span style="font-size: 20px;">${emoji}</span>
+                        <div style="color: white;">
+                            <div style="font-weight: bold;">${name}</div>
+                            <div style="font-size: 12px; opacity: 0.7;">${count} available</div>
+                        </div>
+                    `;
+
+                    // Add selection functionality
+                    materialItem.addEventListener('click', () => {
+                        // Remove selection from other materials
+                        materialsList.querySelectorAll('div').forEach(item => {
+                            item.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                        });
+                        // Highlight this material
+                        materialItem.style.borderColor = '#4CAF50';
+                        this.selectedMaterial = materialType;
+                        this.updateWorkbenchPreview();
+                        this.updateStatus(`Selected material: ${name}`);
+                    });
+
+                    materialItem.addEventListener('mouseenter', () => {
+                        materialItem.style.background = 'rgba(60, 60, 60, 0.8)';
+                    });
+
+                    materialItem.addEventListener('mouseleave', () => {
+                        materialItem.style.background = 'rgba(40, 40, 40, 0.8)';
+                    });
+
+                    materialsList.appendChild(materialItem);
+                }
+            });
+
+            panel.appendChild(materialsList);
+            return panel;
+        };
+
+        // Create 3D preview panel (center panel)
+        this.create3DPreviewPanel = () => {
+            const panel = document.createElement('div');
+            panel.style.cssText = `
+                flex: 1;
+                background: rgba(10, 10, 10, 0.7);
+                border-right: 1px solid rgba(255, 255, 255, 0.2);
+                display: flex;
+                flex-direction: column;
+                padding: 20px;
+            `;
+
+            const title = document.createElement('h3');
+            title.textContent = '🎯 Preview';
+            title.style.cssText = `
+                color: white;
+                margin: 0 0 15px 0;
+                font-size: 18px;
+            `;
+            panel.appendChild(title);
+
+            // Create 3D preview canvas container
+            const previewContainer = document.createElement('div');
+            previewContainer.style.cssText = `
+                flex: 1;
+                background: rgba(0, 0, 0, 0.3);
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                border-radius: 8px;
+                position: relative;
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            `;
+
+            // Create Three.js scene for 3D preview
+            this.workbenchScene = new THREE.Scene();
+            this.workbenchScene.background = new THREE.Color(0x0a0a0a);
+
+            this.workbenchCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            this.workbenchCamera.position.set(2, 2, 2);
+            this.workbenchCamera.lookAt(0, 0, 0);
+
+            this.workbenchRenderer = new THREE.WebGLRenderer({ antialias: true });
+            this.workbenchRenderer.setSize(400, 300); // Will resize based on container
+            this.workbenchRenderer.shadowMap.enabled = true;
+            this.workbenchRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            this.workbenchScene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            this.workbenchScene.add(directionalLight);
+
+            // Add grid for reference
+            const gridHelper = new THREE.GridHelper(3, 3, 0x444444, 0x222222);
+            gridHelper.position.y = -0.5;
+            this.workbenchScene.add(gridHelper);
+
+            // Add canvas to container
+            previewContainer.appendChild(this.workbenchRenderer.domElement);
+
+            // Store reference to current preview object
+            this.currentPreviewObject = null;
+
+            // Auto-resize renderer when container changes
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    const { width, height } = entry.contentRect;
+                    if (width > 0 && height > 0) {
+                        this.workbenchRenderer.setSize(width - 4, height - 4); // Account for border
+                        this.workbenchCamera.aspect = (width - 4) / (height - 4);
+                        this.workbenchCamera.updateProjectionMatrix();
+                    }
+                }
+            });
+            resizeObserver.observe(previewContainer);
+
+            // Controls
+            const controls = document.createElement('div');
+            controls.style.cssText = `
+                margin-top: 15px;
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+            `;
+
+            const rotateBtn = document.createElement('button');
+            rotateBtn.textContent = '🔄 Rotate';
+            rotateBtn.style.cssText = `
+                background: rgba(70, 70, 70, 0.8);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: background 0.2s;
+            `;
+            rotateBtn.addEventListener('click', () => {
+                if (this.workbenchCamera) {
+                    // Rotate camera around the scene
+                    const angle = Date.now() * 0.01;
+                    const radius = 3;
+                    this.workbenchCamera.position.x = Math.cos(angle) * radius;
+                    this.workbenchCamera.position.z = Math.sin(angle) * radius;
+                    this.workbenchCamera.lookAt(0, 0, 0);
+                    this.updateStatus('Rotating preview...');
+                }
+            });
+
+            const zoomBtn = document.createElement('button');
+            zoomBtn.textContent = '🔍 Zoom';
+            zoomBtn.style.cssText = `
+                background: rgba(70, 70, 70, 0.8);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: background 0.2s;
+            `;
+            zoomBtn.addEventListener('click', () => {
+                if (this.workbenchCamera) {
+                    // Toggle between zoomed in and out
+                    const currentDistance = this.workbenchCamera.position.length();
+                    const newDistance = currentDistance > 3 ? 2 : 4;
+                    this.workbenchCamera.position.normalize().multiplyScalar(newDistance);
+                    this.updateStatus(`Zoom: ${newDistance < 3 ? 'In' : 'Out'}`);
+                }
+            });
+
+            controls.appendChild(rotateBtn);
+            controls.appendChild(zoomBtn);
+
+            panel.appendChild(previewContainer);
+            panel.appendChild(controls);
+
+            // Store reference for 3D scene later
+            this.workbenchPreviewContainer = previewContainer;
+
+            // Start rendering loop for workbench preview
+            this.startWorkbenchPreviewLoop();
+
+            return panel;
+        };
+
+        // Create builder panel (right panel)
+        this.createBuilderPanel = () => {
+            const panel = document.createElement('div');
+            panel.style.cssText = `
+                width: 300px;
+                background: rgba(20, 20, 20, 0.7);
+                padding: 20px;
+                overflow-y: auto;
+            `;
+
+            const title = document.createElement('h3');
+            title.textContent = '🔨 Builder';
+            title.style.cssText = `
+                color: white;
+                margin: 0 0 15px 0;
+                font-size: 18px;
+            `;
+            panel.appendChild(title);
+
+            // Shape selector
+            const shapesSection = document.createElement('div');
+            shapesSection.style.cssText = `
+                margin-bottom: 20px;
+            `;
+
+            const shapesTitle = document.createElement('h4');
+            shapesTitle.textContent = 'Shapes';
+            shapesTitle.style.cssText = `
+                color: white;
+                margin: 0 0 10px 0;
+                font-size: 14px;
+                opacity: 0.8;
+            `;
+            shapesSection.appendChild(shapesTitle);
+
+            // Basic shapes
+            const shapes = [
+                { name: 'Cube', icon: '⬜', type: 'cube' },
+                { name: 'Sphere', icon: '⚪', type: 'sphere' },
+                { name: 'Cylinder', icon: '🥫', type: 'cylinder' },
+                { name: 'Cone', icon: '🔺', type: 'cone' }
+            ];
+
+            const shapesGrid = document.createElement('div');
+            shapesGrid.style.cssText = `
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            `;
+
+            shapes.forEach(shape => {
+                const shapeBtn = document.createElement('button');
+                shapeBtn.style.cssText = `
+                    background: rgba(40, 40, 40, 0.8);
+                    border: 2px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 6px;
+                    padding: 12px;
+                    color: white;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-align: center;
+                `;
+                shapeBtn.innerHTML = `
+                    <div style="font-size: 20px;">${shape.icon}</div>
+                    <div style="font-size: 12px; margin-top: 4px;">${shape.name}</div>
+                `;
+
+                shapeBtn.addEventListener('click', () => {
+                    // Remove selection from other shapes
+                    shapesGrid.querySelectorAll('button').forEach(btn => {
+                        btn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    });
+                    // Highlight this shape
+                    shapeBtn.style.borderColor = '#2196F3';
+                    this.selectedShape = shape.type;
+                    this.updateWorkbenchPreview();
+                    this.updateStatus(`Selected shape: ${shape.name}`);
+                });
+
+                shapesGrid.appendChild(shapeBtn);
+            });
+
+            shapesSection.appendChild(shapesGrid);
+
+            // Position Grid (3x3x3 positioning)
+            const positionSection = document.createElement('div');
+            positionSection.style.cssText = `
+                margin-bottom: 20px;
+            `;
+
+            const positionTitle = document.createElement('h4');
+            positionTitle.textContent = 'Position (3×3×3 Grid)';
+            positionTitle.style.cssText = `
+                color: white;
+                margin: 0 0 10px 0;
+                font-size: 14px;
+                opacity: 0.8;
+            `;
+            positionSection.appendChild(positionTitle);
+
+            // Create 3x3 grid for positioning
+            const positionGrid = document.createElement('div');
+            positionGrid.style.cssText = `
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 4px;
+                margin-bottom: 10px;
+            `;
+
+            for (let i = 0; i < 9; i++) {
+                const positionBtn = document.createElement('button');
+                positionBtn.style.cssText = `
+                    aspect-ratio: 1;
+                    background: rgba(40, 40, 40, 0.8);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 4px;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 10px;
+                    transition: all 0.2s;
+                `;
+
+                const x = i % 3;
+                const z = Math.floor(i / 3);
+                positionBtn.textContent = `${x},${z}`;
+
+                positionBtn.addEventListener('click', () => {
+                    // Remove selection from other positions
+                    positionGrid.querySelectorAll('button').forEach(btn => {
+                        btn.style.background = 'rgba(40, 40, 40, 0.8)';
+                    });
+                    // Highlight this position
+                    positionBtn.style.background = 'rgba(76, 175, 80, 0.8)';
+                    this.selectedPosition = { x, y: 0, z }; // Y=0 for now (ground level)
+                    this.updateWorkbenchPreview();
+                    this.updateStatus(`Position: ${x}, 0, ${z}`);
+                });
+
+                positionGrid.appendChild(positionBtn);
+            }
+
+            positionSection.appendChild(positionGrid);
+
+            // Height selector
+            const heightLabel = document.createElement('div');
+            heightLabel.style.cssText = `
+                color: white;
+                font-size: 12px;
+                margin-bottom: 5px;
+                opacity: 0.8;
+            `;
+            heightLabel.textContent = 'Height: 0';
+
+            const heightSlider = document.createElement('input');
+            heightSlider.type = 'range';
+            heightSlider.min = '0';
+            heightSlider.max = '2';
+            heightSlider.step = '1';
+            heightSlider.value = '0';
+            heightSlider.style.cssText = `
+                width: 100%;
+                margin-bottom: 15px;
+            `;
+
+            heightSlider.addEventListener('input', (e) => {
+                const height = parseInt(e.target.value);
+                heightLabel.textContent = `Height: ${height}`;
+                if (this.selectedPosition) {
+                    this.selectedPosition.y = height;
+                    this.updateWorkbenchPreview();
+                    this.updateStatus(`Position: ${this.selectedPosition.x}, ${height}, ${this.selectedPosition.z}`);
+                }
+            });
+
+            positionSection.appendChild(heightLabel);
+            positionSection.appendChild(heightSlider);
+
+            // Create Object Button
+            const createSection = document.createElement('div');
+            createSection.style.cssText = `
+                margin-top: 20px;
+            `;
+
+            const createBtn = document.createElement('button');
+            createBtn.textContent = '✨ Create Object';
+            createBtn.style.cssText = `
+                width: 100%;
+                background: linear-gradient(45deg, #4CAF50, #45a049);
+                border: none;
+                color: white;
+                padding: 15px;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.2s;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            `;
+
+            createBtn.addEventListener('click', () => {
+                this.createShapeForgeObject();
+            });
+
+            createBtn.addEventListener('mouseenter', () => {
+                createBtn.style.transform = 'translateY(-2px)';
+                createBtn.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
+            });
+
+            createBtn.addEventListener('mouseleave', () => {
+                createBtn.style.transform = 'translateY(0)';
+                createBtn.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+            });
+
+            createSection.appendChild(createBtn);
+
+            panel.appendChild(shapesSection);
+            panel.appendChild(positionSection);
+            panel.appendChild(createSection);
+
+            return panel;
+        };
+
+        // Create ShapeForge object
+        this.createShapeForgeObject = () => {
+            if (!this.selectedMaterial) {
+                this.updateStatus('⚠️ Please select a material first!', 'warning');
+                return;
+            }
+            if (!this.selectedShape) {
+                this.updateStatus('⚠️ Please select a shape first!', 'warning');
+                return;
+            }
+            if (!this.selectedPosition) {
+                this.updateStatus('⚠️ Please select a position first!', 'warning');
+                return;
+            }
+
+            // Check if player has enough materials (for now, require 1 of selected material)
+            if (this.inventory[this.selectedMaterial] < 1) {
+                this.updateStatus(`⚠️ Not enough ${this.selectedMaterial}! Need 1, have ${this.inventory[this.selectedMaterial]}`, 'error');
+                return;
+            }
+
+            console.log('Creating ShapeForge object:', {
+                material: this.selectedMaterial,
+                shape: this.selectedShape,
+                position: this.selectedPosition,
+                workbenchPos: this.currentWorkbench
+            });
+
+            // Use material
+            this.inventory[this.selectedMaterial]--;
+
+            // Create the object (placeholder for now)
+            const objectName = `${this.selectedMaterial}_${this.selectedShape}`;
+
+            // Add to inventory (simplified for now)
+            if (!this.inventory[objectName]) {
+                this.inventory[objectName] = 0;
+            }
+            this.inventory[objectName]++;
+
+            // Update all displays
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            // Use enhanced notification system with craft type
+            const craftedEmoji = this.getItemIcon(objectName);
+            this.updateStatus(`${craftedEmoji} Created ${objectName}! Added to inventory.`, 'craft');
+
+            // TODO: Later we'll implement actual 3D object creation and placement
+        };
+
+        // Start workbench preview rendering loop
+        this.startWorkbenchPreviewLoop = () => {
+            const animate = () => {
+                if (this.workbenchRenderer && this.workbenchScene && this.workbenchCamera) {
+                    this.workbenchRenderer.render(this.workbenchScene, this.workbenchCamera);
+                }
+                if (this.workbenchModal && this.workbenchModal.style.display !== 'none') {
+                    requestAnimationFrame(animate);
+                }
+            };
+            animate();
+        };
+
+        // Update workbench 3D preview based on current selections
+        this.updateWorkbenchPreview = () => {
+            if (!this.workbenchScene || !this.selectedShape || !this.selectedMaterial) {
+                return;
+            }
+
+            // Remove current preview object
+            if (this.currentPreviewObject) {
+                this.workbenchScene.remove(this.currentPreviewObject);
+                this.currentPreviewObject = null;
+            }
+
+            // Create geometry based on selected shape
+            let geometry;
+            switch (this.selectedShape) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                    break;
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(0.3, 16, 16);
+                    break;
+                case 'cylinder':
+                    geometry = new THREE.CylinderGeometry(0.25, 0.25, 0.5, 16);
+                    break;
+                case 'cone':
+                    geometry = new THREE.ConeGeometry(0.25, 0.5, 16);
+                    break;
+                default:
+                    geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            }
+
+            // Create material based on selected material type
+            const blockType = this.blockTypes[this.selectedMaterial];
+            let material;
+
+            if (blockType) {
+                // Use the same material as the game blocks
+                material = new THREE.MeshLambertMaterial({
+                    color: blockType.color,
+                    map: this.materials[this.selectedMaterial].map
+                });
+            } else {
+                // Fallback to basic colored material
+                const colors = {
+                    grass: 0x4CAF50,
+                    stone: 0x808080,
+                    wood: 0x8B4513,
+                    iron: 0x708090,
+                    glass: 0x87CEEB,
+                    brick: 0xB22222,
+                    glowstone: 0xFFFF88
+                };
+                material = new THREE.MeshLambertMaterial({
+                    color: colors[this.selectedMaterial] || 0x888888
+                });
+            }
+
+            // Create mesh
+            this.currentPreviewObject = new THREE.Mesh(geometry, material);
+
+            // Position the object based on selection
+            if (this.selectedPosition) {
+                // Convert 3x3 grid position to world coordinates (-1 to 1)
+                const x = (this.selectedPosition.x - 1) * 0.7; // Center at 0
+                const y = this.selectedPosition.y * 0.7;
+                const z = (this.selectedPosition.z - 1) * 0.7;
+                this.currentPreviewObject.position.set(x, y, z);
+            }
+
+            // Add to scene
+            this.workbenchScene.add(this.currentPreviewObject);
+
+            // Add subtle rotation animation
+            this.currentPreviewObject.userData.startTime = Date.now();
+            const rotatePreview = () => {
+                if (this.currentPreviewObject && this.workbenchModal && this.workbenchModal.style.display !== 'none') {
+                    const elapsed = (Date.now() - this.currentPreviewObject.userData.startTime) * 0.001;
+                    this.currentPreviewObject.rotation.y = elapsed * 0.5;
+                    requestAnimationFrame(rotatePreview);
+                }
+            };
+            rotatePreview();
+        };
+
+        // Check for nearby workbench and show interaction prompt
+        this.checkWorkbenchProximity = () => {
+            if (!this.player) return;
+
+            const playerPos = this.player.position;
+            let nearbyWorkbench = null;
+
+            // Check all blocks within 2 units for workbench
+            for (let x = Math.floor(playerPos.x - 2); x <= Math.floor(playerPos.x + 2); x++) {
+                for (let y = Math.floor(playerPos.y - 1); y <= Math.floor(playerPos.y + 2); y++) {
+                    for (let z = Math.floor(playerPos.z - 2); z <= Math.floor(playerPos.z + 2); z++) {
+                        const key = `${x},${y},${z}`;
+                        const block = this.world[key];
+                        if (block && block.type === 'workbench') {
+                            const blockPos = new THREE.Vector3(x, y, z);
+                            const distance = new THREE.Vector3().copy(playerPos).distanceTo(blockPos);
+                            if (distance <= 2.0) {
+                                nearbyWorkbench = { x, y, z, distance };
+                                break;
+                            }
+                        }
+                    }
+                    if (nearbyWorkbench) break;
+                }
+                if (nearbyWorkbench) break;
+            }
+
+            // Show/hide interaction prompt
+            if (nearbyWorkbench && !this.currentNearbyWorkbench) {
+                this.currentNearbyWorkbench = nearbyWorkbench;
+                this.showWorkbenchPrompt(nearbyWorkbench);
+            } else if (!nearbyWorkbench && this.currentNearbyWorkbench) {
+                this.currentNearbyWorkbench = null;
+                this.hideWorkbenchPrompt();
+            }
+        };
+
+        // Show workbench interaction prompt
+        this.showWorkbenchPrompt = (workbench) => {
+            if (this.workbenchPrompt) {
+                this.hideWorkbenchPrompt();
+            }
+
+            this.workbenchPrompt = document.createElement('div');
+            this.workbenchPrompt.style.cssText = `
+                position: fixed;
+                bottom: 120px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: bold;
+                text-align: center;
+                z-index: 3500;
+                border: 2px solid #4CAF50;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                backdrop-filter: blur(4px);
+                animation: slideUp 0.3s ease-out;
+            `;
+
+            // Check if mobile
+            if (this.isMobile) {
+                this.workbenchPrompt.innerHTML = `
+                    <div>🔨 Workbench</div>
+                    <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Tap to craft objects</div>
+                `;
+                this.workbenchPrompt.addEventListener('click', () => {
+                    this.openWorkbenchModal(workbench.x, workbench.y, workbench.z);
+                });
+                this.workbenchPrompt.style.cursor = 'pointer';
+            } else {
+                this.workbenchPrompt.innerHTML = `
+                    <div>🔨 Workbench</div>
+                    <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Press [E] to craft objects</div>
+                `;
+            }
+
+            // Add CSS animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideUp {
+                    from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+                    to { transform: translateX(-50%) translateY(0); opacity: 1; }
+                }
+            `;
+            if (!document.head.querySelector('style[data-workbench-prompt]')) {
+                style.setAttribute('data-workbench-prompt', 'true');
+                document.head.appendChild(style);
+            }
+
+            this.container.appendChild(this.workbenchPrompt);
+        };
+
+        // Hide workbench interaction prompt
+        this.hideWorkbenchPrompt = () => {
+            if (this.workbenchPrompt) {
+                this.workbenchPrompt.remove();
+                this.workbenchPrompt = null;
+            }
+        };
+
         // Update backpack inventory display
         this.updateBackpackInventoryDisplay = () => {
             if (!this.backpackSlots) return;
 
-            // For now, just show that the system is ready
-            // Later we'll implement actual item storage logic
-            console.log('Backpack inventory display updated');
+            // Get all inventory items (excluding hotbar items for now)
+            const inventoryItems = [];
+            Object.keys(this.inventory).forEach(itemType => {
+                const count = this.inventory[itemType];
+                if (count > 0 && !this.hotbarSlots.includes(itemType)) {
+                    inventoryItems.push({ type: itemType, count });
+                }
+            });
+
+            // Update each backpack slot
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                const slotData = this.backpackSlots[i];
+                const slot = slotData.element;
+
+                // Clear current content
+                slot.innerHTML = '';
+
+                if (i < inventoryItems.length) {
+                    // Has an item
+                    const item = inventoryItems[i];
+                    const emoji = this.getItemIcon(item.type);
+                    const name = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+
+                    // Create item icon
+                    const itemIcon = document.createElement('div');
+                    itemIcon.textContent = emoji;
+                    itemIcon.style.cssText = `
+                        font-size: 20px;
+                        margin-bottom: 2px;
+                    `;
+                    slot.appendChild(itemIcon);
+
+                    // Create item count
+                    const itemCount = document.createElement('div');
+                    itemCount.textContent = item.count;
+                    itemCount.style.cssText = `
+                        font-size: 10px;
+                        font-weight: bold;
+                        color: #4CAF50;
+                    `;
+                    slot.appendChild(itemCount);
+
+                    // Create item name (smaller)
+                    const itemName = document.createElement('div');
+                    itemName.textContent = name.substring(0, 6); // Truncate long names
+                    itemName.style.cssText = `
+                        font-size: 7px;
+                        opacity: 0.8;
+                        margin-top: 1px;
+                    `;
+                    slot.appendChild(itemName);
+
+                    // Add tooltip on hover
+                    slot.title = `${name}: ${item.count}`;
+
+                    // Update slot styling for filled slot
+                    slot.style.background = 'rgba(40, 80, 40, 0.8)';
+                    slot.style.borderColor = '#4CAF50';
+
+                    // Store item data
+                    slotData.itemType = item.type;
+                    slotData.itemCount = item.count;
+                } else {
+                    // Empty slot
+                    const emptyIcon = document.createElement('div');
+                    emptyIcon.textContent = '📦';
+                    emptyIcon.style.cssText = `
+                        font-size: 16px;
+                        opacity: 0.3;
+                    `;
+                    slot.appendChild(emptyIcon);
+
+                    const emptyLabel = document.createElement('div');
+                    emptyLabel.textContent = 'Empty';
+                    emptyLabel.style.cssText = `
+                        font-size: 8px;
+                        opacity: 0.5;
+                        margin-top: 2px;
+                    `;
+                    slot.appendChild(emptyLabel);
+
+                    // Reset slot styling for empty slot
+                    slot.style.background = 'rgba(60, 60, 60, 0.8)';
+                    slot.style.borderColor = '#555';
+                    slot.title = 'Empty slot';
+
+                    // Clear item data
+                    slotData.itemType = null;
+                    slotData.itemCount = 0;
+                }
+            }
+
+            console.log(`Backpack updated: ${inventoryItems.length} different item types`);
         };
 
         // Transfer item from hotbar to backpack
@@ -815,10 +1768,46 @@ class NebulaVoxelApp {
 
         // Complete harvesting and remove block
         this.completeHarvesting = (x, y, z) => {
-            console.log('Harvesting completed!');
+            console.log(`Harvesting completed at ${x}, ${y}, ${z}`);
+
+            // Get block type before removing it
+            const key = `${x},${y},${z}`;
+            const blockData = this.world[key];
+
+            console.log('Block data:', blockData); // Debug logging
+
+            if (blockData && blockData.type !== 'shrub' && blockData.type !== 'backpack') {
+                // Add the harvested block to inventory
+                const blockType = blockData.type;
+
+                // Debug: Check what we're actually harvesting
+                console.log(`Block at ${key}:`, {
+                    type: blockType,
+                    playerPlaced: blockData.playerPlaced,
+                    blockData: blockData
+                });
+
+                if (!this.inventory[blockType]) {
+                    this.inventory[blockType] = 0;
+                }
+                this.inventory[blockType]++;
+                console.log(`Harvested ${blockType}! Total: ${this.inventory[blockType]}`);
+
+                // Update displays
+                this.updateHotbarCounts();
+                this.updateBackpackInventoryDisplay();
+
+                // Use enhanced notification system with harvest type
+                const emoji = this.getItemIcon(blockType);
+                this.updateStatus(`${emoji} Harvested ${blockType}! (${this.inventory[blockType]} total)`, 'harvest');
+            } else if (!blockData) {
+                console.log(`No block data found at ${key}`);
+            } else {
+                console.log(`Skipping special block type: ${blockData.type}`);
+            }
+
             this.removeBlock(x, y, z); // Use existing removal logic
             this.stopHarvesting();
-            this.updateStatus('Block harvested!');
         };
 
         // Initialize seed system
@@ -926,7 +1915,7 @@ class NebulaVoxelApp {
         this.eventListeners = [];
 
         // Block types and procedural textures
-        const blockTypes = {
+        this.blockTypes = {
             grass: { color: 0x228B22, texture: 'grass' },    // Forest green with grass pattern
             stone: { color: 0x696969, texture: 'stone' },    // Dim gray with stone pattern
             wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain
@@ -1156,12 +2145,12 @@ class NebulaVoxelApp {
         this.materials = {};
         this.playerMaterials = {}; // Darker versions for player-placed blocks
 
-        Object.keys(blockTypes).forEach(type => {
+        Object.keys(this.blockTypes).forEach(type => {
             // Normal materials
-            this.materials[type] = createBlockMaterial(blockTypes[type]);
+            this.materials[type] = createBlockMaterial(this.blockTypes[type]);
 
             // Pre-create darker materials for player-placed blocks (performance optimization)
-            const darkerColor = new THREE.Color(blockTypes[type].color).multiplyScalar(0.7);
+            const darkerColor = new THREE.Color(this.blockTypes[type].color).multiplyScalar(0.7);
             this.playerMaterials[type] = new THREE.MeshBasicMaterial({
                 map: this.materials[type].map,
                 color: darkerColor
@@ -1688,6 +2677,9 @@ class NebulaVoxelApp {
             // Animate billboards (even when paused - they should keep floating)
             this.animateBillboards(currentTime);
 
+            // Check for nearby workbench (even when paused)
+            this.checkWorkbenchProximity();
+
             // Always continue animation loop, but skip input processing if paused or controls disabled
             if (this.isPaused || !this.controlsEnabled) {
                 // Still render the scene even when paused
@@ -1883,10 +2875,21 @@ class NebulaVoxelApp {
                 e.preventDefault();
             }
             if (key === 'e') {
-                this.selectedSlot = (this.selectedSlot + 1) % this.hotbarSlots.length;
-                this.updateHotbarSelection();
-                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
-                e.preventDefault();
+                // Check if near workbench first
+                if (this.currentNearbyWorkbench) {
+                    this.openWorkbenchModal(
+                        this.currentNearbyWorkbench.x,
+                        this.currentNearbyWorkbench.y,
+                        this.currentNearbyWorkbench.z
+                    );
+                    e.preventDefault();
+                } else {
+                    // Fallback to hotbar navigation
+                    this.selectedSlot = (this.selectedSlot + 1) % this.hotbarSlots.length;
+                    this.updateHotbarSelection();
+                    console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
+                    e.preventDefault();
+                }
             }
         };
         
@@ -1954,11 +2957,11 @@ class NebulaVoxelApp {
                 
                 if (e.button === 0) { // Left click - start harvesting
                     this.startHarvesting(pos.x, pos.y, pos.z);
-                } else if (e.button === 2) { // Right click - place block
+                } else if (e.button === 2) { // Right click - block placement only
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
                     const selectedBlock = this.hotbarSlots[this.selectedSlot];
-                    
+
                     if (this.inventory[selectedBlock] > 0) {
                         this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
                         this.inventory[selectedBlock]--;
@@ -1980,11 +2983,20 @@ class NebulaVoxelApp {
             }
         };
         
+        // Prevent browser context menu when pointer is locked
+        const contextmenuHandler = (e) => {
+            if (document.pointerLockElement === this.renderer.domElement) {
+                e.preventDefault();
+            }
+        };
+
         document.addEventListener('mousedown', mousedownHandler);
         document.addEventListener('mouseup', mouseupHandler);
+        document.addEventListener('contextmenu', contextmenuHandler);
         this.eventListeners.push(
             { element: document, type: 'mousedown', handler: mousedownHandler },
-            { element: document, type: 'mouseup', handler: mouseupHandler }
+            { element: document, type: 'mouseup', handler: mouseupHandler },
+            { element: document, type: 'contextmenu', handler: contextmenuHandler }
         );
 
         // Auto-save on page unload
@@ -2014,17 +3026,34 @@ class NebulaVoxelApp {
                 position: absolute;
                 bottom: 16px;
                 left: 16px;
-                background: rgba(0,0,0,0.7);
+                background: rgba(0,0,0,0.8);
                 color: white;
-                padding: 8px 16px;
-                border-radius: 6px;
+                padding: 10px 16px;
+                border-radius: 8px;
                 font-family: monospace;
                 font-size: 14px;
                 pointer-events: auto;
                 z-index: 1000;
+                border-left: 4px solid #4CAF50;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                backdrop-filter: blur(4px);
+                transition: all 0.3s ease;
+                opacity: 0.9;
+                min-width: 200px;
+                max-width: 400px;
             `;
-            statusBar.textContent = "Ready";
+            statusBar.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="status-icon">🎮</span>
+                    <span id="status-text">Ready to explore!</span>
+                </div>
+            `;
             this.container.appendChild(statusBar);
+
+            // Store references to inner elements
+            this.statusIcon = statusBar.querySelector('#status-icon');
+            this.statusText = statusBar.querySelector('#status-text');
+
             return statusBar;
         };
 
@@ -2144,12 +3173,81 @@ class NebulaVoxelApp {
 
         // Update status bar reference
         this.statusBar = statusBar;
-        this.updateStatus = (message) => {
+        // Enhanced notification system
+        this.updateStatus = (message, type = 'info', autoDismiss = true) => {
             console.log(`[VoxelWorld] ${message}`);
-            if (this.statusBar) {
-                this.statusBar.textContent = message;
+
+            if (!this.statusBar || !this.statusIcon || !this.statusText) return;
+
+            // Clear any existing auto-dismiss timer
+            if (this.statusTimer) {
+                clearTimeout(this.statusTimer);
+            }
+
+            // Define notification types with icons and colors
+            const notificationTypes = {
+                info: { icon: 'ℹ️', color: '#2196F3', borderColor: '#2196F3' },
+                success: { icon: '✅', color: '#4CAF50', borderColor: '#4CAF50' },
+                warning: { icon: '⚠️', color: '#FF9800', borderColor: '#FF9800' },
+                error: { icon: '❌', color: '#F44336', borderColor: '#F44336' },
+                harvest: { icon: '⛏️', color: '#8BC34A', borderColor: '#8BC34A' },
+                craft: { icon: '🔨', color: '#9C27B0', borderColor: '#9C27B0' },
+                discovery: { icon: '🎒', color: '#FF5722', borderColor: '#FF5722' },
+                progress: { icon: '⏳', color: '#FFC107', borderColor: '#FFC107' },
+                magic: { icon: '✨', color: '#E91E63', borderColor: '#E91E63' }
+            };
+
+            const notification = notificationTypes[type] || notificationTypes.info;
+
+            // Update icon and text
+            this.statusIcon.textContent = notification.icon;
+            this.statusText.textContent = message;
+
+            // Update styling
+            this.statusBar.style.borderLeftColor = notification.borderColor;
+            this.statusBar.style.opacity = '1';
+            this.statusBar.style.transform = 'translateX(0)';
+
+            // Add a subtle pulse animation for important notifications
+            if (['success', 'error', 'discovery'].includes(type)) {
+                this.statusBar.style.animation = 'statusPulse 0.6s ease-out';
+                setTimeout(() => {
+                    if (this.statusBar) {
+                        this.statusBar.style.animation = '';
+                    }
+                }, 600);
+            }
+
+            // Auto-dismiss after delay
+            if (autoDismiss) {
+                const dismissDelay = type === 'error' ? 8000 :
+                                   type === 'discovery' ? 6000 :
+                                   type === 'warning' ? 5000 : 4000;
+
+                this.statusTimer = setTimeout(() => {
+                    if (this.statusBar) {
+                        this.statusBar.style.opacity = '0.5';
+                        this.statusText.textContent = 'Ready to explore!';
+                        this.statusIcon.textContent = '🎮';
+                        this.statusBar.style.borderLeftColor = '#4CAF50';
+                    }
+                }, dismissDelay);
             }
         };
+
+        // Add CSS animation for pulse effect
+        if (!document.head.querySelector('style[data-status-animation]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-status-animation', 'true');
+            style.textContent = `
+                @keyframes statusPulse {
+                    0% { transform: translateX(0) scale(1); }
+                    50% { transform: translateX(-2px) scale(1.02); }
+                    100% { transform: translateX(0) scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
 
         // Create mobile virtual joysticks if on mobile device
         if (this.isMobile) {
