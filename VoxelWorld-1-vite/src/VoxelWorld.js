@@ -7,6 +7,12 @@ class NebulaVoxelApp {
         this.loadedChunks = new Set();
         this.chunkSize = 8;  // Reduced from 12 for better performance
         this.renderDistance = 1;  // Reduced from 2 for better performance
+        this.chunkCleanupRadius = 12; // Keep tracking data for chunks within this radius
+        
+        // World item spawning system
+        this.visitedChunks = new Set(); // Track chunks that have been visited
+        this.chunkSpawnTimes = new Map(); // Track last spawn time for chunks
+        this.gameStartTime = Date.now(); // Track game start for time-based respawns
         this.player = {
             position: { x: 0, y: 10, z: 0 },
             rotation: { x: 0, y: 0 }
@@ -32,7 +38,25 @@ class NebulaVoxelApp {
             glowstone: 0,
             iron: 0,
             flowers: 0,
-            workbench: 0
+            workbench: 0,
+            dirt: 0,
+            coal: 0,
+            skull: 0,
+            leaf: 0,
+            crystal: 0,
+            oreNugget: 0,
+            wheat: 0,
+            feather: 0,
+            bone: 0,
+            shell: 0,
+            fur: 0,
+            iceShard: 0,
+            mushroom: 0,
+            flower: 0,
+            berry: 0,
+            rustySword: 0,
+            oldPickaxe: 0,
+            ancientAmulet: 0
         };
         this.hotbarSlots = ['grass', 'stone', 'wood', 'workbench', 'glass', 'brick', 'glowstone', 'iron'];
         this.container = container;
@@ -381,6 +405,268 @@ class NebulaVoxelApp {
             this.updateHotbarCounts();
         };
 
+        // World item spawning system for random discoveries
+        this.cleanupChunkTracking = (playerChunkX, playerChunkZ) => {
+            // Remove tracking data for chunks beyond cleanup radius to prevent memory bloat
+            const chunksToRemove = [];
+            
+            // Check visitedChunks Set
+            for (const chunkKey of this.visitedChunks) {
+                const [chunkX, chunkZ] = chunkKey.split(',').map(Number);
+                const distance = Math.max(
+                    Math.abs(chunkX - playerChunkX),
+                    Math.abs(chunkZ - playerChunkZ)
+                );
+                
+                if (distance > this.chunkCleanupRadius) {
+                    chunksToRemove.push(chunkKey);
+                }
+            }
+            
+            // Remove distant chunks from both data structures
+            chunksToRemove.forEach(chunkKey => {
+                this.visitedChunks.delete(chunkKey);
+                this.chunkSpawnTimes.delete(chunkKey);
+            });
+            
+            if (chunksToRemove.length > 0) {
+                console.log(`Cleaned up tracking data for ${chunksToRemove.length} distant chunks`);
+            }
+        };
+
+        this.checkChunkForWorldItems = (chunkX, chunkZ) => {
+            const chunkKey = `${chunkX},${chunkZ}`;
+            
+            // Skip if already visited and not enough time has passed
+            if (this.visitedChunks.has(chunkKey)) {
+                const lastSpawnTime = this.chunkSpawnTimes.get(chunkKey) || 0;
+                const timeSinceSpawn = Date.now() - lastSpawnTime;
+                const twoGameDays = 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds
+                
+                if (timeSinceSpawn < twoGameDays) {
+                    return; // Not enough time has passed
+                }
+            }
+            
+            // Mark chunk as visited
+            this.visitedChunks.add(chunkKey);
+            this.chunkSpawnTimes.set(chunkKey, Date.now());
+            
+            // 5% chance to spawn random world items
+            if (this.seededRandom() > 0.95) {
+                this.spawnRandomWorldItems(chunkX, chunkZ);
+            }
+        };
+
+        this.spawnRandomWorldItems = (chunkX, chunkZ) => {
+            // Get biome at chunk center
+            const centerX = chunkX * this.chunkSize + this.chunkSize / 2;
+            const centerZ = chunkZ * this.chunkSize + this.chunkSize / 2;
+            const biome = this.getBiomeAt(centerX, centerZ);
+            
+            let itemType = null;
+            let emoji = null;
+            
+            // Spawn biome-appropriate items with multiple options and rarities
+            const spawnRoll = this.seededRandom(); // 0-1 for rarity determination
+            
+            if (biome.surfaceBlock === 'sand') { // Desert biome
+                if (spawnRoll > 0.7) { // 30% chance
+                    itemType = 'skull';
+                    emoji = '💀';
+                }
+                // Could add more desert items here later
+            } else if (biome.name === 'Forest') { // Forest biome
+                if (spawnRoll > 0.8) { // 20% chance for rare items
+                    const forestItems = [
+                        { type: 'mushroom', emoji: '🍄' },
+                        { type: 'flower', emoji: '🌸' },
+                        { type: 'berry', emoji: '🍓' }
+                    ];
+                    const selected = forestItems[Math.floor(this.seededRandom() * forestItems.length)];
+                    itemType = selected.type;
+                    emoji = selected.emoji;
+                } else if (spawnRoll > 0.4) { // 40% chance for common items
+                    itemType = 'leaf';
+                    emoji = '🍃';
+                }
+            } else if (biome.name === 'Mountain') { // Mountain biome
+                if (spawnRoll > 0.85) { // 15% chance for rare crystal
+                    itemType = 'crystal';
+                    emoji = '💎';
+                } else if (spawnRoll > 0.6) { // 25% chance for ore nugget
+                    itemType = 'oreNugget';
+                    emoji = '⛰️';
+                }
+            } else if (biome.name === 'Plains') { // Plains biome
+                if (spawnRoll > 0.8) { // 20% chance for rare items
+                    const plainsItems = [
+                        { type: 'wheat', emoji: '🌾' },
+                        { type: 'feather', emoji: '🪶' },
+                        { type: 'bone', emoji: '🦴' }
+                    ];
+                    const selected = plainsItems[Math.floor(this.seededRandom() * plainsItems.length)];
+                    itemType = selected.type;
+                    emoji = selected.emoji;
+                }
+            } else if (biome.name === 'Tundra') { // Tundra biome
+                if (spawnRoll > 0.9) { // 10% chance for very rare items
+                    const tundraItems = [
+                        { type: 'shell', emoji: '🐚' },
+                        { type: 'fur', emoji: '🐻‍❄️' },
+                        { type: 'iceShard', emoji: '❄️' }
+                    ];
+                    const selected = tundraItems[Math.floor(this.seededRandom() * tundraItems.length)];
+                    itemType = selected.type;
+                    emoji = selected.emoji;
+                }
+            }
+            
+            // Rare equipment finds (very low chance across all biomes)
+            if (spawnRoll > 0.98) { // 2% chance for equipment
+                const equipmentItems = [
+                    { type: 'rustySword', emoji: '⚔️' },
+                    { type: 'oldPickaxe', emoji: '⛏️' },
+                    { type: 'ancientAmulet', emoji: '📿' }
+                ];
+                const selected = equipmentItems[Math.floor(this.seededRandom() * equipmentItems.length)];
+                itemType = selected.type;
+                emoji = selected.emoji;
+            }
+            
+            if (itemType && emoji) {
+                // Find a good spot in the chunk
+                const offsetX = Math.floor(this.seededRandom() * this.chunkSize);
+                const offsetZ = Math.floor(this.seededRandom() * this.chunkSize);
+                const worldX = chunkX * this.chunkSize + offsetX;
+                const worldZ = chunkZ * this.chunkSize + offsetZ;
+                
+                // Find ground level
+                let groundY = 0;
+                for (let y = 10; y >= -5; y--) {
+                    const key = `${worldX},${y},${worldZ}`;
+                    if (this.world[key]) {
+                        groundY = y + 1; // Place on top of ground
+                        break;
+                    }
+                }
+                
+                // Create the world item
+                this.createWorldItem(worldX, groundY, worldZ, itemType, emoji);
+                console.log(`Spawned ${itemType} at ${worldX}, ${groundY}, ${worldZ} in ${biome.name} biome`);
+            }
+        };
+
+        this.createWorldItem = (x, y, z, itemType, emoji) => {
+            const key = `${x},${y},${z}`;
+            
+            // Create billboard sprite
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            // Clear background
+            ctx.clearRect(0, 0, 128, 128);
+            
+            // Draw emoji
+            ctx.font = '96px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, 64, 64);
+            
+            // Create texture and sprite
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.LinearFilter;
+            texture.minFilter = THREE.LinearFilter;
+            
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+            });
+            
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(x, y + 0.5, z); // Float slightly above ground
+            sprite.userData = { 
+                type: 'worldItem', 
+                itemType: itemType,
+                emoji: emoji,
+                animationTime: Math.random() * Math.PI * 2
+            };
+            
+            this.scene.add(sprite);
+            
+            // Create invisible collision box for easier targeting
+            const collisionBox = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 1.5, 1.5), // Larger than sprite for easier clicking
+                new THREE.MeshBasicMaterial({ 
+                    transparent: true, 
+                    opacity: 0, // Completely invisible
+                    depthWrite: false // Don't interfere with depth buffer
+                })
+            );
+            collisionBox.position.set(x, y + 0.75, z); // Center of the collision box
+            collisionBox.userData = { 
+                type: 'worldItem', 
+                itemType: itemType,
+                emoji: emoji,
+                sprite: sprite // Reference to the visual sprite
+            };
+            
+            this.scene.add(collisionBox);
+            
+            // Store in world
+            this.world[key] = {
+                type: itemType,
+                billboard: sprite,
+                collisionBox: collisionBox,
+                harvestable: true
+            };
+        };
+
+        this.harvestWorldItem = (target) => {
+            // Handle both sprites and collision boxes
+            let itemType, emoji, sprite;
+            
+            if (target.userData.sprite) {
+                // Clicked on collision box - get data from associated sprite
+                sprite = target.userData.sprite;
+                itemType = target.userData.itemType;
+                emoji = target.userData.emoji;
+            } else {
+                // Clicked directly on sprite
+                sprite = target;
+                itemType = target.userData.itemType;
+                emoji = target.userData.emoji;
+            }
+            
+            // Add to inventory
+            if (!this.inventory[itemType]) {
+                this.inventory[itemType] = 0;
+            }
+            this.inventory[itemType]++;
+            
+            // Remove from scene and world
+            this.scene.remove(sprite);
+            
+            // Find and remove collision box if it exists
+            const pos = sprite.position;
+            const key = `${Math.floor(pos.x)},${Math.floor(pos.y)},${Math.floor(pos.z)}`;
+            const worldData = this.world[key];
+            if (worldData && worldData.collisionBox) {
+                this.scene.remove(worldData.collisionBox);
+            }
+            
+            delete this.world[key];
+            
+            // Update UI
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+            
+            // Notification
+            this.updateStatus(`${emoji} Found ${itemType}! (${this.inventory[itemType]} total)`, 'discovery');
+            console.log(`Harvested world item: ${itemType} (${emoji})`);
+        };
+
         // Show hotbar and tutorial after backpack pickup
         this.showHotbarTutorial = () => {
             // Create hotbar if it doesn't exist
@@ -522,6 +808,10 @@ class NebulaVoxelApp {
                 iron: '⚙️',
                 flowers: '🌸',
                 snow: '❄️',
+                dirt: '🪨',
+                coal: '⚫',
+                skull: '💀',
+                leaf: '🍃',
                 // Add crafted ShapeForge items
                 grass_cube: '🟩',
                 stone_cube: '🟫',
@@ -2574,10 +2864,18 @@ class NebulaVoxelApp {
             const playerChunkX = Math.floor(this.player.position.x / this.chunkSize);
             const playerChunkZ = Math.floor(this.player.position.z / this.chunkSize);
 
+            // Clean up distant chunk tracking data to prevent memory bloat
+            this.cleanupChunkTracking(playerChunkX, playerChunkZ);
+
             // Load chunks around player
             for (let dx = -this.renderDistance; dx <= this.renderDistance; dx++) {
                 for (let dz = -this.renderDistance; dz <= this.renderDistance; dz++) {
-                    generateChunk(playerChunkX + dx, playerChunkZ + dz);
+                    const chunkX = playerChunkX + dx;
+                    const chunkZ = playerChunkZ + dz;
+                    generateChunk(chunkX, chunkZ);
+                    
+                    // Check for random world item spawning in this chunk
+                    this.checkChunkForWorldItems(chunkX, chunkZ);
                 }
             }
 
@@ -3287,13 +3585,25 @@ class NebulaVoxelApp {
                 this.targetHighlight.material.color.setHex(0x00ff00);
             }
             
-            // Update raycaster
+            // Update raycaster - include both meshes and sprites for world items
             this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-            const intersects = this.raycaster.intersectObjects(this.scene.children.filter(obj => obj.isMesh && obj !== this.targetHighlight));
+            const intersects = this.raycaster.intersectObjects(
+                this.scene.children.filter(obj => 
+                    (obj.isMesh || obj.isSprite) && 
+                    obj !== this.targetHighlight
+                )
+            );
             
             if (intersects.length > 0) {
                 const hit = intersects[0];
                 const pos = hit.object.position.clone();
+                
+                // Check if clicked object is a world item billboard
+                if (hit.object.userData.type === 'worldItem') {
+                    // Harvest world item directly
+                    this.harvestWorldItem(hit.object);
+                    return;
+                }
                 
                 if (e.button === 0) { // Left click - start harvesting
                     this.startHarvesting(pos.x, pos.y, pos.z);
