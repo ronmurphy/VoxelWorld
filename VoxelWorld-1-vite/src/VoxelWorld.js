@@ -11,6 +11,7 @@ class NebulaVoxelApp {
             position: { x: 0, y: 10, z: 0 },
             rotation: { x: 0, y: 0 }
         };
+        this.isOnGround = false;
         this.keys = {};
         this.selectedSlot = 0;
         this.hasBackpack = false; // Track if player found backpack
@@ -195,15 +196,17 @@ class NebulaVoxelApp {
         this.removeBlock = (x, y, z) => {
             const key = `${x},${y},${z}`;
             if (this.world[key]) {
+                const blockData = this.world[key];
+
                 // Check if it's a shrub for harvesting
-                if (this.world[key].type === 'shrub') {
+                if (blockData.type === 'shrub') {
                     this.inventory.wood += 1; // Add 1 wood to inventory
                     console.log(`Harvested shrub! Wood: ${this.inventory.wood}`);
                     this.updateStatus(`Harvested shrub! Wood: ${this.inventory.wood}`);
                     this.updateHotbarCounts(); // Update hotbar display
                 }
                 // Check if it's a backpack for pickup
-                else if (this.world[key].type === 'backpack' && !this.hasBackpack) {
+                else if (blockData.type === 'backpack' && !this.hasBackpack) {
                     this.hasBackpack = true; // Mark backpack as found
                     this.backpackPosition = null; // Remove from minimap
                     this.generateBackpackLoot(); // Add random starting items
@@ -211,15 +214,43 @@ class NebulaVoxelApp {
                     console.log(`Found backpack! Hotbar unlocked!`);
                     this.updateStatus(`🎒 Found backpack! Use 1-4 for quick access, 5 to open storage!`, 'discovery');
                 }
+                // Random drop system for regular blocks
+                else if (blockData.type === 'grass') {
+                    // 10% chance to get dirt when harvesting grass
+                    if (Math.random() < 0.1) {
+                        this.addItemToInventory('dirt');
+                        this.updateStatus(`🪨 Found dirt!`, 'discovery');
+                    }
+                }
+                else if (blockData.type === 'stone') {
+                    // 5% chance to get coal when harvesting stone
+                    if (Math.random() < 0.05) {
+                        this.addItemToInventory('coal');
+                        this.updateStatus(`⚫ Found coal!`, 'discovery');
+                    }
+                }
 
-                this.scene.remove(this.world[key].mesh);
+                // Properly dispose of mesh geometry and material to prevent memory leaks
+                if (blockData.mesh) {
+                    this.scene.remove(blockData.mesh);
+                    if (blockData.mesh.geometry) {
+                        blockData.mesh.geometry.dispose();
+                    }
+                    // Don't dispose material as it's shared
+                }
 
                 // Also remove billboard if it exists
-                if (this.world[key].billboard) {
-                    this.scene.remove(this.world[key].billboard);
+                if (blockData.billboard) {
+                    this.scene.remove(blockData.billboard);
+                    if (blockData.billboard.material && blockData.billboard.material.map) {
+                        // Don't dispose shared textures
+                    }
                 }
 
                 delete this.world[key];
+
+                // Log removal for debugging
+                console.log(`Removed block ${blockData.type} at (${x},${y},${z})`);
             }
         };
 
@@ -2080,7 +2111,9 @@ class NebulaVoxelApp {
         // Block types and procedural textures
         this.blockTypes = {
             grass: { color: 0x228B22, texture: 'grass' },    // Forest green with grass pattern
+            dirt: { color: 0x8B4513, texture: 'dirt' },      // Brown dirt texture
             stone: { color: 0x696969, texture: 'stone' },    // Dim gray with stone pattern
+            coal: { color: 0x2F2F2F, texture: 'coal' },      // Dark gray/black coal texture
             wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain
             sand: { color: 0xF4A460, texture: 'sand' },      // Sandy brown with grain texture
             glass: { color: 0x87CEEB, texture: 'glass' },    // Sky blue, translucent
@@ -2849,7 +2882,7 @@ class NebulaVoxelApp {
                 this.renderer.render(this.scene, this.camera);
                 return;
             }
-            
+
             const speed = 4.0; // Units per second
             const jumpSpeed = 9.0; // Jump velocity - increased for 2-block obstacles, was 8.0
             const gravity = 20.0; // Gravity acceleration
@@ -2877,113 +2910,205 @@ class NebulaVoxelApp {
             
             // Apply rotation to movement direction
             dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
-            
-            // Optimized horizontal collision - more lenient checking
-            const checkBlockCollision = (x, y, z) => {
+
+            // ========== RAYCAST UTILITY FUNCTIONS (Phase 2) ==========
+            // Simple block existence check for raycast system
+            const checkBlockAtPosition = (x, y, z) => {
                 const blockX = Math.floor(x);
                 const blockY = Math.floor(y);
                 const blockZ = Math.floor(z);
                 const key = `${blockX},${blockY},${blockZ}`;
-                const hasBlock = this.world[key] && this.world[key] !== 'air';
-                return hasBlock;
+                return this.world[key] && this.world[key] !== 'air';
             };
 
-            // Player bounding box collision check
-            const checkPlayerCollision = (x, y, z) => {
-                const playerWidth = 0.8; // Player width/depth - increased for better collision
-                const playerHeight = 1.8; // Player height
-                const halfWidth = playerWidth / 2;
+            // Main raycast collision detection function
+            const raycastCollision = (fromPos, toPos, rayHeight) => {
+                const direction = new THREE.Vector3().subVectors(toPos, fromPos);
+                const distance = direction.length();
+                if (distance < 0.001) return { hit: false };
 
-                // Check blocks that the player's bounding box would occupy
-                const minX = Math.floor(x - halfWidth);
-                const maxX = Math.floor(x + halfWidth);
-                const minZ = Math.floor(z - halfWidth);
-                const maxZ = Math.floor(z + halfWidth);
-                const minY = Math.floor(y);
-                const maxY = Math.floor(y + playerHeight);
+                direction.normalize();
+                const steps = Math.max(2, Math.ceil(distance * 6)); // 6 checks per unit for precision
 
-                for (let bx = minX; bx <= maxX; bx++) {
-                    for (let bz = minZ; bz <= maxZ; bz++) {
-                        for (let by = minY; by <= maxY; by++) {
-                            const key = `${bx},${by},${bz}`;
-                            if (this.world[key] && this.world[key] !== 'air') {
-                                return true; // Collision detected
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const checkPos = new THREE.Vector3().lerpVectors(fromPos, toPos, t);
+                    checkPos.y = rayHeight;
+
+                    if (checkBlockAtPosition(checkPos.x, checkPos.y, checkPos.z)) {
+                        return {
+                            hit: true,
+                            position: checkPos.clone(),
+                            distance: distance * t
+                        };
+                    }
+                }
+                return { hit: false };
+            };
+
+            // Helper to create Vector3 from player position
+            const getPlayerVector3 = () => {
+                return new THREE.Vector3(this.player.position.x, this.player.position.y, this.player.position.z);
+            };
+            // ========== END RAYCAST UTILITIES ==========
+
+            // ========== HITBOX COLLISION SYSTEM ==========
+            // Player hitbox dimensions
+            const PLAYER_WIDTH = 0.6;
+            const PLAYER_HEIGHT = 1.8;
+            const PLAYER_DEPTH = 0.6;
+
+            // Create player hitbox at given position
+            const createPlayerHitbox = (x, y, z) => {
+                const halfWidth = PLAYER_WIDTH / 2;
+                const halfHeight = PLAYER_HEIGHT / 2;
+                const halfDepth = PLAYER_DEPTH / 2;
+
+                return {
+                    minX: x - halfWidth,
+                    maxX: x + halfWidth,
+                    minY: y - halfHeight,
+                    maxY: y + halfHeight,
+                    minZ: z - halfDepth,
+                    maxZ: z + halfDepth
+                };
+            };
+
+            // Create block hitbox at given block coordinates
+            const createBlockHitbox = (blockX, blockY, blockZ) => {
+                return {
+                    minX: blockX,
+                    maxX: blockX + 1,
+                    minY: blockY,
+                    maxY: blockY + 1,
+                    minZ: blockZ,
+                    maxZ: blockZ + 1
+                };
+            };
+
+            // AABB collision detection between two hitboxes
+            const hitboxesCollide = (hitbox1, hitbox2) => {
+                return (
+                    hitbox1.minX <= hitbox2.maxX && hitbox1.maxX >= hitbox2.minX &&
+                    hitbox1.minY <= hitbox2.maxY && hitbox1.maxY >= hitbox2.minY &&
+                    hitbox1.minZ <= hitbox2.maxZ && hitbox1.maxZ >= hitbox2.minZ
+                );
+            };
+
+            // Check if player hitbox collides with any blocks in the world
+            const checkHitboxCollision = (playerHitbox) => {
+                // Get the range of blocks to check based on player hitbox bounds
+                const minBlockX = Math.floor(playerHitbox.minX);
+                const maxBlockX = Math.floor(playerHitbox.maxX);
+                const minBlockY = Math.floor(playerHitbox.minY);
+                const maxBlockY = Math.floor(playerHitbox.maxY);
+                const minBlockZ = Math.floor(playerHitbox.minZ);
+                const maxBlockZ = Math.floor(playerHitbox.maxZ);
+
+                // Check all blocks in the range
+                for (let x = minBlockX; x <= maxBlockX; x++) {
+                    for (let y = minBlockY; y <= maxBlockY; y++) {
+                        for (let z = minBlockZ; z <= maxBlockZ; z++) {
+                            if (checkBlockAtPosition(x, y, z)) {
+                                const blockHitbox = createBlockHitbox(x, y, z);
+                                if (hitboxesCollide(playerHitbox, blockHitbox)) {
+                                    return { collision: true, blockX: x, blockY: y, blockZ: z };
+                                }
                             }
                         }
                     }
                 }
-                return false; // No collision
+                return { collision: false };
             };
-            
-            // Apply horizontal movement FIRST (before gravity/ground collision)
+            // ========== END HITBOX UTILITIES ==========
+
+            // ========== HITBOX-BASED COLLISION SYSTEM ==========
+            // Apply horizontal movement with proper AABB collision
             const moveSpeed = speed * deltaTime;
-            
-            // X movement - always allow unless hitting a wall
-            if (Math.abs(dir.x) > 0.001) {
-                const newX = this.player.position.x + (dir.x * moveSpeed);
-                const currentY = Math.floor(this.player.position.y);
-                
-                // Check for wall collision at current height only
-                if (!checkPlayerCollision(newX, currentY, this.player.position.z)) {
+
+            // Hitbox-based horizontal collision with perfect coverage
+            if (Math.abs(dir.x) > 0.001 || Math.abs(dir.z) > 0.001) {
+                const currentPos = getPlayerVector3();
+                const newX = currentPos.x + dir.x * moveSpeed;
+                const newZ = currentPos.z + dir.z * moveSpeed;
+
+                // Create player hitbox excluding bottom to avoid ground collision
+                const createHorizontalHitbox = (x, z) => {
+                    return {
+                        minX: x - PLAYER_WIDTH / 2,
+                        maxX: x + PLAYER_WIDTH / 2,
+                        minY: currentPos.y - PLAYER_HEIGHT / 2 + 0.1, // Slightly above ground
+                        maxY: currentPos.y + PLAYER_HEIGHT / 2,
+                        minZ: z - PLAYER_DEPTH / 2,
+                        maxZ: z + PLAYER_DEPTH / 2
+                    };
+                };
+
+                // Test full movement first
+                const newHitbox = createHorizontalHitbox(newX, newZ);
+                const fullCollision = checkHitboxCollision(newHitbox);
+
+                if (!fullCollision.collision) {
+                    // No collision - move freely
                     this.player.position.x = newX;
-                } else {
-                    // Auto-jump: check if we can jump over a 1-2 block high obstacle
-                    if (!checkPlayerCollision(newX, currentY + 1, this.player.position.z) &&
-                        !checkPlayerCollision(newX, currentY + 2, this.player.position.z) &&
-                        Math.abs(this.player.velocity) < 0.1) { // on ground
-                        this.player.velocity = 8.0; // jump
-                        this.player.position.x = newX;
-                    }
-                }
-            }
-            
-            // Z movement - always allow unless hitting a wall  
-            if (Math.abs(dir.z) > 0.001) {
-                const newZ = this.player.position.z + (dir.z * moveSpeed);
-                const currentY = Math.floor(this.player.position.y);
-                
-                // Check for wall collision at current height only
-                if (!checkPlayerCollision(this.player.position.x, currentY, newZ)) {
                     this.player.position.z = newZ;
                 } else {
-                    // Auto-jump: check if we can jump over a 1-2 block high obstacle
-                    if (!checkPlayerCollision(this.player.position.x, currentY + 1, newZ) &&
-                        !checkPlayerCollision(this.player.position.x, currentY + 2, newZ) &&
-                        Math.abs(this.player.velocity) < 0.1) { // on ground
-                        this.player.velocity = 8.0; // jump
+                    // Collision detected - try sliding along walls
+                    // Test X movement only
+                    const xOnlyHitbox = createHorizontalHitbox(newX, currentPos.z);
+                    const xCollision = checkHitboxCollision(xOnlyHitbox);
+
+                    if (!xCollision.collision) {
+                        this.player.position.x = newX;
+                    }
+
+                    // Test Z movement only
+                    const zOnlyHitbox = createHorizontalHitbox(currentPos.x, newZ);
+                    const zCollision = checkHitboxCollision(zOnlyHitbox);
+
+                    if (!zCollision.collision) {
                         this.player.position.z = newZ;
                     }
                 }
             }
             
-            // Apply gravity and vertical movement AFTER horizontal movement
+            // Hitbox-based vertical collision with full player volume
             if (!this.player.velocity) this.player.velocity = 0;
             this.player.velocity -= gravity * deltaTime; // Apply gravity over time
-            this.player.position.y += this.player.velocity * deltaTime; // Apply velocity over time
-            
-            // Ground collision - completely separate from horizontal movement
-            const getGroundLevel = (x, z) => {
-                const blockX = Math.floor(x);
-                const blockZ = Math.floor(z);
-                
-                // Check downward from current position for ground
-                const currentY = Math.floor(this.player.position.y);
-                for (let y = currentY + 1; y >= currentY - 5; y--) { // Check one block above too
-                    const key = `${blockX},${y},${blockZ}`;
-                    if (this.world[key]) {
-                        return y + 1; // Stand on top of the block
-                    }
+
+            const currentPos = getPlayerVector3();
+            const newY = this.player.position.y + (this.player.velocity * deltaTime);
+
+            if (this.player.velocity <= 0) {
+                // Falling or stationary - check for ground collision using full hitbox
+                const testHitbox = createPlayerHitbox(currentPos.x, newY, currentPos.z);
+                const collision = checkHitboxCollision(testHitbox);
+
+                if (collision.collision) {
+                    // Found collision - place player on top of the colliding block
+                    const groundLevel = collision.blockY + 1;
+                    this.player.position.y = groundLevel + PLAYER_HEIGHT / 2;
+                    this.player.velocity = 0;
+                    this.isOnGround = true;
+                } else {
+                    // No collision - continue falling
+                    this.player.position.y = newY;
+                    this.isOnGround = false;
                 }
-                return currentY - 3; // Fallback
-            };
-            
-            // Apply ground collision more aggressively to prevent falling through
-            const groundLevel = getGroundLevel(this.player.position.x, this.player.position.z);
-            const playerBottom = this.player.position.y - 0.9;
-            
-            if (playerBottom <= groundLevel) {
-                this.player.position.y = groundLevel + 0.9;
-                this.player.velocity = 0;
+            } else {
+                // Jumping upward - check for ceiling collision using full hitbox
+                const testHitbox = createPlayerHitbox(currentPos.x, newY, currentPos.z);
+                const collision = checkHitboxCollision(testHitbox);
+
+                if (collision.collision) {
+                    // Hit ceiling - stop upward movement
+                    this.player.velocity = 0;
+                    // Don't change Y position to avoid clipping into ceiling
+                } else {
+                    // No ceiling collision - continue jumping
+                    this.player.position.y = newY;
+                    this.isOnGround = false;
+                }
             }
 
             // Update chunks every 30 frames (about 0.5 seconds)
@@ -3072,7 +3197,16 @@ class NebulaVoxelApp {
                     e.preventDefault();
                 }
             }
-            
+
+            // ESC key: Close backpack if open
+            if (key === 'escape' && this.hasBackpack && this.backpackInventoryElement) {
+                const isVisible = this.backpackInventoryElement.style.transform.includes('translateY(0px)');
+                if (isVisible) {
+                    this.toggleBackpackInventory();
+                    e.preventDefault();
+                }
+            }
+
             // Q and E for hotbar navigation
             if (key === 'q') {
                 this.selectedSlot = (this.selectedSlot - 1 + this.hotbarSlots.length) % this.hotbarSlots.length;
@@ -3275,7 +3409,7 @@ class NebulaVoxelApp {
         this.timeIndicator.textContent = 'wb_sunny'; // Default to sun
         this.timeIndicator.style.cssText = `
             position: absolute;
-            top: 16px;
+            top: 48px;
             left: 16px;
             z-index: 2000;
             font-size: 32px;
@@ -3294,7 +3428,7 @@ class NebulaVoxelApp {
         this.miniMap.height = 120;
         this.miniMap.style.cssText = `
             position: absolute;
-            top: 16px;
+            top: 48px;
             right: 16px;
             z-index: 2000;
             border: 2px solid rgba(255,255,255,0.8);
@@ -3657,10 +3791,7 @@ export async function initVoxelWorld(container) {
         const app = new NebulaVoxelApp(container);
         console.log('📱 NebulaVoxelApp created');
 
-        // Run performance benchmark on first load
-        console.log('🏃 Running performance benchmark...');
-        await app.runPerformanceBenchmark();
-        console.log('✅ Performance benchmark completed');
+        console.log('✅ VoxelWorld initialization completed');
 
         return app;
     } catch (error) {
