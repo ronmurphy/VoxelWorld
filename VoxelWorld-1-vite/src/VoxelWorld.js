@@ -7,12 +7,6 @@ class NebulaVoxelApp {
         this.loadedChunks = new Set();
         this.chunkSize = 8;  // Reduced from 12 for better performance
         this.renderDistance = 1;  // Reduced from 2 for better performance
-        this.chunkCleanupRadius = 12; // Keep tracking data for chunks within this radius
-        
-        // World item spawning system
-        this.visitedChunks = new Set(); // Track chunks that have been visited
-        this.chunkSpawnTimes = new Map(); // Track last spawn time for chunks
-        this.gameStartTime = Date.now(); // Track game start for time-based respawns
         this.player = {
             position: { x: 0, y: 10, z: 0 },
             rotation: { x: 0, y: 0 }
@@ -30,7 +24,9 @@ class NebulaVoxelApp {
         this.harvestingDuration = 0;
         this.inventory = {
             grass: 0,
+            dirt: 0,
             stone: 0,
+            coal: 0,
             wood: 0,
             sand: 0,
             glass: 0,
@@ -242,15 +238,19 @@ class NebulaVoxelApp {
                 else if (blockData.type === 'grass') {
                     // 10% chance to get dirt when harvesting grass
                     if (Math.random() < 0.1) {
-                        this.addItemToInventory('dirt');
+                        this.inventory.dirt += 1;
                         this.updateStatus(`🪨 Found dirt!`, 'discovery');
+                        this.updateHotbarCounts(); // Update hotbar display
+                        console.log(`Random drop! Dirt: ${this.inventory.dirt}`);
                     }
                 }
                 else if (blockData.type === 'stone') {
                     // 5% chance to get coal when harvesting stone
                     if (Math.random() < 0.05) {
-                        this.addItemToInventory('coal');
+                        this.inventory.coal += 1;
                         this.updateStatus(`⚫ Found coal!`, 'discovery');
+                        this.updateHotbarCounts(); // Update hotbar display
+                        console.log(`Random drop! Coal: ${this.inventory.coal}`);
                     }
                 }
 
@@ -405,55 +405,10 @@ class NebulaVoxelApp {
             this.updateHotbarCounts();
         };
 
-        // World item spawning system for random discoveries
-        this.cleanupChunkTracking = (playerChunkX, playerChunkZ) => {
-            // Remove tracking data for chunks beyond cleanup radius to prevent memory bloat
-            const chunksToRemove = [];
-            
-            // Check visitedChunks Set
-            for (const chunkKey of this.visitedChunks) {
-                const [chunkX, chunkZ] = chunkKey.split(',').map(Number);
-                const distance = Math.max(
-                    Math.abs(chunkX - playerChunkX),
-                    Math.abs(chunkZ - playerChunkZ)
-                );
-                
-                if (distance > this.chunkCleanupRadius) {
-                    chunksToRemove.push(chunkKey);
-                }
-            }
-            
-            // Remove distant chunks from both data structures
-            chunksToRemove.forEach(chunkKey => {
-                this.visitedChunks.delete(chunkKey);
-                this.chunkSpawnTimes.delete(chunkKey);
-            });
-            
-            if (chunksToRemove.length > 0) {
-                console.log(`Cleaned up tracking data for ${chunksToRemove.length} distant chunks`);
-            }
-        };
 
         this.checkChunkForWorldItems = (chunkX, chunkZ) => {
-            const chunkKey = `${chunkX},${chunkZ}`;
-            
-            // Skip if already visited and not enough time has passed
-            if (this.visitedChunks.has(chunkKey)) {
-                const lastSpawnTime = this.chunkSpawnTimes.get(chunkKey) || 0;
-                const timeSinceSpawn = Date.now() - lastSpawnTime;
-                const twoGameDays = 2 * 24 * 60 * 60 * 1000; // 2 days in milliseconds
-                
-                if (timeSinceSpawn < twoGameDays) {
-                    return; // Not enough time has passed
-                }
-            }
-            
-            // Mark chunk as visited
-            this.visitedChunks.add(chunkKey);
-            this.chunkSpawnTimes.set(chunkKey, Date.now());
-            
-            // 5% chance to spawn random world items
-            if (this.seededRandom() > 0.95) {
+            // Simple 2% chance to spawn random world items
+            if (this.seededRandom() > 0.98) {
                 this.spawnRandomWorldItems(chunkX, chunkZ);
             }
         };
@@ -463,67 +418,13 @@ class NebulaVoxelApp {
             const centerX = chunkX * this.chunkSize + this.chunkSize / 2;
             const centerZ = chunkZ * this.chunkSize + this.chunkSize / 2;
             const biome = this.getBiomeAt(centerX, centerZ);
-            
+
             let itemType = null;
             let emoji = null;
-            
-            // Spawn biome-appropriate items with multiple options and rarities
-            const spawnRoll = this.seededRandom(); // 0-1 for rarity determination
-            
-            if (biome.surfaceBlock === 'sand') { // Desert biome
-                if (spawnRoll > 0.7) { // 30% chance
-                    itemType = 'skull';
-                    emoji = '💀';
-                }
-                // Could add more desert items here later
-            } else if (biome.name === 'Forest') { // Forest biome
-                if (spawnRoll > 0.8) { // 20% chance for rare items
-                    const forestItems = [
-                        { type: 'mushroom', emoji: '🍄' },
-                        { type: 'flower', emoji: '🌸' },
-                        { type: 'berry', emoji: '🍓' }
-                    ];
-                    const selected = forestItems[Math.floor(this.seededRandom() * forestItems.length)];
-                    itemType = selected.type;
-                    emoji = selected.emoji;
-                } else if (spawnRoll > 0.4) { // 40% chance for common items
-                    itemType = 'leaf';
-                    emoji = '🍃';
-                }
-            } else if (biome.name === 'Mountain') { // Mountain biome
-                if (spawnRoll > 0.85) { // 15% chance for rare crystal
-                    itemType = 'crystal';
-                    emoji = '💎';
-                } else if (spawnRoll > 0.6) { // 25% chance for ore nugget
-                    itemType = 'oreNugget';
-                    emoji = '⛰️';
-                }
-            } else if (biome.name === 'Plains') { // Plains biome
-                if (spawnRoll > 0.8) { // 20% chance for rare items
-                    const plainsItems = [
-                        { type: 'wheat', emoji: '🌾' },
-                        { type: 'feather', emoji: '🪶' },
-                        { type: 'bone', emoji: '🦴' }
-                    ];
-                    const selected = plainsItems[Math.floor(this.seededRandom() * plainsItems.length)];
-                    itemType = selected.type;
-                    emoji = selected.emoji;
-                }
-            } else if (biome.name === 'Tundra') { // Tundra biome
-                if (spawnRoll > 0.9) { // 10% chance for very rare items
-                    const tundraItems = [
-                        { type: 'shell', emoji: '🐚' },
-                        { type: 'fur', emoji: '🐻‍❄️' },
-                        { type: 'iceShard', emoji: '❄️' }
-                    ];
-                    const selected = tundraItems[Math.floor(this.seededRandom() * tundraItems.length)];
-                    itemType = selected.type;
-                    emoji = selected.emoji;
-                }
-            }
-            
-            // Rare equipment finds (very low chance across all biomes)
-            if (spawnRoll > 0.98) { // 2% chance for equipment
+
+            // First check for universal rare equipment (very low chance across all biomes)
+            const universalRoll = this.seededRandom();
+            if (universalRoll > 0.995) { // 0.5% chance for universal equipment
                 const equipmentItems = [
                     { type: 'rustySword', emoji: '⚔️' },
                     { type: 'oldPickaxe', emoji: '⛏️' },
@@ -532,6 +433,60 @@ class NebulaVoxelApp {
                 const selected = equipmentItems[Math.floor(this.seededRandom() * equipmentItems.length)];
                 itemType = selected.type;
                 emoji = selected.emoji;
+            } else {
+                // Spawn biome-specific items only if no universal item was spawned
+                const spawnRoll = this.seededRandom(); // 0-1 for rarity determination
+
+                if (biome.surfaceBlock === 'sand') { // Desert biome
+                    if (spawnRoll > 0.7) { // 30% chance
+                        itemType = 'skull';
+                        emoji = '💀';
+                    }
+                } else if (biome.name === 'forest') { // Forest biome
+                    if (spawnRoll > 0.8) { // 20% chance for rare items
+                        const forestItems = [
+                            { type: 'mushroom', emoji: '🍄' },
+                            { type: 'flower', emoji: '🌸' },
+                            { type: 'berry', emoji: '🍓' }
+                        ];
+                        const selected = forestItems[Math.floor(this.seededRandom() * forestItems.length)];
+                        itemType = selected.type;
+                        emoji = selected.emoji;
+                    } else if (spawnRoll > 0.4) { // 40% chance for common items
+                        itemType = 'leaf';
+                        emoji = '🍃';
+                    }
+                } else if (biome.name === 'mountain') { // Mountain biome
+                    if (spawnRoll > 0.85) { // 15% chance for rare crystal
+                        itemType = 'crystal';
+                        emoji = '💎';
+                    } else if (spawnRoll > 0.6) { // 25% chance for ore nugget
+                        itemType = 'oreNugget';
+                        emoji = '⛰️';
+                    }
+                } else if (biome.name === 'plains') { // Plains biome
+                    if (spawnRoll > 0.8) { // 20% chance for rare items
+                        const plainsItems = [
+                            { type: 'wheat', emoji: '🌾' },
+                            { type: 'feather', emoji: '🪶' },
+                            { type: 'bone', emoji: '🦴' }
+                        ];
+                        const selected = plainsItems[Math.floor(this.seededRandom() * plainsItems.length)];
+                        itemType = selected.type;
+                        emoji = selected.emoji;
+                    }
+                } else if (biome.name === 'tundra') { // Tundra biome
+                    if (spawnRoll > 0.9) { // 10% chance for very rare items
+                        const tundraItems = [
+                            { type: 'shell', emoji: '🐚' },
+                            { type: 'fur', emoji: '🐻‍❄️' },
+                            { type: 'iceShard', emoji: '❄️' }
+                        ];
+                        const selected = tundraItems[Math.floor(this.seededRandom() * tundraItems.length)];
+                        itemType = selected.type;
+                        emoji = selected.emoji;
+                    }
+                }
             }
             
             if (itemType && emoji) {
@@ -810,8 +765,23 @@ class NebulaVoxelApp {
                 snow: '❄️',
                 dirt: '🪨',
                 coal: '⚫',
+                // Discovery items
                 skull: '💀',
                 leaf: '🍃',
+                crystal: '💎',
+                oreNugget: '⛰️',
+                wheat: '🌾',
+                feather: '🪶',
+                bone: '🦴',
+                shell: '🐚',
+                fur: '🐻‍❄️',
+                iceShard: '❄️',
+                mushroom: '🍄',
+                flower: '🌸',
+                berry: '🍓',
+                rustySword: '⚔️',
+                oldPickaxe: '⛏️',
+                ancientAmulet: '📿',
                 // Add crafted ShapeForge items
                 grass_cube: '🟩',
                 stone_cube: '🟫',
@@ -2864,8 +2834,6 @@ class NebulaVoxelApp {
             const playerChunkX = Math.floor(this.player.position.x / this.chunkSize);
             const playerChunkZ = Math.floor(this.player.position.z / this.chunkSize);
 
-            // Clean up distant chunk tracking data to prevent memory bloat
-            this.cleanupChunkTracking(playerChunkX, playerChunkZ);
 
             // Load chunks around player
             for (let dx = -this.renderDistance; dx <= this.renderDistance; dx++) {
