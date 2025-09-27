@@ -1497,6 +1497,186 @@ export class WorkbenchSystem {
     }
 
     /**
+     * Show naming modal for crafted item
+     */
+    showItemNamingModal(itemData) {
+        // Create modal backdrop
+        const namingModal = document.createElement('div');
+        namingModal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        `;
+
+        // Create modal container
+        const container = document.createElement('div');
+        container.style.cssText = `
+            background: linear-gradient(135deg, #2c1810, #1a0f08);
+            border: 3px solid #FFD700;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        `;
+
+        // Title with crafted item info
+        const title = document.createElement('h2');
+        title.textContent = '🎨 Name Your Creation';
+        title.style.cssText = `
+            color: #FFD700;
+            margin: 0 0 20px 0;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        `;
+
+        // Item preview info
+        const itemInfo = document.createElement('div');
+        itemInfo.style.cssText = `
+            color: #ccc;
+            margin-bottom: 20px;
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        `;
+
+        const materialEmoji = this.voxelWorld.getItemIcon(itemData.material);
+        itemInfo.innerHTML = `
+            <div style="margin-bottom: 10px;">
+                <span style="font-size: 24px;">${materialEmoji}</span>
+                <strong style="color: #FFD700; margin-left: 10px;">${itemData.shape.toUpperCase()}</strong>
+            </div>
+            <div style="font-size: 14px; opacity: 0.8;">
+                Material: ${itemData.material} • Size: ${itemData.length}×${itemData.width}×${itemData.height}
+            </div>
+        `;
+
+        // Input field for name
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'Enter a name for your creation...';
+        nameInput.value = `Custom ${itemData.shape.charAt(0).toUpperCase() + itemData.shape.slice(1)}`;
+        nameInput.style.cssText = `
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #8B4513;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            margin-bottom: 20px;
+            outline: none;
+            box-sizing: border-box;
+        `;
+
+        // Focus and select text
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select();
+        }, 100);
+
+        // Buttons container
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.cssText = `
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        `;
+
+        // Cancel button
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = '❌ Cancel';
+        cancelButton.style.cssText = `
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #8B0000, #6B0000);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        `;
+
+        // Craft button
+        const craftButton = document.createElement('button');
+        craftButton.textContent = '⚡ Craft Item';
+        craftButton.style.cssText = `
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: bold;
+        `;
+
+        // Event handlers
+        const closeModal = () => {
+            document.body.removeChild(namingModal);
+        };
+
+        const finalizeCrafting = () => {
+            const itemName = nameInput.value.trim();
+            if (!itemName) {
+                nameInput.style.borderColor = '#FF6B6B';
+                nameInput.focus();
+                return;
+            }
+
+            closeModal();
+            this.finalizeCraftedItem(itemData, itemName);
+        };
+
+        cancelButton.addEventListener('click', closeModal);
+        craftButton.addEventListener('click', finalizeCrafting);
+
+        // Enter key to craft
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                finalizeCrafting();
+            } else if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Hover effects
+        [cancelButton, craftButton].forEach(button => {
+            button.addEventListener('mouseenter', () => {
+                button.style.transform = 'translateY(-2px)';
+                button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+            });
+            button.addEventListener('mouseleave', () => {
+                button.style.transform = 'translateY(0)';
+                button.style.boxShadow = 'none';
+            });
+        });
+
+        // Assemble modal
+        buttonsContainer.appendChild(cancelButton);
+        buttonsContainer.appendChild(craftButton);
+
+        container.appendChild(title);
+        container.appendChild(itemInfo);
+        container.appendChild(nameInput);
+        container.appendChild(buttonsContainer);
+
+        namingModal.appendChild(container);
+        document.body.appendChild(namingModal);
+    }
+
+    /**
      * Craft the currently selected item
      */
     craftItem() {
@@ -1516,7 +1696,7 @@ export class WorkbenchSystem {
         const requiredQuantity = length * width * height * 2; // New cost calculation: L×W×H×2
         const availableQuantity = this.voxelWorld.countItemInSlots(material);
 
-        console.log(`🔨 Crafting ${shape} ${length}×${width}×${height} using ${requiredQuantity} ${material}`);
+        console.log(`🔨 Preparing to craft ${shape} ${length}×${width}×${height} using ${requiredQuantity} ${material}`);
         console.log(`📦 Available: ${availableQuantity}, Required: ${requiredQuantity}`);
 
         // Check if player has enough materials
@@ -1526,30 +1706,101 @@ export class WorkbenchSystem {
             return;
         }
 
-        // Create crafted item with shape data
-        const shapeData = {
+        // Create item data for the naming modal
+        const itemData = {
             material: material,
             shape: shape,
-            dimensions: { length, width, height },
-            cost: requiredQuantity,
+            length: length,
+            width: width,
+            height: height,
+            requiredQuantity: requiredQuantity,
             timestamp: Date.now()
         };
 
-        // Create crafted item name (e.g., "crafted_wood_cube_3x2x4")
-        const itemName = `crafted_${material}_${shape}_${length}x${width}x${height}`;
+        // Show naming modal instead of immediately crafting
+        this.showItemNamingModal(itemData);
+    }
+
+    /**
+     * Finalize the crafted item with user-provided name and enhanced data
+     */
+    finalizeCraftedItem(itemData, itemName) {
+        console.log('🎨 ===== FINALIZING CRAFTED ITEM =====');
+        console.log('📦 Item Data:', itemData);
+        console.log('🏷️ User Name:', itemName);
+
+        // Get material color for the item
+        const materialColors = {
+            wood: '#8B4513',
+            stone: '#696969',
+            iron: '#708090',
+            glass: '#87CEEB',
+            brick: '#CD853F',
+            sand: '#F4A460',
+            grass: '#228B22',
+            dirt: '#8B4513',
+            glowstone: '#FFFF88'
+        };
+
+        const itemColor = materialColors[itemData.material] || '#8B4513';
+
+        // Create comprehensive crafted item data in JSON format
+        const enhancedItemData = {
+            // Basic info
+            name: itemName,
+            type: 'crafted_item',
+            category: 'shapeforge',
+
+            // Shape properties
+            shape: {
+                type: itemData.shape,
+                dimensions: {
+                    length: itemData.length,
+                    width: itemData.width,
+                    height: itemData.height
+                }
+            },
+
+            // Material properties
+            material: {
+                type: itemData.material,
+                color: itemColor,
+                quantity_used: itemData.requiredQuantity
+            },
+
+            // Visual properties
+            appearance: {
+                color: itemColor,
+                skin: null, // Placeholder for future skin system
+                icon_type: 'material_web_icon'
+            },
+
+            // Metadata
+            metadata: {
+                created_timestamp: itemData.timestamp,
+                created_by: 'user',
+                crafting_system: 'shapeforge_v1',
+                version: '1.0'
+            }
+        };
+
+        // Create item identifier for Material Icons system (no timestamp for icon matching)
+        const itemId = `crafted_${itemData.material}_${itemData.shape}_${itemData.length}x${itemData.width}x${itemData.height}`;
+
+        console.log('🎨 Enhanced Item Data:', enhancedItemData);
 
         // Consume materials from slot-based inventory
-        this.voxelWorld.removeFromInventory(material, requiredQuantity);
-        console.log(`✅ Consumed ${requiredQuantity} ${material}, ${this.voxelWorld.countItemInSlots(material)} remaining`);
+        this.voxelWorld.removeFromInventory(itemData.material, itemData.requiredQuantity);
+        console.log(`✅ Consumed ${itemData.requiredQuantity} ${itemData.material}, ${this.voxelWorld.countItemInSlots(itemData.material)} remaining`);
 
-        // Add crafted item to slot-based inventory
-        this.voxelWorld.addToInventory(itemName, 1);
+        // Add crafted item to slot-based inventory with enhanced data
+        this.voxelWorld.addToInventory(itemId, 1);
 
-        // Store shape metadata (create inventoryMetadata if it doesn't exist)
+        // Store enhanced metadata (create inventoryMetadata if it doesn't exist)
         if (!this.voxelWorld.inventoryMetadata) {
             this.voxelWorld.inventoryMetadata = {};
         }
-        this.voxelWorld.inventoryMetadata[itemName] = shapeData;
+        this.voxelWorld.inventoryMetadata[itemId] = enhancedItemData;
 
         // Update UI displays
         this.voxelWorld.updateHotbarCounts();
@@ -1558,11 +1809,11 @@ export class WorkbenchSystem {
         // Update cost display and button state (since materials were consumed)
         this.updateMaterialCostDisplay();
 
-        // Success notification
-        const emoji = this.voxelWorld.getItemIcon(material);
-        this.voxelWorld.updateStatus(`⚡ Crafted ${emoji} ${itemName}! Added to inventory.`, 'discovery');
+        // Success notification with user's custom name
+        const emoji = this.voxelWorld.getItemIcon(itemData.material);
+        this.voxelWorld.updateStatus(`⚡ Crafted ${emoji} "${itemName}"! Added to inventory.`, 'discovery');
 
-        console.log(`🎉 Successfully crafted ${itemName}!`);
+        console.log(`🎉 Successfully crafted "${itemName}" with ID: ${itemId}!`);
         console.log(`📦 Updated slot materials:`, this.voxelWorld.getAllMaterialsFromSlots());
     }
 }

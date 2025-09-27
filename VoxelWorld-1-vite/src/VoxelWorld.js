@@ -3017,7 +3017,7 @@ class NebulaVoxelApp {
 
             // Pre-create darker materials for player-placed blocks (performance optimization)
             const darkerColor = new THREE.Color(this.blockTypes[type].color).multiplyScalar(0.7);
-            this.playerMaterials[type] = new THREE.MeshBasicMaterial({
+            this.playerMaterials[type] = new THREE.MeshLambertMaterial({
                 map: this.materials[type].map,
                 color: darkerColor
             });
