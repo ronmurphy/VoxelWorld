@@ -370,23 +370,15 @@ class NebulaVoxelApp {
                 else if (blockData.type === 'grass') {
                     // 10% chance to get dirt when harvesting grass
                     if (Math.random() < 0.1) {
-                        if (!this.inventory['dirt']) {
-                            this.inventory['dirt'] = 0;
-                        }
-                        this.inventory['dirt']++;
-                        this.syncInventoryToSlots(); // Keep slot system in sync
-                        this.updateStatus(`🪨 Found dirt! (${this.inventory['dirt']} total)`, 'discovery');
+                        this.addToInventory('dirt', 1);
+                        this.updateStatus(`🪨 Found dirt!`, 'discovery');
                     }
                 }
                 else if (blockData.type === 'stone') {
                     // 5% chance to get coal when harvesting stone
                     if (Math.random() < 0.05) {
-                        if (!this.inventory['coal']) {
-                            this.inventory['coal'] = 0;
-                        }
-                        this.inventory['coal']++;
-                        this.syncInventoryToSlots(); // Keep slot system in sync
-                        this.updateStatus(`⚫ Found coal! (${this.inventory['coal']} total)`, 'discovery');
+                        this.addToInventory('coal', 1);
+                        this.updateStatus(`⚫ Found coal!`, 'discovery');
                     }
                 }
 
@@ -513,32 +505,48 @@ class NebulaVoxelApp {
             const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
 
             // Guaranteed items (survival essentials)
-            this.inventory.wood = randomRange(8, 16);      // Always get wood for tools
-            this.inventory.stone = randomRange(4, 10);     // Basic building material
-            this.inventory.workbench = 1;                  // ESSENTIAL - needed for crafting system!
+            const woodCount = randomRange(8, 16);
+            this.addToInventory('wood', woodCount);
+            const stoneCount = randomRange(4, 10);
+            this.addToInventory('stone', stoneCount);
+            this.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
 
             // Common items (high chance)
-            if (this.seededRandom() > 0.2) this.inventory.sand = randomRange(2, 6);      // 80% chance
-            if (this.seededRandom() > 0.3) this.inventory.grass = randomRange(3, 8);     // 70% chance
+            if (this.seededRandom() > 0.2) {
+                const sandCount = randomRange(2, 6);
+                this.addToInventory('sand', sandCount);
+            }
+            if (this.seededRandom() > 0.3) {
+                const grassCount = randomRange(3, 8);
+                this.addToInventory('grass', grassCount);
+            }
 
             // Uncommon items (medium chance)
-            if (this.seededRandom() > 0.5) this.inventory.glass = randomRange(1, 3);     // 50% chance
-            if (this.seededRandom() > 0.6) this.inventory.brick = randomRange(1, 2);     // 40% chance
-            if (this.seededRandom() > 0.7) this.inventory.flowers = randomRange(1, 3);   // 30% chance
+            if (this.seededRandom() > 0.5) {
+                const glassCount = randomRange(1, 3);
+                this.addToInventory('glass', glassCount);
+            }
+            if (this.seededRandom() > 0.6) {
+                const brickCount = randomRange(1, 2);
+                this.addToInventory('brick', brickCount);
+            }
+            if (this.seededRandom() > 0.7) {
+                const flowersCount = randomRange(1, 3);
+                this.addToInventory('flowers', flowersCount);
+            }
 
             // Rare items (low chance but exciting!)
-            if (this.seededRandom() > 0.8) this.inventory.glowstone = 1;                 // 20% chance - lucky!
-            if (this.seededRandom() > 0.9) this.inventory.iron = 1;                      // 10% chance - jackpot!
+            if (this.seededRandom() > 0.8) {
+                this.addToInventory('glowstone', 1);  // 20% chance - lucky!
+            }
+            if (this.seededRandom() > 0.9) {
+                this.addToInventory('iron', 1);  // 10% chance - jackpot!
+            }
 
             // Log what we found for excitement
-            const foundItems = [];
-            for (const [item, count] of Object.entries(this.inventory)) {
-                if (count > 0) foundItems.push(`${item}: ${count}`);
-            }
-            console.log(`Backpack contained: ${foundItems.join(', ')}`);
-
-            // Update UI
-            this.updateHotbarCounts();
+            // Items automatically added to slots via addToInventory()
+            console.log(`Backpack loot generated and added to slots!`);
+            // Note: addToInventory() already handles UI updates
         };
 
         // World item spawning system for random discoveries
@@ -776,11 +784,7 @@ class NebulaVoxelApp {
             }
             
             // Add to inventory
-            if (!this.inventory[itemType]) {
-                this.inventory[itemType] = 0;
-            }
-            this.inventory[itemType]++;
-            this.syncInventoryToSlots(); // Keep slot system in sync
+            this.addToInventory(itemType, 1);
 
             // Remove from scene and world
             this.scene.remove(sprite);
@@ -2566,19 +2570,14 @@ class NebulaVoxelApp {
                     blockData: blockData
                 });
 
-                if (!this.inventory[blockType]) {
-                    this.inventory[blockType] = 0;
-                }
-                this.inventory[blockType]++;
-                console.log(`Harvested ${blockType}! Total: ${this.inventory[blockType]}`);
+                this.addToInventory(blockType, 1);
+                console.log(`Harvested ${blockType}!`);
 
-                // Update displays
-                this.updateHotbarCounts();
-                this.updateBackpackInventoryDisplay();
+                // addToInventory() already handles UI updates
 
                 // Use enhanced notification system with harvest type
                 const emoji = this.getItemIcon(blockType);
-                this.updateStatus(`${emoji} Harvested ${blockType}! (${this.inventory[blockType]} total)`, 'harvest');
+                this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
             } else if (!blockData) {
                 console.log(`No block data found at ${key}`);
             } else {
