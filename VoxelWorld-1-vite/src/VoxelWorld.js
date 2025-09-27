@@ -30,36 +30,7 @@ class NebulaVoxelApp {
         this.harvestingTarget = null;
         this.harvestingStartTime = 0;
         this.harvestingDuration = 0;
-        this.inventory = {
-            grass: 0,
-            stone: 0,
-            wood: 0,
-            sand: 0,
-            glass: 0,
-            brick: 0,
-            glowstone: 0,
-            iron: 0,
-            flowers: 0,
-            workbench: 0,
-            dirt: 0,
-            coal: 0,
-            skull: 0,
-            leaf: 0,
-            crystal: 0,
-            oreNugget: 0,
-            wheat: 0,
-            feather: 0,
-            bone: 0,
-            shell: 0,
-            fur: 0,
-            iceShard: 0,
-            mushroom: 0,
-            flower: 0,
-            berry: 0,
-            rustySword: 0,
-            oldPickaxe: 0,
-            ancientAmulet: 0
-        };
+        // Legacy inventory removed - using pure slot-based system
         // NEW: Slot-based inventory system (replaces old string array)
         this.hotbarSlots = [
             { itemType: 'grass', quantity: 0 },
@@ -136,6 +107,82 @@ class NebulaVoxelApp {
             return null; // Item not found or all stacks are full
         };
 
+        this.countItemInSlots = (itemType) => {
+            let total = 0;
+            // Count in hotbar (excluding backpack button)
+            for (let i = 0; i < this.hotbarSlots.length - 1; i++) {
+                if (this.hotbarSlots[i].itemType === itemType) {
+                    total += this.hotbarSlots[i].quantity;
+                }
+            }
+            // Count in backpack
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (this.backpackSlots[i].itemType === itemType) {
+                    total += this.backpackSlots[i].quantity;
+                }
+            }
+            return total;
+        };
+
+        this.getAllMaterialsFromSlots = () => {
+            const materials = {};
+            // Check hotbar (excluding backpack button)
+            for (let i = 0; i < this.hotbarSlots.length - 1; i++) {
+                const slot = this.hotbarSlots[i];
+                if (slot.itemType && slot.quantity > 0) {
+                    materials[slot.itemType] = (materials[slot.itemType] || 0) + slot.quantity;
+                }
+            }
+            // Check backpack
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                const slot = this.backpackSlots[i];
+                if (slot.itemType && slot.quantity > 0) {
+                    materials[slot.itemType] = (materials[slot.itemType] || 0) + slot.quantity;
+                }
+            }
+            return materials;
+        };
+
+        this.removeFromInventory = (itemType, quantity = 1) => {
+            let remaining = quantity;
+
+            // First check hotbar (excluding backpack button)
+            for (let i = 0; i < this.hotbarSlots.length - 1 && remaining > 0; i++) {
+                const slot = this.hotbarSlots[i];
+                if (slot.itemType === itemType && slot.quantity > 0) {
+                    const removeAmount = Math.min(slot.quantity, remaining);
+                    slot.quantity -= removeAmount;
+                    remaining -= removeAmount;
+
+                    // Clear slot if empty
+                    if (slot.quantity === 0) {
+                        slot.itemType = '';
+                    }
+                }
+            }
+
+            // Then check backpack
+            for (let i = 0; i < this.backpackSlots.length && remaining > 0; i++) {
+                const slot = this.backpackSlots[i];
+                if (slot.itemType === itemType && slot.quantity > 0) {
+                    const removeAmount = Math.min(slot.quantity, remaining);
+                    slot.quantity -= removeAmount;
+                    remaining -= removeAmount;
+
+                    // Clear slot if empty
+                    if (slot.quantity === 0) {
+                        slot.itemType = '';
+                    }
+                }
+            }
+
+            // Update UI
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            return quantity - remaining; // Return how many were actually removed
+        };
+
         // Smart inventory addition that respects stacking
         this.addToInventory = (itemType, quantity = 1) => {
             let remaining = quantity;
@@ -173,8 +220,7 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Update legacy inventory for backwards compatibility
-            this.inventory[itemType] = (this.inventory[itemType] || 0) + (quantity - remaining);
+            // Pure slot-based system - no legacy inventory needed
 
             // Update UI
             this.updateHotbarCounts();
@@ -804,7 +850,7 @@ class NebulaVoxelApp {
             this.updateBackpackInventoryDisplay();
             
             // Notification
-            this.updateStatus(`${emoji} Found ${itemType}! (${this.inventory[itemType]} total)`, 'discovery');
+            this.updateStatus(`${emoji} Found ${itemType}! (${this.countItemInSlots(itemType)} total)`, 'discovery');
             console.log(`Harvested world item: ${itemType} (${emoji})`);
         };
 
@@ -900,6 +946,7 @@ class NebulaVoxelApp {
                     const itemCount = slotData ? slotData.quantity : 0;
 
                     const itemIcon = document.createElement('div');
+                    itemIcon.className = 'item-icon';
                     // Use innerHTML for crafted items (HTML icons), textContent for emojis
                     if (itemName) {
                         const iconContent = this.getItemIcon(itemName);
@@ -1004,54 +1051,7 @@ class NebulaVoxelApp {
             return -1; // Item not found
         };
 
-        // Sync new slot system with old inventory system (for backwards compatibility)
-        this.syncSlotsToInventory = () => {
-            // Clear inventory counts
-            Object.keys(this.inventory).forEach(key => {
-                this.inventory[key] = 0;
-            });
-
-            // Add hotbar items to inventory
-            this.hotbarSlots.forEach(slot => {
-                if (slot.itemType && slot.quantity > 0) {
-                    this.inventory[slot.itemType] = (this.inventory[slot.itemType] || 0) + slot.quantity;
-                }
-            });
-
-            // Add backpack items to inventory
-            this.backpackSlots.forEach(slot => {
-                if (slot.itemType && slot.quantity > 0) {
-                    this.inventory[slot.itemType] = (this.inventory[slot.itemType] || 0) + slot.quantity;
-                }
-            });
-        };
-
-        // Sync old inventory system to new slot system (for backwards compatibility)
-        this.syncInventoryToSlots = () => {
-            // First, populate hotbar slots based on legacy assignments
-            for (let i = 0; i < this.hotbarSlots.length; i++) {
-                const itemType = this.hotbarSlots[i].itemType;
-                if (itemType && this.inventory[itemType] > 0) {
-                    // Take items from inventory for hotbar
-                    const takeAmount = Math.min(this.inventory[itemType], 64); // Max stack size
-                    this.hotbarSlots[i].quantity = takeAmount;
-                    this.inventory[itemType] -= takeAmount;
-                }
-            }
-
-            // Put remaining inventory items in backpack
-            Object.keys(this.inventory).forEach(itemType => {
-                let remaining = this.inventory[itemType];
-                while (remaining > 0) {
-                    const emptySlot = this.findEmptyBackpackSlot();
-                    if (emptySlot === -1) break; // No more space
-
-                    const stackSize = Math.min(remaining, 64);
-                    this.setBackpackSlot(emptySlot, itemType, stackSize);
-                    remaining -= stackSize;
-                }
-            });
-        };
+        // Sync functions removed - using pure slot-based system now
 
         // Get emoji icon for item types
         // Material Design icon system for crafted items
@@ -1152,7 +1152,7 @@ class NebulaVoxelApp {
             });
         };
 
-        // Update hotbar item counts
+        // Update hotbar item counts and icons
         this.updateHotbarCounts = () => {
             if (!this.hotbarElement) return;
 
@@ -1160,9 +1160,31 @@ class NebulaVoxelApp {
                 // NEW: Use slot-based system
                 const slot = this.hotbarSlots[i];
                 const itemCount = slot ? slot.quantity : 0;
+                const itemType = slot ? slot.itemType : null;
+
+                // Update count
                 const countElement = this.hotbarElement.querySelector(`.item-count-${i}`);
                 if (countElement) {
                     countElement.textContent = itemCount > 0 ? itemCount : '';
+                }
+
+                // Update icon
+                const slotElement = this.hotbarElement.querySelector(`.slot-${i}`);
+                if (slotElement) {
+                    const iconElement = slotElement.querySelector('.item-icon');
+                    if (iconElement) {
+                        if (itemType && itemCount > 0) {
+                            const iconContent = this.getItemIcon(itemType);
+                            if (iconContent.includes('<span')) {
+                                iconElement.innerHTML = iconContent;
+                            } else {
+                                iconElement.textContent = iconContent;
+                            }
+                        } else {
+                            iconElement.textContent = '';
+                            iconElement.innerHTML = '';
+                        }
+                    }
                 }
             }
         };
@@ -1242,8 +1264,7 @@ class NebulaVoxelApp {
                 margin-bottom: 15px;
             `;
 
-            // Create 25 inventory slots (5x5)
-            this.backpackSlots = [];
+            // Create 25 inventory slots (5x5) - slots data already exists, just create UI
             for (let i = 0; i < 25; i++) {
                 const slot = document.createElement('div');
                 slot.className = `backpack-slot slot-${i}`;
@@ -1482,9 +1503,10 @@ class NebulaVoxelApp {
                 gap: 10px;
             `;
 
-            // Show available materials from inventory
-            Object.keys(this.inventory).forEach(materialType => {
-                const count = this.inventory[materialType];
+            // Show available materials from slots
+            const availableMaterials = this.getAllMaterialsFromSlots();
+            Object.keys(availableMaterials).forEach(materialType => {
+                const count = availableMaterials[materialType];
                 if (count > 0 && materialType !== 'workbench') { // Don't show workbench as material
                     const materialItem = document.createElement('div');
                     materialItem.style.cssText = `
@@ -1967,8 +1989,9 @@ class NebulaVoxelApp {
             }
 
             // Check if player has enough materials (for now, require 1 of selected material)
-            if (this.inventory[this.selectedMaterial] < 1) {
-                this.updateStatus(`⚠️ Not enough ${this.selectedMaterial}! Need 1, have ${this.inventory[this.selectedMaterial]}`, 'error');
+            const availableCount = this.countItemInSlots(this.selectedMaterial);
+            if (availableCount < 1) {
+                this.updateStatus(`⚠️ Not enough ${this.selectedMaterial}! Need 1, have ${availableCount}`, 'error');
                 return;
             }
 
@@ -1980,16 +2003,13 @@ class NebulaVoxelApp {
             });
 
             // Use material
-            this.inventory[this.selectedMaterial]--;
+            this.removeFromInventory(this.selectedMaterial, 1);
 
             // Create the object (placeholder for now)
             const objectName = `${this.selectedMaterial}_${this.selectedShape}`;
 
-            // Add to inventory (simplified for now)
-            if (!this.inventory[objectName]) {
-                this.inventory[objectName] = 0;
-            }
-            this.inventory[objectName]++;
+            // Add crafted object to inventory
+            this.addToInventory(objectName, 1);
 
             // Update all displays
             this.updateHotbarCounts();
@@ -2314,6 +2334,11 @@ class NebulaVoxelApp {
         this.updateBackpackInventoryDisplay = () => {
             if (!this.backpackSlots) return;
 
+            // Ensure backpack UI is created before updating
+            if (!this.backpackInventoryElement) {
+                this.createBackpackInventory();
+            }
+
             // Update each backpack slot using new slot system
             let filledSlots = 0;
 
@@ -2321,6 +2346,9 @@ class NebulaVoxelApp {
             for (let i = 0; i < this.backpackSlots.length; i++) {
                 const slotData = this.backpackSlots[i];
                 const slot = slotData.element;
+
+                // Skip if slot element doesn't exist yet
+                if (!slot) continue;
 
                 // Clear current content
                 slot.innerHTML = '';
@@ -2411,20 +2439,50 @@ class NebulaVoxelApp {
 
         // Transfer item from hotbar to backpack
         this.transferItemToBackpack = (hotbarIndex) => {
-            const itemType = this.hotbarSlots[hotbarIndex];
-            const itemCount = this.inventory[itemType];
+            const hotbarSlot = this.hotbarSlots[hotbarIndex];
+            if (!hotbarSlot.itemType || hotbarSlot.quantity === 0) {
+                this.updateStatus(`No items in hotbar slot ${hotbarIndex + 1}`, 'warning');
+                return;
+            }
 
-            if (itemCount > 0) {
-                // Transfer 1 item from hotbar to general inventory
-                // Note: Backpack shows all non-hotbar items, so just removing from hotbar is enough
-                this.inventory[itemType]--;
-                this.syncInventoryToSlots(); // Keep slot system in sync
+            // Find an empty backpack slot or one with the same item type
+            const emptyBackpackSlot = this.findEmptyBackpackSlot();
+            const existingSlot = this.findItemInSlots(hotbarSlot.itemType);
+
+            let targetSlotIndex = -1;
+            if (existingSlot && existingSlot.location === 'backpack') {
+                const backpackSlot = this.backpackSlots[existingSlot.index];
+                if (backpackSlot.quantity < this.STACK_LIMIT) {
+                    targetSlotIndex = existingSlot.index;
+                }
+            } else if (emptyBackpackSlot !== -1) {
+                targetSlotIndex = emptyBackpackSlot;
+            }
+
+            if (targetSlotIndex !== -1) {
+                // Transfer 1 item from hotbar to backpack
+                const itemType = hotbarSlot.itemType;
+                const transferAmount = 1;
+
+                // Remove from hotbar
+                hotbarSlot.quantity -= transferAmount;
+                if (hotbarSlot.quantity === 0) {
+                    hotbarSlot.itemType = '';
+                }
+
+                // Add to backpack
+                if (this.backpackSlots[targetSlotIndex].itemType === itemType) {
+                    this.backpackSlots[targetSlotIndex].quantity += transferAmount;
+                } else {
+                    this.setBackpackSlot(targetSlotIndex, itemType, transferAmount);
+                }
+
                 this.updateHotbarCounts();
                 this.updateBackpackInventoryDisplay();
-                console.log(`Transferred 1 ${itemType} from hotbar to storage`);
-                this.updateStatus(`📦 Moved ${itemType} to storage`, 'success');
+                console.log(`Transferred 1 ${itemType} from hotbar to backpack`);
+                this.updateStatus(`📦 Moved ${itemType} to backpack`, 'success');
             } else {
-                this.updateStatus(`No ${itemType} to transfer`, 'warning');
+                this.updateStatus(`Backpack is full!`, 'warning');
             }
         };
 
@@ -2433,22 +2491,50 @@ class NebulaVoxelApp {
             // Get the item type from the backpack slot
             if (!this.backpackSlots || !this.backpackSlots[backpackIndex]) return;
 
-            const slotData = this.backpackSlots[backpackIndex];
-            if (!slotData.element || !slotData.element.dataset.itemType) return;
+            const backpackSlot = this.backpackSlots[backpackIndex];
+            if (!backpackSlot.itemType || backpackSlot.quantity === 0) {
+                this.updateStatus(`No items in backpack slot`, 'warning');
+                return;
+            }
 
-            const itemType = slotData.element.dataset.itemType;
-            const itemCount = this.inventory[itemType];
+            // Find an empty hotbar slot or one with the same item type (excluding backpack button)
+            const emptyHotbarSlot = this.findEmptyHotbarSlot();
+            const existingSlot = this.findItemInSlots(backpackSlot.itemType);
 
-            if (itemCount > 0) {
-                // Add 1 item back to inventory for hotbar use
-                this.inventory[itemType]++;
-                this.syncInventoryToSlots(); // Keep slot system in sync
+            let targetSlotIndex = -1;
+            if (existingSlot && existingSlot.location === 'hotbar') {
+                const hotbarSlot = this.hotbarSlots[existingSlot.index];
+                if (hotbarSlot.quantity < this.STACK_LIMIT) {
+                    targetSlotIndex = existingSlot.index;
+                }
+            } else if (emptyHotbarSlot !== -1) {
+                targetSlotIndex = emptyHotbarSlot;
+            }
+
+            if (targetSlotIndex !== -1) {
+                // Transfer 1 item from backpack to hotbar
+                const itemType = backpackSlot.itemType;
+                const transferAmount = 1;
+
+                // Remove from backpack
+                backpackSlot.quantity -= transferAmount;
+                if (backpackSlot.quantity === 0) {
+                    backpackSlot.itemType = '';
+                }
+
+                // Add to hotbar
+                if (this.hotbarSlots[targetSlotIndex].itemType === itemType) {
+                    this.hotbarSlots[targetSlotIndex].quantity += transferAmount;
+                } else {
+                    this.setHotbarSlot(targetSlotIndex, itemType, transferAmount);
+                }
+
                 this.updateHotbarCounts();
                 this.updateBackpackInventoryDisplay();
-                console.log(`Transferred 1 ${itemType} from storage to hotbar`);
+                console.log(`Transferred 1 ${itemType} from backpack to hotbar`);
                 this.updateStatus(`🔧 Moved ${itemType} to hotbar`, 'success');
             } else {
-                this.updateStatus(`No ${itemType} available`, 'warning');
+                this.updateStatus(`Hotbar is full!`, 'warning');
             }
         };
 
@@ -3917,8 +4003,10 @@ class NebulaVoxelApp {
                         this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
                         selectedSlot.quantity--;
 
-                        // Update legacy inventory for backwards compatibility
-                        this.inventory[selectedBlock] = Math.max(0, (this.inventory[selectedBlock] || 0) - 1);
+                        // Clear slot if empty
+                        if (selectedSlot.quantity === 0) {
+                            selectedSlot.itemType = '';
+                        }
 
                         this.updateHotbarCounts(); // Update hotbar display
                         this.updateBackpackInventoryDisplay(); // Update backpack display

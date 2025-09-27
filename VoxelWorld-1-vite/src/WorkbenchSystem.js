@@ -323,8 +323,8 @@ export class WorkbenchSystem {
         // Store reference for updates
         this.materialsListElement = materialsList;
 
-        // Add available materials from inventory
-        Object.entries(this.voxelWorld.inventory).forEach(([material, count]) => {
+        // Add available materials from slot-based inventory
+        Object.entries(this.voxelWorld.getAllMaterialsFromSlots()).forEach(([material, count]) => {
             if (count > 0 && this.isCraftingMaterial(material)) {
                 const materialItem = this.createMaterialItem(material, count);
                 materialsList.appendChild(materialItem);
@@ -823,8 +823,8 @@ export class WorkbenchSystem {
         console.log('🔧 previewContainer exists:', !!this.previewContainer);
         console.log('🔧 voxelWorld hasBackpack:', this.voxelWorld ? this.voxelWorld.hasBackpack : 'NO VOXELWORLD');
         console.log('🔧 voxelWorld backpackPosition:', this.voxelWorld ? this.voxelWorld.backpackPosition : 'NO POSITION');
-        console.log('🔧 voxelWorld inventory keys:', this.voxelWorld ? Object.keys(this.voxelWorld.inventory) : 'NO VOXELWORLD');
-        console.log('🔧 voxelWorld inventory counts:', this.voxelWorld ? this.voxelWorld.inventory : 'NO INVENTORY');
+        console.log('🔧 voxelWorld slot materials:', this.voxelWorld ? Object.keys(this.voxelWorld.getAllMaterialsFromSlots()) : 'NO VOXELWORLD');
+        console.log('🔧 voxelWorld slot counts:', this.voxelWorld ? this.voxelWorld.getAllMaterialsFromSlots() : 'NO SLOTS');
 
         if (!this.previewContainer) {
             console.log('❌ setupScene: No preview container found');
@@ -1184,7 +1184,7 @@ export class WorkbenchSystem {
 
         // Check if user has enough materials
         const cost = this.shapeLength * this.shapeWidth * this.shapeHeight * 2;
-        const available = this.voxelWorld.inventory[this.selectedMaterial] || 0;
+        const available = this.voxelWorld.countItemInSlots(this.selectedMaterial);
 
         return available >= cost;
     }
@@ -1211,7 +1211,7 @@ export class WorkbenchSystem {
             this.materialCostDisplay.textContent = cost.toString();
 
             // Check if user has enough materials
-            const available = this.voxelWorld.inventory[this.selectedMaterial] || 0;
+            const available = this.voxelWorld.countItemInSlots(this.selectedMaterial);
             if (available >= cost) {
                 // Enough materials - green
                 this.materialCostDisplay.style.color = '#4CAF50';
@@ -1386,7 +1386,7 @@ export class WorkbenchSystem {
         console.log('🎨 Selected material:', this.selectedMaterial);
         console.log('🎨 Selected shape:', this.selectedShape);
         console.log('🎨 Selected materials Set:', Array.from(this.selectedMaterials));
-        console.log('🎨 VoxelWorld inventory:', this.voxelWorld ? this.voxelWorld.inventory : 'NO VOXELWORLD');
+        console.log('🎨 VoxelWorld slot materials:', this.voxelWorld ? this.voxelWorld.getAllMaterialsFromSlots() : 'NO VOXELWORLD');
 
         // Check each requirement individually
         if (!this.scene) {
@@ -1406,8 +1406,8 @@ export class WorkbenchSystem {
             return;
         }
 
-        if (!this.voxelWorld || !this.voxelWorld.inventory) {
-            console.log('❌ Missing: VoxelWorld or inventory not available');
+        if (!this.voxelWorld || !this.voxelWorld.getAllMaterialsFromSlots) {
+            console.log('❌ Missing: VoxelWorld or slot system not available');
             return;
         }
 
@@ -1514,7 +1514,7 @@ export class WorkbenchSystem {
         const width = this.shapeWidth;
         const height = this.shapeHeight;
         const requiredQuantity = length * width * height * 2; // New cost calculation: L×W×H×2
-        const availableQuantity = this.voxelWorld.inventory[material] || 0;
+        const availableQuantity = this.voxelWorld.countItemInSlots(material);
 
         console.log(`🔨 Crafting ${shape} ${length}×${width}×${height} using ${requiredQuantity} ${material}`);
         console.log(`📦 Available: ${availableQuantity}, Required: ${requiredQuantity}`);
@@ -1538,15 +1538,12 @@ export class WorkbenchSystem {
         // Create crafted item name (e.g., "crafted_wood_cube_3x2x4")
         const itemName = `crafted_${material}_${shape}_${length}x${width}x${height}`;
 
-        // Consume materials from inventory
-        this.voxelWorld.inventory[material] -= requiredQuantity;
-        console.log(`✅ Consumed ${requiredQuantity} ${material}, ${this.voxelWorld.inventory[material]} remaining`);
+        // Consume materials from slot-based inventory
+        this.voxelWorld.removeFromInventory(material, requiredQuantity);
+        console.log(`✅ Consumed ${requiredQuantity} ${material}, ${this.voxelWorld.countItemInSlots(material)} remaining`);
 
-        // Add crafted item to inventory
-        if (!this.voxelWorld.inventory[itemName]) {
-            this.voxelWorld.inventory[itemName] = 0;
-        }
-        this.voxelWorld.inventory[itemName]++;
+        // Add crafted item to slot-based inventory
+        this.voxelWorld.addToInventory(itemName, 1);
 
         // Store shape metadata (create inventoryMetadata if it doesn't exist)
         if (!this.voxelWorld.inventoryMetadata) {
@@ -1566,6 +1563,6 @@ export class WorkbenchSystem {
         this.voxelWorld.updateStatus(`⚡ Crafted ${emoji} ${itemName}! Added to inventory.`, 'discovery');
 
         console.log(`🎉 Successfully crafted ${itemName}!`);
-        console.log(`📦 Updated inventory:`, this.voxelWorld.inventory);
+        console.log(`📦 Updated slot materials:`, this.voxelWorld.getAllMaterialsFromSlots());
     }
 }
