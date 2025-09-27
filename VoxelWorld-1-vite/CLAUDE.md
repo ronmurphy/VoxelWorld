@@ -104,14 +104,85 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Wall Sliding Preserved**: Maintains smooth movement along obstacles
 - **Issues Remaining**: Still has collision bypasses with multi-block structures (2+ stacked blocks)
 
-### Next Session TODO
-1. **Fix 3D Preview**: Investigate `../mapgate/` ShapeForge system for working 3D preview implementation
-   - Study how the 3D preview renders materials and shapes
-   - Adapt/salvage code for workbench 3D preview area
-   - Current issue: 3D preview not showing when selecting wood + cube
+### ✅ COMPLETED: Advanced Workbench System (Latest Session)
+1. **3D Preview System**: Fully functional 3D shape preview with orbit controls
+   - Fixed recipe shape extraction from `recipe.shapes[0].type`
+   - Fixed renderer sizing issues (0x0 → proper container dimensions)
+   - Fixed JavaScript crashes in THREE.js getSize() calls
+   - Interactive 3D preview with mouse drag/zoom/pan controls
 
-2. **Code Architecture Refactoring** (HIGH PRIORITY):
-   VoxelWorld.js has grown too large (~3700+ lines) and needs logical separation:
+2. **Smart Material Filtering**: Dynamic recipe filtering based on material selection
+   - Visual selection indicators (golden borders) for selected materials
+   - Recipe book filters to show only craftable items with selected materials
+   - Reset button to clear selections and show all recipes
+   - Multi-material selection support with Set-based state management
+
+3. **Complete Recipe System**: Full recipe book with basic shapes and complex structures
+   - Basic shapes: Cube, Sphere, Cylinder, Pyramid, Stairs, Wall, Hollow Cube
+   - Complex structures: Castle Wall, Tower Turret, Simple House
+   - Material requirements system with inventory integration
+   - Shape size scaling based on available material quantities
+
+### Next Session TODO
+
+1. **Complete Workbench Crafting System** (HIGH PRIORITY):
+   - **Craft Button**: Add "Craft" button to workbench that consumes materials and creates the crafted object
+   - **Inventory Integration**: Place crafted items into player inventory (hotbar or backpack)
+   - **Material Consumption**: Subtract required materials from inventory when crafting
+   - **Error Handling**: Check if player has enough materials before allowing craft
+   - **Crafted Item Types**: Create new item types for crafted objects (e.g., "wooden_cube", "stone_tower")
+
+2. **Enhanced Inventory Management** (HIGH PRIORITY):
+   - **Drag & Drop**: Implement drag-and-drop between backpack and hotbar slots
+   - **Right-Click Transfer**: Already exists but needs refinement for crafted items
+   - **Item Stacking**: Allow multiple of same item type in single slot (show count)
+   - **Hotbar Integration**: Ensure crafted items can be selected and placed in world
+   - **Visual Updates**: Real-time inventory UI updates when items are moved/consumed
+
+3. **3D Object Placement System** (HIGH PRIORITY):
+   - **Crafted Item Placement**: Allow placing crafted 3D objects in the voxel world
+   - **Object Collision**: Crafted objects should have proper collision detection
+   - **Object Harvesting**: Allow breaking placed crafted objects to get materials back
+   - **Object Storage**: Save/load placed 3D objects with world data
+   - **Object Interaction**: Different interaction methods for complex objects vs simple blocks
+
+### Implementation Plan for Crafting:
+
+```javascript
+// Workbench crafting flow:
+1. Player selects material (wood) → Visual feedback
+2. Player selects recipe (cube) → 3D preview shows
+3. Player clicks "Craft" button → Check materials
+4. If sufficient materials → Consume materials, create item
+5. Add "wooden_cube" to inventory → Update hotbar/backpack UI
+6. Player can select crafted item from hotbar
+7. Player can place "wooden_cube" in world as 3D object
+```
+
+### Technical Approach:
+
+**Crafted Item System:**
+- Extend inventory to support crafted object types
+- Add item metadata (material, shape, size) to track crafted properties
+- Create placement system that handles both blocks and 3D objects
+- Implement object-specific collision volumes and interaction
+
+**Inventory Enhancements:**
+- Add item categories (blocks, tools, crafted_objects)
+- Implement item transferring with proper validation
+- Add visual indicators for different item types
+- Support item metadata display in tooltips
+
+4. **Code Architecture Refactoring** (CRITICAL PRIORITY):
+   **VoxelWorld.js has grown too large and needs logical separation into modular files**
+
+   Current issues:
+   - Single file approaching 4000+ lines
+   - Multiple responsibilities mixed together
+   - Difficult to maintain and debug
+   - Poor separation of concerns
+
+   **Refactoring Plan:**
    - **Physics.js**: Extract collision system, movement, gravity, and physics utilities
    - **BlockTypes.js**: Extract block definitions, properties, material systems
    - **WorldGeneration.js**: Extract chunk system, biome generation, terrain generation
@@ -121,6 +192,42 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
    - **UI.js**: Extract notifications, minimap, status bar, mobile joysticks
    - **Workbench.js**: Extract workbench modal and crafting system
    - Keep VoxelWorld.js as main orchestrator class
+
+   **Implementation Strategy:**
+   1. **Create modular ES6 classes** with clear interfaces
+   2. **Use dependency injection** - pass VoxelWorld instance to modules that need it
+   3. **Maintain existing API** - no breaking changes to external interfaces
+   4. **Extract incrementally** - one module at a time to avoid breaking everything
+   5. **Add proper imports/exports** for clean module boundaries
+
+   **Example Structure:**
+   ```javascript
+   // Physics.js
+   export class PhysicsEngine {
+     constructor(voxelWorld) { this.world = voxelWorld; }
+     checkCollision(position, hitbox) { /* ... */ }
+     updateMovement(player, deltaTime) { /* ... */ }
+   }
+
+   // VoxelWorld.js (orchestrator)
+   import { PhysicsEngine } from './Physics.js';
+   import { WorldGenerator } from './WorldGeneration.js';
+
+   class VoxelWorld {
+     constructor(container) {
+       this.physics = new PhysicsEngine(this);
+       this.worldGen = new WorldGenerator(this);
+       // ...
+     }
+   }
+   ```
+
+   **Benefits:**
+   - **Maintainable**: Each file has single responsibility
+   - **Testable**: Modules can be tested independently
+   - **Debuggable**: Easier to locate and fix issues
+   - **Scalable**: New features can be added as separate modules
+   - **Reusable**: Modules can be reused in other projects
 
 3. **Collision System Refinement** (OPTIONAL):
    - Current hitbox system still allows clipping through multi-block structures
