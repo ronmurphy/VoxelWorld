@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { WorkbenchSystem } from './WorkbenchSystem.js';
 
 class NebulaVoxelApp {
     constructor(container) {
@@ -79,10 +77,6 @@ class NebulaVoxelApp {
         this.rightJoystickCenter = { x: 0, y: 0 };
         this.leftJoystickValue = { x: 0, y: 0 };
         this.rightJoystickValue = { x: 0, y: 0 };
-
-        // Initialize new WorkbenchSystem
-        this.workbenchSystem = new WorkbenchSystem(this);
-
         this.addBlock = (x, y, z, type, playerPlaced = false, customColor = null) => {
             const geo = new THREE.BoxGeometry(1, 1, 1);
 
@@ -248,21 +242,15 @@ class NebulaVoxelApp {
                 else if (blockData.type === 'grass') {
                     // 10% chance to get dirt when harvesting grass
                     if (Math.random() < 0.1) {
-                        if (!this.inventory['dirt']) {
-                            this.inventory['dirt'] = 0;
-                        }
-                        this.inventory['dirt']++;
-                        this.updateStatus(`🪨 Found dirt! (${this.inventory['dirt']} total)`, 'discovery');
+                        this.addItemToInventory('dirt');
+                        this.updateStatus(`🪨 Found dirt!`, 'discovery');
                     }
                 }
                 else if (blockData.type === 'stone') {
                     // 5% chance to get coal when harvesting stone
                     if (Math.random() < 0.05) {
-                        if (!this.inventory['coal']) {
-                            this.inventory['coal'] = 0;
-                        }
-                        this.inventory['coal']++;
-                        this.updateStatus(`⚫ Found coal! (${this.inventory['coal']} total)`, 'discovery');
+                        this.addItemToInventory('coal');
+                        this.updateStatus(`⚫ Found coal!`, 'discovery');
                     }
                 }
 
@@ -1030,7 +1018,30 @@ class NebulaVoxelApp {
             this.container.appendChild(this.backpackInventoryElement);
         };
 
-        // TODO: Replace with new WorkbenchSystem
+        // Open workbench crafting modal
+        this.openWorkbenchModal = (x, y, z) => {
+            console.log(`Opening workbench at position ${x}, ${y}, ${z}`);
+
+            // Release pointer lock so user can interact with the modal
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+
+            // Create modal if it doesn't exist
+            if (!this.workbenchModal) {
+                this.createWorkbenchModal();
+            }
+
+            // Store workbench position for later use
+            this.currentWorkbench = { x, y, z };
+
+            // Show modal
+            this.workbenchModal.style.display = 'block';
+            this.updateStatus('🔨 Workbench opened - Create custom objects!', 'craft', false);
+
+            // Show tutorial on first use
+            this.showWorkbenchTutorial();
+        };
 
         // Create workbench modal UI
         this.createWorkbenchModal = () => {
@@ -1297,10 +1308,10 @@ class NebulaVoxelApp {
             // Create Three.js scene for 3D preview
             console.log('🎬 Creating workbench 3D scene...');
             this.workbenchScene = new THREE.Scene();
-            this.workbenchScene.background = new THREE.Color(0x111111);
+            this.workbenchScene.background = new THREE.Color(0x0a0a0a);
 
-            this.workbenchCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-            this.workbenchCamera.position.set(3, 3, 3);
+            this.workbenchCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            this.workbenchCamera.position.set(2, 2, 2);
             this.workbenchCamera.lookAt(0, 0, 0);
 
             this.workbenchRenderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1315,11 +1326,11 @@ class NebulaVoxelApp {
             });
 
             // Add lighting
-            const ambientLight = new THREE.AmbientLight(0x666666, 1.0);
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
             this.workbenchScene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(1, 1, 1);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(5, 5, 5);
             directionalLight.castShadow = true;
             directionalLight.shadow.mapSize.width = 1024;
             directionalLight.shadow.mapSize.height = 1024;
@@ -1332,14 +1343,6 @@ class NebulaVoxelApp {
 
             // Add canvas to container
             previewContainer.appendChild(this.workbenchRenderer.domElement);
-
-            // Add OrbitControls for camera interaction
-            this.workbenchControls = new OrbitControls(this.workbenchCamera, this.workbenchRenderer.domElement);
-            this.workbenchControls.enableDamping = true;
-            this.workbenchControls.dampingFactor = 0.25;
-            this.workbenchControls.enableZoom = true;
-            this.workbenchControls.enableRotate = true;
-            this.workbenchControls.enablePan = false;
 
             // Store reference to current preview object
             this.currentPreviewObject = null;
@@ -1705,10 +1708,6 @@ class NebulaVoxelApp {
         this.startWorkbenchPreviewLoop = () => {
             const animate = () => {
                 if (this.workbenchRenderer && this.workbenchScene && this.workbenchCamera) {
-                    // Update controls for smooth interaction
-                    if (this.workbenchControls) {
-                        this.workbenchControls.update();
-                    }
                     this.workbenchRenderer.render(this.workbenchScene, this.workbenchCamera);
                 }
                 if (this.workbenchModal && this.workbenchModal.style.display !== 'none') {
@@ -1975,7 +1974,7 @@ class NebulaVoxelApp {
                     <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Tap to craft objects</div>
                 `;
                 this.workbenchPrompt.addEventListener('click', () => {
-                    this.workbenchSystem.open(workbench.x, workbench.y, workbench.z);
+                    this.openWorkbenchModal(workbench.x, workbench.y, workbench.z);
                 });
                 this.workbenchPrompt.style.cursor = 'pointer';
             } else {
@@ -3516,7 +3515,7 @@ class NebulaVoxelApp {
             if (key === 'e') {
                 // Check if near workbench first
                 if (this.currentNearbyWorkbench) {
-                    this.workbenchSystem.open(
+                    this.openWorkbenchModal(
                         this.currentNearbyWorkbench.x,
                         this.currentNearbyWorkbench.y,
                         this.currentNearbyWorkbench.z
@@ -4101,10 +4100,6 @@ export async function initVoxelWorld(container) {
     try {
         const app = new NebulaVoxelApp(container);
         console.log('📱 NebulaVoxelApp created');
-
-        // Initialize workbench system
-        app.workbenchSystem.init();
-        console.log('🔨 WorkbenchSystem initialized');
 
         console.log('✅ VoxelWorld initialization completed');
 
