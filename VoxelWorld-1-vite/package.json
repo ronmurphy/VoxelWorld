@@ -11,7 +11,6 @@
     "preview": "vite preview",
     "start": "electron .",
     "electron": "electron .",
-    "start": "electron .",
     "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "build-web": "VITE_BASE=/VoxelWorld-1-vite/ npm run build",
     "build-electron-win": "npm run build && electron-builder --win",

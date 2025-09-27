@@ -60,7 +60,129 @@ class NebulaVoxelApp {
             oldPickaxe: 0,
             ancientAmulet: 0
         };
-        this.hotbarSlots = ['grass', 'stone', 'wood', 'workbench', 'glass', 'brick', 'glowstone', 'iron'];
+        // NEW: Slot-based inventory system (replaces old string array)
+        this.hotbarSlots = [
+            { itemType: 'grass', quantity: 0 },
+            { itemType: 'stone', quantity: 0 },
+            { itemType: 'wood', quantity: 0 },
+            { itemType: 'workbench', quantity: 0 },
+            { itemType: null, quantity: 0 } // 5th slot for backpack button
+        ];
+
+        // Keep old system for backwards compatibility during transition
+        this.legacyHotbarSlots = ['grass', 'stone', 'wood', 'workbench'];
+
+        // NEW: Backpack slots (25 slots total)
+        this.backpackSlots = [];
+        for (let i = 0; i < 25; i++) {
+            this.backpackSlots.push({ itemType: null, quantity: 0 });
+        }
+
+        // Stack limit for items per slot
+        this.STACK_LIMIT = 8;
+
+        // Slot helper functions
+        this.getHotbarSlot = (index) => {
+            return this.hotbarSlots[index] || null;
+        };
+
+        this.setHotbarSlot = (index, itemType, quantity) => {
+            if (index >= 0 && index < this.hotbarSlots.length) {
+                this.hotbarSlots[index] = { itemType, quantity: Math.min(quantity, this.STACK_LIMIT) };
+            }
+        };
+
+        this.findEmptyHotbarSlot = () => {
+            for (let i = 0; i < this.hotbarSlots.length - 1; i++) { // Exclude backpack button slot
+                if (!this.hotbarSlots[i].itemType || this.hotbarSlots[i].quantity === 0) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+
+        this.getBackpackSlot = (index) => {
+            return this.backpackSlots[index] || null;
+        };
+
+        this.setBackpackSlot = (index, itemType, quantity) => {
+            if (index >= 0 && index < this.backpackSlots.length) {
+                this.backpackSlots[index] = { itemType, quantity: Math.min(quantity, this.STACK_LIMIT) };
+            }
+        };
+
+        this.findEmptyBackpackSlot = () => {
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (!this.backpackSlots[i].itemType || this.backpackSlots[i].quantity === 0) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+
+        this.findItemInSlots = (itemType) => {
+            // Check hotbar first (excluding backpack button)
+            for (let i = 0; i < this.hotbarSlots.length - 1; i++) {
+                if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity < this.STACK_LIMIT) {
+                    return { location: 'hotbar', index: i };
+                }
+            }
+            // Then check backpack
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity < this.STACK_LIMIT) {
+                    return { location: 'backpack', index: i };
+                }
+            }
+            return null; // Item not found or all stacks are full
+        };
+
+        // Smart inventory addition that respects stacking
+        this.addToInventory = (itemType, quantity = 1) => {
+            let remaining = quantity;
+
+            // First, try to add to existing stacks
+            while (remaining > 0) {
+                const existingSlot = this.findItemInSlots(itemType);
+                if (existingSlot) {
+                    const slot = existingSlot.location === 'hotbar'
+                        ? this.hotbarSlots[existingSlot.index]
+                        : this.backpackSlots[existingSlot.index];
+
+                    const canAdd = Math.min(remaining, this.STACK_LIMIT - slot.quantity);
+                    slot.quantity += canAdd;
+                    remaining -= canAdd;
+                } else {
+                    // No existing stack with space, find empty slot
+                    const emptyHotbar = this.findEmptyHotbarSlot();
+                    if (emptyHotbar !== -1) {
+                        const canAdd = Math.min(remaining, this.STACK_LIMIT);
+                        this.setHotbarSlot(emptyHotbar, itemType, canAdd);
+                        remaining -= canAdd;
+                    } else {
+                        const emptyBackpack = this.findEmptyBackpackSlot();
+                        if (emptyBackpack !== -1) {
+                            const canAdd = Math.min(remaining, this.STACK_LIMIT);
+                            this.setBackpackSlot(emptyBackpack, itemType, canAdd);
+                            remaining -= canAdd;
+                        } else {
+                            // No space left
+                            console.warn(`No space for ${remaining} ${itemType} items`);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Update legacy inventory for backwards compatibility
+            this.inventory[itemType] = (this.inventory[itemType] || 0) + (quantity - remaining);
+
+            // Update UI
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            return quantity - remaining; // Return how many were actually added
+        };
+
         this.container = container;
         this.controlsEnabled = true;
         this.isPaused = false;
@@ -252,6 +374,7 @@ class NebulaVoxelApp {
                             this.inventory['dirt'] = 0;
                         }
                         this.inventory['dirt']++;
+                        this.syncInventoryToSlots(); // Keep slot system in sync
                         this.updateStatus(`🪨 Found dirt! (${this.inventory['dirt']} total)`, 'discovery');
                     }
                 }
@@ -262,6 +385,7 @@ class NebulaVoxelApp {
                             this.inventory['coal'] = 0;
                         }
                         this.inventory['coal']++;
+                        this.syncInventoryToSlots(); // Keep slot system in sync
                         this.updateStatus(`⚫ Found coal! (${this.inventory['coal']} total)`, 'discovery');
                     }
                 }
@@ -656,7 +780,8 @@ class NebulaVoxelApp {
                 this.inventory[itemType] = 0;
             }
             this.inventory[itemType]++;
-            
+            this.syncInventoryToSlots(); // Keep slot system in sync
+
             // Remove from scene and world
             this.scene.remove(sprite);
             
@@ -765,11 +890,23 @@ class NebulaVoxelApp {
                     slot.appendChild(label);
                 } else {
                     // Regular inventory slots
-                    const itemName = this.hotbarSlots[i];
-                    const itemCount = this.inventory[itemName] || 0;
+                    // NEW: Use slot-based system
+                    const slotData = this.hotbarSlots[i];
+                    const itemName = slotData ? slotData.itemType : null;
+                    const itemCount = slotData ? slotData.quantity : 0;
 
                     const itemIcon = document.createElement('div');
-                    itemIcon.textContent = this.getItemIcon(itemName);
+                    // Use innerHTML for crafted items (HTML icons), textContent for emojis
+                    if (itemName) {
+                        const iconContent = this.getItemIcon(itemName);
+                        if (iconContent.includes('<span')) {
+                            itemIcon.innerHTML = iconContent;
+                        } else {
+                            itemIcon.textContent = iconContent;
+                        }
+                    } else {
+                        itemIcon.textContent = ''; // Empty slot
+                    }
                     itemIcon.style.fontSize = '16px';
                     slot.appendChild(itemIcon);
 
@@ -806,8 +943,180 @@ class NebulaVoxelApp {
             this.container.appendChild(this.hotbarElement);
         };
 
+        // Slot Management Helper Functions
+        this.getHotbarSlot = (index) => {
+            return this.hotbarSlots[index] || null;
+        };
+
+        this.getBackpackSlot = (index) => {
+            return this.backpackSlots[index] || null;
+        };
+
+        this.setHotbarSlot = (index, itemType, quantity) => {
+            if (index >= 0 && index < this.hotbarSlots.length) {
+                this.hotbarSlots[index] = { itemType, quantity };
+            }
+        };
+
+        this.setBackpackSlot = (index, itemType, quantity) => {
+            if (index >= 0 && index < this.backpackSlots.length) {
+                this.backpackSlots[index] = { itemType, quantity };
+            }
+        };
+
+        this.findEmptyHotbarSlot = () => {
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                if (!this.hotbarSlots[i].itemType || this.hotbarSlots[i].quantity === 0) {
+                    return i;
+                }
+            }
+            return -1; // No empty slots
+        };
+
+        this.findEmptyBackpackSlot = () => {
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (!this.backpackSlots[i].itemType || this.backpackSlots[i].quantity === 0) {
+                    return i;
+                }
+            }
+            return -1; // No empty slots
+        };
+
+        this.findHotbarSlotWithItem = (itemType) => {
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity > 0) {
+                    return i;
+                }
+            }
+            return -1; // Item not found
+        };
+
+        this.findBackpackSlotWithItem = (itemType) => {
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity > 0) {
+                    return i;
+                }
+            }
+            return -1; // Item not found
+        };
+
+        // Sync new slot system with old inventory system (for backwards compatibility)
+        this.syncSlotsToInventory = () => {
+            // Clear inventory counts
+            Object.keys(this.inventory).forEach(key => {
+                this.inventory[key] = 0;
+            });
+
+            // Add hotbar items to inventory
+            this.hotbarSlots.forEach(slot => {
+                if (slot.itemType && slot.quantity > 0) {
+                    this.inventory[slot.itemType] = (this.inventory[slot.itemType] || 0) + slot.quantity;
+                }
+            });
+
+            // Add backpack items to inventory
+            this.backpackSlots.forEach(slot => {
+                if (slot.itemType && slot.quantity > 0) {
+                    this.inventory[slot.itemType] = (this.inventory[slot.itemType] || 0) + slot.quantity;
+                }
+            });
+        };
+
+        // Sync old inventory system to new slot system (for backwards compatibility)
+        this.syncInventoryToSlots = () => {
+            // First, populate hotbar slots based on legacy assignments
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                const itemType = this.hotbarSlots[i].itemType;
+                if (itemType && this.inventory[itemType] > 0) {
+                    // Take items from inventory for hotbar
+                    const takeAmount = Math.min(this.inventory[itemType], 64); // Max stack size
+                    this.hotbarSlots[i].quantity = takeAmount;
+                    this.inventory[itemType] -= takeAmount;
+                }
+            }
+
+            // Put remaining inventory items in backpack
+            Object.keys(this.inventory).forEach(itemType => {
+                let remaining = this.inventory[itemType];
+                while (remaining > 0) {
+                    const emptySlot = this.findEmptyBackpackSlot();
+                    if (emptySlot === -1) break; // No more space
+
+                    const stackSize = Math.min(remaining, 64);
+                    this.setBackpackSlot(emptySlot, itemType, stackSize);
+                    remaining -= stackSize;
+                }
+            });
+        };
+
         // Get emoji icon for item types
+        // Material Design icon system for crafted items
+        this.getMaterialColor = (material) => {
+            const materialColors = {
+                wood: '#8B4513',      // Brown
+                stone: '#708090',     // Slate gray
+                iron: '#C0C0C0',      // Silver
+                glass: '#87CEEB',     // Sky blue
+                sand: '#F4A460',      // Sandy brown
+                grass: '#228B22',     // Forest green
+                brick: '#B22222',     // Fire brick
+                glowstone: '#FFD700', // Gold
+                coal: '#2F4F4F',      // Dark slate gray
+                dirt: '#8B7355'       // Burlywood
+            };
+            return materialColors[material] || '#666666';
+        };
+
+        this.getShapeIcon = (shape) => {
+            const shapeIcons = {
+                cube: 'crop_square',           // ⬜ Square
+                sphere: 'radio_button_unchecked', // ⭕ Circle
+                cylinder: 'settings',          // ⚙️ Gear (cylindrical)
+                pyramid: 'change_history',     // 🔺 Triangle
+                stairs: 'stairs',              // 🪜 Stairs
+                wall: 'crop_portrait',         // ▮ Vertical rectangle
+                hollow_cube: 'crop_square'     // ⬜ Square (will be styled differently)
+            };
+            return shapeIcons[shape] || 'help_outline';
+        };
+
+        this.getCraftedItemIcon = (material, shape, dimensions) => {
+            const color = this.getMaterialColor(material);
+            const icon = this.getShapeIcon(shape);
+            const size = dimensions ? `${dimensions.length}×${dimensions.width}×${dimensions.height}` : '';
+
+            return `<span class="material-icons crafted-item-icon" style="color: ${color}; font-size: 16px;" title="${material} ${shape} ${size}">${icon}</span>`;
+        };
+
         this.getItemIcon = (itemType) => {
+            // Check if this is a crafted item (starts with "crafted_")
+            if (itemType.startsWith('crafted_')) {
+                // Parse crafted item format: "crafted_wood_cube_3x2x4"
+                const parts = itemType.replace('crafted_', '').split('_');
+
+                if (parts.length >= 2) {
+                    const material = parts[0];
+                    const shape = parts[1];
+
+                    // Extract dimensions if present
+                    let dimensions = null;
+                    if (parts.length > 2) {
+                        const dimensionPart = parts[parts.length - 1];
+                        const dimensionMatch = dimensionPart.match(/(\d+)x(\d+)x(\d+)/);
+                        if (dimensionMatch) {
+                            dimensions = {
+                                length: parseInt(dimensionMatch[1]),
+                                width: parseInt(dimensionMatch[2]),
+                                height: parseInt(dimensionMatch[3])
+                            };
+                        }
+                    }
+
+                    return this.getCraftedItemIcon(material, shape, dimensions);
+                }
+            }
+
+            // Default emoji icons for base materials
             const icons = {
                 grass: '🌱',
                 stone: '🪨',
@@ -823,16 +1132,7 @@ class NebulaVoxelApp {
                 dirt: '🪨',
                 coal: '⚫',
                 skull: '💀',
-                leaf: '🍃',
-                // Add crafted ShapeForge items
-                grass_cube: '🟩',
-                stone_cube: '🟫',
-                wood_cube: '🟤',
-                sand_cube: '🟨',
-                grass_sphere: '🟢',
-                stone_sphere: '⚫',
-                wood_sphere: '🟤',
-                sand_sphere: '🟡'
+                leaf: '🍃'
             };
             return icons[itemType] || '❓';
         };
@@ -853,8 +1153,9 @@ class NebulaVoxelApp {
             if (!this.hotbarElement) return;
 
             for (let i = 0; i < 4; i++) {
-                const itemName = this.hotbarSlots[i];
-                const itemCount = this.inventory[itemName] || 0;
+                // NEW: Use slot-based system
+                const slot = this.hotbarSlots[i];
+                const itemCount = slot ? slot.quantity : 0;
                 const countElement = this.hotbarElement.querySelector(`.item-count-${i}`);
                 if (countElement) {
                     countElement.textContent = itemCount > 0 ? itemCount : '';
@@ -984,12 +1285,8 @@ class NebulaVoxelApp {
                 });
 
                 // Store slot reference
-                this.backpackSlots.push({
-                    element: slot,
-                    itemType: null,
-                    itemCount: 0,
-                    maxStack: 8 // Starting stack size
-                });
+                // Store DOM element reference (data is in this.backpackSlots array)
+                this.backpackSlots[i].element = slot;
 
                 gridContainer.appendChild(slot);
             }
@@ -2013,14 +2310,8 @@ class NebulaVoxelApp {
         this.updateBackpackInventoryDisplay = () => {
             if (!this.backpackSlots) return;
 
-            // Get all inventory items (excluding hotbar items for now)
-            const inventoryItems = [];
-            Object.keys(this.inventory).forEach(itemType => {
-                const count = this.inventory[itemType];
-                if (count > 0 && !this.hotbarSlots.includes(itemType)) {
-                    inventoryItems.push({ type: itemType, count });
-                }
-            });
+            // Update each backpack slot using new slot system
+            let filledSlots = 0;
 
             // Update each backpack slot
             for (let i = 0; i < this.backpackSlots.length; i++) {
@@ -2030,18 +2321,23 @@ class NebulaVoxelApp {
                 // Clear current content
                 slot.innerHTML = '';
 
-                if (i < inventoryItems.length) {
+                if (slotData.itemType && slotData.quantity > 0) {
                     // Has an item
-                    const item = inventoryItems[i];
-                    const emoji = this.getItemIcon(item.type);
-                    const name = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+                    filledSlots++;
+                    const iconContent = this.getItemIcon(slotData.itemType);
+                    const name = slotData.itemType.charAt(0).toUpperCase() + slotData.itemType.slice(1);
 
                     // Store item type for transfers
-                    slot.dataset.itemType = item.type;
+                    slot.dataset.itemType = slotData.itemType;
 
                     // Create item icon
                     const itemIcon = document.createElement('div');
-                    itemIcon.textContent = emoji;
+                    // Use innerHTML for crafted items (HTML icons), textContent for emojis
+                    if (iconContent.includes('<span')) {
+                        itemIcon.innerHTML = iconContent;
+                    } else {
+                        itemIcon.textContent = iconContent;
+                    }
                     itemIcon.style.cssText = `
                         font-size: 20px;
                         margin-bottom: 2px;
@@ -2050,7 +2346,7 @@ class NebulaVoxelApp {
 
                     // Create item count
                     const itemCount = document.createElement('div');
-                    itemCount.textContent = item.count;
+                    itemCount.textContent = slotData.quantity;
                     itemCount.style.cssText = `
                         font-size: 10px;
                         font-weight: bold;
@@ -2069,15 +2365,13 @@ class NebulaVoxelApp {
                     slot.appendChild(itemName);
 
                     // Add tooltip on hover
-                    slot.title = `${name}: ${item.count}`;
+                    slot.title = `${name}: ${slotData.quantity}`;
 
                     // Update slot styling for filled slot
                     slot.style.background = 'rgba(40, 80, 40, 0.8)';
                     slot.style.borderColor = '#4CAF50';
 
-                    // Store item data
-                    slotData.itemType = item.type;
-                    slotData.itemCount = item.count;
+                    // Slot data already contains the correct values
                 } else {
                     // Empty slot
                     slot.dataset.itemType = '';
@@ -2104,13 +2398,11 @@ class NebulaVoxelApp {
                     slot.style.borderColor = '#555';
                     slot.title = 'Empty slot';
 
-                    // Clear item data
-                    slotData.itemType = null;
-                    slotData.itemCount = 0;
+                    // Slot data already handles empty state
                 }
             }
 
-            console.log(`Backpack updated: ${inventoryItems.length} different item types`);
+            console.log(`Backpack updated: ${filledSlots} filled slots out of ${this.backpackSlots.length} total`);
         };
 
         // Transfer item from hotbar to backpack
@@ -2122,6 +2414,7 @@ class NebulaVoxelApp {
                 // Transfer 1 item from hotbar to general inventory
                 // Note: Backpack shows all non-hotbar items, so just removing from hotbar is enough
                 this.inventory[itemType]--;
+                this.syncInventoryToSlots(); // Keep slot system in sync
                 this.updateHotbarCounts();
                 this.updateBackpackInventoryDisplay();
                 console.log(`Transferred 1 ${itemType} from hotbar to storage`);
@@ -2145,6 +2438,7 @@ class NebulaVoxelApp {
             if (itemCount > 0) {
                 // Add 1 item back to inventory for hotbar use
                 this.inventory[itemType]++;
+                this.syncInventoryToSlots(); // Keep slot system in sync
                 this.updateHotbarCounts();
                 this.updateBackpackInventoryDisplay();
                 console.log(`Transferred 1 ${itemType} from storage to hotbar`);
@@ -3488,7 +3782,9 @@ class NebulaVoxelApp {
                     // Keys 1-4: Select hotbar slots
                     this.selectedSlot = slot;
                     this.updateHotbarSelection();
-                    console.log(`Selected hotbar slot ${slot + 1}: ${this.hotbarSlots[slot]}`);
+                    const slotData = this.hotbarSlots[slot];
+                    const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
+                    console.log(`Selected hotbar slot ${slot + 1}: ${displayText}`);
                     e.preventDefault();
                 } else if (key === '5' && this.hasBackpack) {
                     // Key 5: Toggle backpack inventory
@@ -3510,7 +3806,9 @@ class NebulaVoxelApp {
             if (key === 'q') {
                 this.selectedSlot = (this.selectedSlot - 1 + this.hotbarSlots.length) % this.hotbarSlots.length;
                 this.updateHotbarSelection();
-                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
+                const slotData = this.hotbarSlots[this.selectedSlot];
+                const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
+                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
                 e.preventDefault();
             }
             if (key === 'e') {
@@ -3526,7 +3824,9 @@ class NebulaVoxelApp {
                     // Fallback to hotbar navigation
                     this.selectedSlot = (this.selectedSlot + 1) % this.hotbarSlots.length;
                     this.updateHotbarSelection();
-                    console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
+                    const slotData = this.hotbarSlots[this.selectedSlot];
+                const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
+                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
                     e.preventDefault();
                 }
             }
@@ -3611,16 +3911,21 @@ class NebulaVoxelApp {
                 } else if (e.button === 2) { // Right click - block placement only
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
-                    const selectedBlock = this.hotbarSlots[this.selectedSlot];
+                    const selectedSlot = this.hotbarSlots[this.selectedSlot];
+                    const selectedBlock = selectedSlot?.itemType;
 
-                    if (this.inventory[selectedBlock] > 0) {
+                    if (selectedBlock && selectedSlot.quantity > 0) {
                         this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
-                        this.inventory[selectedBlock]--;
+                        selectedSlot.quantity--;
+
+                        // Update legacy inventory for backwards compatibility
+                        this.inventory[selectedBlock] = Math.max(0, (this.inventory[selectedBlock] || 0) - 1);
+
                         this.updateHotbarCounts(); // Update hotbar display
                         this.updateBackpackInventoryDisplay(); // Update backpack display
-                        console.log(`Placed ${selectedBlock}, ${this.inventory[selectedBlock]} remaining`);
+                        console.log(`Placed ${selectedBlock}, ${selectedSlot.quantity} remaining in slot`);
                     } else {
-                        console.log(`No ${selectedBlock} in inventory!`);
+                        console.log(`No items in selected hotbar slot!`);
                     }
                 }
             }
@@ -3897,6 +4202,42 @@ class NebulaVoxelApp {
                     0% { transform: translateX(0) scale(1); }
                     50% { transform: translateX(-2px) scale(1.02); }
                     100% { transform: translateX(0) scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Add Material Design icon styles for crafted items
+        if (!document.head.querySelector('style[data-crafted-icons]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-crafted-icons', 'true');
+            style.textContent = `
+                /* Material Design icons for crafted items */
+                .crafted-item-icon {
+                    display: inline-block !important;
+                    vertical-align: middle;
+                    font-size: 16px !important;
+                    line-height: 1;
+                    font-family: 'Material Icons' !important;
+                    font-weight: normal;
+                    font-style: normal;
+                    text-decoration: none;
+                    text-transform: none;
+                    letter-spacing: normal;
+                    word-wrap: normal;
+                    white-space: nowrap;
+                    direction: ltr;
+                    -webkit-font-smoothing: antialiased;
+                    text-rendering: optimizeLegibility;
+                    -moz-osx-font-smoothing: grayscale;
+                    font-feature-settings: 'liga';
+                    user-select: none;
+                }
+
+                /* Ensure proper sizing in hotbar and backpack */
+                .hotbar-slot .crafted-item-icon,
+                .backpack-slot .crafted-item-icon {
+                    font-size: 16px !important;
                 }
             `;
             document.head.appendChild(style);

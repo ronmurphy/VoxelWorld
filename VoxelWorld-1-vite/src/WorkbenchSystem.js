@@ -32,8 +32,11 @@ export class WorkbenchSystem {
         this.selectedMaterials = new Set(); // Set of selected materials for filtering
         this.selectedMaterial = null; // Single selected material for 3D preview
         this.selectedShape = null;
-        this.materialQuantities = {}; // How many of each material to use for crafting
-        this.materialHeights = {}; // Height setting for each material (defaults to 1)
+
+        // Shape dimensions (new unified system)
+        this.shapeLength = 1; // L dimension
+        this.shapeWidth = 1;  // W dimension
+        this.shapeHeight = 1; // H dimension (from height slider)
 
         // UI references for updating
         this.materialsListElement = null;
@@ -376,12 +379,33 @@ export class WorkbenchSystem {
             flex-direction: column;
         `;
 
+        // Header container with title and controls info
+        const headerContainer = document.createElement('div');
+        headerContainer.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+
         const header = document.createElement('h3');
         header.textContent = '🎨 3D Preview';
         header.style.cssText = `
             color: #FFD700;
-            margin: 0 0 10px 0;
+            margin: 0;
         `;
+
+        // Controls info (moved from bottom)
+        const controlsInfo = document.createElement('div');
+        controlsInfo.style.cssText = `
+            color: #ccc;
+            font-size: 11px;
+            font-style: italic;
+        `;
+        controlsInfo.textContent = 'Drag to rotate • Scroll to zoom • Right-click to pan';
+
+        headerContainer.appendChild(header);
+        headerContainer.appendChild(controlsInfo);
 
         // Container for 3D preview and height slider
         const previewArea = document.createElement('div');
@@ -422,24 +446,87 @@ export class WorkbenchSystem {
             color: #FFD700;
             font-weight: bold;
             font-size: 12px;
-            writing-mode: horizontal-tb;
         `;
 
-        // Height slider (vertical, bottom to top)
+        // Container for vertical slider (rotated)
+        const sliderWrapper = document.createElement('div');
+        sliderWrapper.style.cssText = `
+            width: 120px;
+            height: 20px;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            margin: 50px 0;
+        `;
+
+        // Height slider (normal horizontal slider, rotated to appear vertical)
         const heightSlider = document.createElement('input');
         heightSlider.type = 'range';
         heightSlider.min = '1';
         heightSlider.max = '8';
         heightSlider.value = '1';
         heightSlider.style.cssText = `
-            writing-mode: bt-lr;
-            -webkit-appearance: slider-vertical;
-            width: 20px;
-            height: 120px;
-            background: #333;
+            width: 120px;
+            height: 20px;
+            cursor: pointer;
             outline: none;
-            transform: rotate(180deg);
+            background: linear-gradient(to right, #333 0%, #555 100%);
+            border-radius: 10px;
+            -webkit-appearance: none;
+            appearance: none;
         `;
+
+        // Add custom styles for the rotated slider
+        if (!document.getElementById('workbench-slider-styles')) {
+            const style = document.createElement('style');
+            style.id = 'workbench-slider-styles';
+            style.textContent = `
+                input[type="range"][data-workbench-height]::-webkit-slider-thumb,
+                input[type="range"][data-workbench-dimension]::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    height: 18px;
+                    width: 18px;
+                    border-radius: 50%;
+                    background: #FFD700;
+                    cursor: pointer;
+                    border: 2px solid #333;
+                    box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+                }
+
+                input[type="range"][data-workbench-height]::-webkit-slider-track,
+                input[type="range"][data-workbench-dimension]::-webkit-slider-track {
+                    background: linear-gradient(to right, #333 0%, #555 100%);
+                    border-radius: 10px;
+                    height: 8px;
+                }
+
+                input[type="range"][data-workbench-height]::-moz-range-thumb,
+                input[type="range"][data-workbench-dimension]::-moz-range-thumb {
+                    height: 18px;
+                    width: 18px;
+                    border-radius: 50%;
+                    background: #FFD700;
+                    cursor: pointer;
+                    border: 2px solid #333;
+                    box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+                    -moz-appearance: none;
+                }
+
+                input[type="range"][data-workbench-height]::-moz-range-track,
+                input[type="range"][data-workbench-dimension]::-moz-range-track {
+                    background: linear-gradient(to right, #333 0%, #555 100%);
+                    border-radius: 10px;
+                    height: 8px;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Mark this as a workbench height slider for styling
+        heightSlider.setAttribute('data-workbench-height', 'true');
+
+        // Add slider to wrapper
+        sliderWrapper.appendChild(heightSlider);
 
         // Height display
         const heightDisplay = document.createElement('div');
@@ -448,7 +535,6 @@ export class WorkbenchSystem {
             color: #4CAF50;
             font-weight: bold;
             font-size: 12px;
-            writing-mode: horizontal-tb;
         `;
 
         // Update height when slider changes
@@ -456,20 +542,45 @@ export class WorkbenchSystem {
             const newHeight = parseInt(e.target.value);
             heightDisplay.textContent = newHeight;
 
-            // Update height for selected material
-            if (this.selectedMaterial) {
-                if (!this.materialHeights[this.selectedMaterial]) {
-                    this.materialHeights[this.selectedMaterial] = 1;
-                }
-                this.materialHeights[this.selectedMaterial] = newHeight;
-                this.updatePreview();
-                console.log(`📏 ${this.selectedMaterial} height set to: ${newHeight}`);
-            }
+            // Update shape height directly
+            this.shapeHeight = newHeight;
+            this.updateMaterialCostDisplay();
+            this.updatePreview();
+            console.log(`📏 Height set to: ${newHeight}`);
         });
 
+        // Material emoji display
+        const materialEmoji = document.createElement('div');
+        materialEmoji.style.cssText = `
+            font-size: 24px;
+            text-align: center;
+            margin: 5px 0;
+        `;
+        materialEmoji.textContent = '❓'; // Default, will update when material selected
+
+        // Material cost display
+        const materialCost = document.createElement('div');
+        materialCost.style.cssText = `
+            color: #FF6B6B;
+            font-weight: bold;
+            font-size: 11px;
+            text-align: center;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #FF6B6B;
+            border-radius: 4px;
+            padding: 2px 4px;
+        `;
+        materialCost.textContent = '0';
+
         heightSliderContainer.appendChild(heightLabel);
-        heightSliderContainer.appendChild(heightSlider);
+        heightSliderContainer.appendChild(sliderWrapper);
         heightSliderContainer.appendChild(heightDisplay);
+        heightSliderContainer.appendChild(materialEmoji);
+        heightSliderContainer.appendChild(materialCost);
+
+        // Store references for updates
+        this.materialEmojiDisplay = materialEmoji;
+        this.materialCostDisplay = materialCost;
 
         previewArea.appendChild(this.previewContainer);
         previewArea.appendChild(heightSliderContainer);
@@ -511,22 +622,134 @@ export class WorkbenchSystem {
 
         craftButton.addEventListener('click', () => this.craftItem());
 
-        // Controls info
-        const controlsInfo = document.createElement('div');
-        controlsInfo.style.cssText = `
-            color: #ccc;
-            font-size: 12px;
-            margin-top: 10px;
-            text-align: center;
-        `;
-        controlsInfo.textContent = 'Drag to rotate • Scroll to zoom • Right-click to pan';
+        // Store reference to craft button for enable/disable
+        this.craftButton = craftButton;
 
-        panel.appendChild(header);
+        // Horizontal dimension controls area (Length and Width)
+        const dimensionControls = this.createDimensionControls();
+
+        panel.appendChild(headerContainer);
         panel.appendChild(previewArea);
+        panel.appendChild(dimensionControls);
         panel.appendChild(craftButton);
-        panel.appendChild(controlsInfo);
 
         return panel;
+    }
+
+    /**
+     * Create dimension controls (Length and Width sliders)
+     */
+    createDimensionControls() {
+        const container = document.createElement('div');
+        container.style.cssText = `
+            display: flex;
+            gap: 20px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            border: 1px solid #333;
+            margin: 10px 0;
+        `;
+
+        // Length controls
+        const lengthContainer = this.createDimensionSlider('Length', 'L', 1, 10, 1);
+
+        // Width controls
+        const widthContainer = this.createDimensionSlider('Width', 'W', 1, 10, 1);
+
+        container.appendChild(lengthContainer);
+        container.appendChild(widthContainer);
+
+        return container;
+    }
+
+    /**
+     * Create individual dimension slider
+     */
+    createDimensionSlider(name, label, min, max, defaultValue) {
+        const container = document.createElement('div');
+        container.style.cssText = `
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        `;
+
+        // Label
+        const labelElement = document.createElement('div');
+        labelElement.textContent = label;
+        labelElement.style.cssText = `
+            color: #FFD700;
+            font-weight: bold;
+            font-size: 14px;
+        `;
+
+        // Slider
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = min.toString();
+        slider.max = max.toString();
+        slider.value = defaultValue.toString();
+        slider.style.cssText = `
+            width: 100%;
+            height: 20px;
+            cursor: pointer;
+            outline: none;
+            background: linear-gradient(to right, #333 0%, #555 100%);
+            border-radius: 10px;
+            -webkit-appearance: none;
+            appearance: none;
+        `;
+
+        // Apply same styling as height slider
+        slider.setAttribute('data-workbench-dimension', 'true');
+
+        // Value display
+        const valueDisplay = document.createElement('div');
+        valueDisplay.textContent = defaultValue.toString();
+        valueDisplay.style.cssText = `
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 12px;
+            min-width: 20px;
+            text-align: center;
+        `;
+
+        // Update display and preview when slider changes
+        slider.addEventListener('input', (e) => {
+            const newValue = parseInt(e.target.value);
+            valueDisplay.textContent = newValue;
+
+            // Store the value
+            if (name === 'Length') {
+                this.shapeLength = newValue;
+            } else if (name === 'Width') {
+                this.shapeWidth = newValue;
+            }
+
+            // Update cost display and preview
+            this.updateMaterialCostDisplay();
+            this.updatePreview();
+            console.log(`📐 ${name} set to: ${newValue}`);
+        });
+
+        container.appendChild(labelElement);
+        container.appendChild(slider);
+        container.appendChild(valueDisplay);
+
+        // Store references
+        if (name === 'Length') {
+            this.lengthSlider = slider;
+            this.lengthDisplay = valueDisplay;
+            this.shapeLength = defaultValue;
+        } else if (name === 'Width') {
+            this.widthSlider = slider;
+            this.widthDisplay = valueDisplay;
+            this.shapeWidth = defaultValue;
+        }
+
+        return container;
     }
 
     /**
@@ -694,61 +917,84 @@ export class WorkbenchSystem {
     }
 
     // Shape creation functions
-    createCube(material, size) {
-        const geometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+    createCube(material, length, width, height) {
+        const geometry = new THREE.BoxGeometry(length, height, width);
         const materialObj = this.getMaterialForType(material);
         return new THREE.Mesh(geometry, materialObj);
     }
 
-    createSphere(material, size) {
-        const geometry = new THREE.SphereGeometry(Math.min(size.x, size.y, size.z) / 2, 16, 12);
+    createSphere(material, length, width, height) {
+        // Create ellipsoid: different radii for each dimension
+        const radiusX = length / 2;  // Length controls X radius
+        const radiusY = height / 2;  // Height controls Y radius
+        const radiusZ = width / 2;   // Width controls Z radius
+
+        // Create sphere and then scale it to make ellipsoid
+        const geometry = new THREE.SphereGeometry(1, 16, 12); // Base sphere with radius 1
+        const materialObj = this.getMaterialForType(material);
+        const mesh = new THREE.Mesh(geometry, materialObj);
+
+        // Scale to create ellipsoid
+        mesh.scale.set(radiusX, radiusY, radiusZ);
+
+        return mesh;
+    }
+
+    createCylinder(material, length, width, height) {
+        // Use length/width for radius, height for cylinder height
+        const radiusX = length / 2;
+        const radiusZ = width / 2;
+        const geometry = new THREE.CylinderGeometry(radiusX, radiusZ, height, 16);
         const materialObj = this.getMaterialForType(material);
         return new THREE.Mesh(geometry, materialObj);
     }
 
-    createCylinder(material, size) {
-        const geometry = new THREE.CylinderGeometry(size.x / 2, size.z / 2, size.y, 16);
+    createPyramid(material, length, width, height) {
+        // Use length/width for pyramid base, height for pyramid height
+        const baseRadius = Math.min(length, width) / 2; // Use smaller dimension for base
+        const geometry = new THREE.ConeGeometry(baseRadius, height, 4);
         const materialObj = this.getMaterialForType(material);
         return new THREE.Mesh(geometry, materialObj);
     }
 
-    createPyramid(material, size) {
-        const geometry = new THREE.ConeGeometry(Math.min(size.x, size.z) / 2, size.y, 4);
-        const materialObj = this.getMaterialForType(material);
-        return new THREE.Mesh(geometry, materialObj);
-    }
-
-    createStairs(material, size) {
+    createStairs(material, length, width, height) {
         const group = new THREE.Group();
-        const stepHeight = size.y / size.z;
+        const numSteps = Math.max(1, Math.floor(width)); // Number of steps based on width
+        const stepHeight = height / numSteps;
+        const stepDepth = width / numSteps;
 
-        for (let i = 0; i < size.z; i++) {
-            const stepGeometry = new THREE.BoxGeometry(size.x, stepHeight, 1);
+        for (let i = 0; i < numSteps; i++) {
+            const stepGeometry = new THREE.BoxGeometry(length, stepHeight, stepDepth);
             const materialObj = this.getMaterialForType(material);
             const step = new THREE.Mesh(stepGeometry, materialObj);
-            step.position.set(0, i * stepHeight, i);
+
+            // Position each step: start from ground (y=0), build upward
+            const stepY = (i * stepHeight) + (stepHeight / 2); // Bottom of step at i*stepHeight
+            const stepZ = (i * stepDepth) - (width / 2) + (stepDepth / 2);
+            step.position.set(0, stepY, stepZ);
             group.add(step);
         }
 
         return group;
     }
 
-    createWall(material, size) {
-        return this.createCube(material, size);
+    createWall(material, length, width, height) {
+        // Wall is just a thin cube (depth = 0.5)
+        return this.createCube(material, length, 0.5, height);
     }
 
-    createHollowCube(material, size) {
+    createHollowCube(material, length, width, height) {
         const group = new THREE.Group();
-        const thickness = 0.5;
+        const thickness = 0.2;
 
         // Create 6 faces of the hollow cube
         const faces = [
-            { pos: [0, 0, size.z/2], rot: [0, 0, 0], scale: [size.x, size.y, thickness] }, // Front
-            { pos: [0, 0, -size.z/2], rot: [0, 0, 0], scale: [size.x, size.y, thickness] }, // Back
-            { pos: [size.x/2, 0, 0], rot: [0, Math.PI/2, 0], scale: [size.z, size.y, thickness] }, // Right
-            { pos: [-size.x/2, 0, 0], rot: [0, Math.PI/2, 0], scale: [size.z, size.y, thickness] }, // Left
-            { pos: [0, size.y/2, 0], rot: [Math.PI/2, 0, 0], scale: [size.x, size.z, thickness] }, // Top
-            { pos: [0, -size.y/2, 0], rot: [Math.PI/2, 0, 0], scale: [size.x, size.z, thickness] }  // Bottom
+            { pos: [0, 0, width/2], rot: [0, 0, 0], scale: [length, height, thickness] }, // Front
+            { pos: [0, 0, -width/2], rot: [0, 0, 0], scale: [length, height, thickness] }, // Back
+            { pos: [length/2, 0, 0], rot: [0, Math.PI/2, 0], scale: [width, height, thickness] }, // Right
+            { pos: [-length/2, 0, 0], rot: [0, Math.PI/2, 0], scale: [width, height, thickness] }, // Left
+            { pos: [0, height/2, 0], rot: [Math.PI/2, 0, 0], scale: [length, width, thickness] }, // Top
+            { pos: [0, -height/2, 0], rot: [Math.PI/2, 0, 0], scale: [length, width, thickness] }  // Bottom
         ];
 
         faces.forEach(face => {
@@ -794,87 +1040,22 @@ export class WorkbenchSystem {
             transition: all 0.2s ease;
         `;
 
-        // Initialize material quantity to 1 by default
-        if (!this.materialQuantities[material]) {
-            this.materialQuantities[material] = 1;
-        }
-
         const emoji = this.voxelWorld.getItemIcon(material);
         const name = material.charAt(0).toUpperCase() + material.slice(1);
 
-        // Top row: Material name and selection
-        const topRow = document.createElement('div');
-        topRow.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-        `;
-
-        topRow.innerHTML = `
-            <span style="color: white;">
-                <span style="font-size: 20px;">${emoji}</span>
-                <span style="margin-left: 8px;">${name}</span>
+        // Material item: Just name, icon, and count (no quantity slider)
+        item.style.cursor = 'pointer';
+        item.innerHTML = `
+            <span style="color: white; display: flex; justify-content: space-between; align-items: center;">
+                <span>
+                    <span style="font-size: 20px;">${emoji}</span>
+                    <span style="margin-left: 8px;">${name}</span>
+                </span>
+                <span style="color: #FFD700; font-weight: bold;">/${count}</span>
             </span>
-            <span style="color: #FFD700; font-weight: bold;">/${count}</span>
         `;
 
-        topRow.addEventListener('click', () => this.toggleMaterialSelection(material));
-
-        // Bottom row: Quantity slider (hidden by default)
-        const sliderRow = document.createElement('div');
-        sliderRow.style.cssText = `
-            display: none;
-            margin-top: 8px;
-            align-items: center;
-            gap: 8px;
-        `;
-
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = '1';
-        slider.max = count.toString();
-        slider.value = this.materialQuantities[material].toString();
-        slider.style.cssText = `
-            flex: 1;
-            height: 6px;
-            border-radius: 3px;
-            background: #333;
-            outline: none;
-            -webkit-appearance: none;
-        `;
-
-        const quantityDisplay = document.createElement('span');
-        quantityDisplay.style.cssText = `
-            color: #4CAF50;
-            font-weight: bold;
-            min-width: 20px;
-            text-align: center;
-        `;
-        quantityDisplay.textContent = this.materialQuantities[material];
-
-        // Update quantity when slider changes
-        slider.addEventListener('input', (e) => {
-            const newQuantity = parseInt(e.target.value);
-            this.materialQuantities[material] = newQuantity;
-            quantityDisplay.textContent = newQuantity;
-
-            // Update 3D preview if this material is selected
-            if (this.selectedMaterial === material) {
-                this.updatePreview();
-            }
-
-            console.log(`🎚️ ${material} quantity set to: ${newQuantity}`);
-        });
-
-        sliderRow.appendChild(slider);
-        sliderRow.appendChild(quantityDisplay);
-
-        item.appendChild(topRow);
-        item.appendChild(sliderRow);
-
-        // Store reference to slider row for toggling
-        item.sliderRow = sliderRow;
+        item.addEventListener('click', () => this.toggleMaterialSelection(material));
 
         return item;
     }
@@ -957,6 +1138,105 @@ export class WorkbenchSystem {
     }
 
     /**
+     * Update craft button enabled/disabled state
+     */
+    updateCraftButtonState() {
+        if (!this.craftButton) {
+            return;
+        }
+
+        // Check if we can craft
+        const canCraft = this.canCraftCurrentItem();
+
+        if (canCraft) {
+            // Enable button
+            this.craftButton.disabled = false;
+            this.craftButton.style.opacity = '1';
+            this.craftButton.style.cursor = 'pointer';
+            this.craftButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+            this.craftButton.textContent = '⚡ Craft Item';
+        } else {
+            // Disable button
+            this.craftButton.disabled = true;
+            this.craftButton.style.opacity = '0.5';
+            this.craftButton.style.cursor = 'not-allowed';
+            this.craftButton.style.background = 'linear-gradient(45deg, #666, #555)';
+
+            // Show reason why disabled
+            if (!this.selectedMaterial) {
+                this.craftButton.textContent = '❌ Select Material';
+            } else if (!this.selectedShape) {
+                this.craftButton.textContent = '❌ Select Recipe';
+            } else {
+                this.craftButton.textContent = '❌ Need More Materials';
+            }
+        }
+    }
+
+    /**
+     * Check if current item can be crafted
+     */
+    canCraftCurrentItem() {
+        // Need material and shape selected
+        if (!this.selectedMaterial || !this.selectedShape) {
+            return false;
+        }
+
+        // Check if user has enough materials
+        const cost = this.shapeLength * this.shapeWidth * this.shapeHeight * 2;
+        const available = this.voxelWorld.inventory[this.selectedMaterial] || 0;
+
+        return available >= cost;
+    }
+
+    /**
+     * Update material emoji and cost display
+     */
+    updateMaterialCostDisplay() {
+        if (!this.materialEmojiDisplay || !this.materialCostDisplay) {
+            return;
+        }
+
+        if (this.selectedMaterial) {
+            // Update emoji
+            const emoji = this.voxelWorld.getItemIcon(this.selectedMaterial);
+            this.materialEmojiDisplay.textContent = emoji;
+
+            // Calculate and update cost
+            const length = this.shapeLength;
+            const width = this.shapeWidth;
+            const height = this.shapeHeight;
+            const cost = length * width * height * 2;
+
+            this.materialCostDisplay.textContent = cost.toString();
+
+            // Check if user has enough materials
+            const available = this.voxelWorld.inventory[this.selectedMaterial] || 0;
+            if (available >= cost) {
+                // Enough materials - green
+                this.materialCostDisplay.style.color = '#4CAF50';
+                this.materialCostDisplay.style.borderColor = '#4CAF50';
+                this.materialCostDisplay.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+            } else {
+                // Not enough materials - red
+                this.materialCostDisplay.style.color = '#FF6B6B';
+                this.materialCostDisplay.style.borderColor = '#FF6B6B';
+                this.materialCostDisplay.style.backgroundColor = 'rgba(255, 107, 107, 0.1)';
+            }
+        } else {
+            // No material selected
+            this.materialEmojiDisplay.textContent = '❓';
+            this.materialCostDisplay.textContent = '0';
+            this.materialCostDisplay.style.color = '#666';
+            this.materialCostDisplay.style.borderColor = '#666';
+            this.materialCostDisplay.style.backgroundColor = 'rgba(102, 102, 102, 0.1)';
+        }
+
+        // Update craft button state whenever cost display updates
+        this.updateCraftButtonState();
+    }
+
+    /**
      * Check if a material can be used for crafting (filter out discovery items)
      */
     isCraftingMaterial(material) {
@@ -966,6 +1246,7 @@ export class WorkbenchSystem {
         ];
         return craftingMaterials.includes(material);
     }
+
 
     /**
      * Toggle material selection
@@ -997,6 +1278,7 @@ export class WorkbenchSystem {
 
         this.updateMaterialVisuals();
         this.updateRecipeDisplay();
+        this.updateMaterialCostDisplay(); // Update emoji and cost
         this.updatePreview(); // Trigger 3D preview update
     }
 
@@ -1022,25 +1304,15 @@ export class WorkbenchSystem {
             const material = item.dataset.material;
             if (material) {
                 if (this.selectedMaterials.has(material)) {
-                    // Selected state - show golden border and slider
+                    // Selected state - show golden border
                     item.style.borderColor = '#FFD700';
                     item.style.backgroundColor = 'rgba(255, 215, 0, 0.2)';
                     item.style.boxShadow = '0 0 10px rgba(255, 215, 0, 0.3)';
-
-                    // Show quantity slider
-                    if (item.sliderRow) {
-                        item.sliderRow.style.display = 'flex';
-                    }
                 } else {
-                    // Unselected state - hide slider
+                    // Unselected state
                     item.style.borderColor = 'transparent';
                     item.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
                     item.style.boxShadow = 'none';
-
-                    // Hide quantity slider
-                    if (item.sliderRow) {
-                        item.sliderRow.style.display = 'none';
-                    }
                 }
             }
         });
@@ -1158,51 +1430,56 @@ export class WorkbenchSystem {
         });
         objectsToRemove.forEach(obj => this.scene.remove(obj));
 
-        // Calculate size based on selected material quantity from slider (1/4 scale like Minecraft)
-        const selectedQuantity = this.materialQuantities[this.selectedMaterial] || 1;
-        const baseWidth = Math.max(1, Math.ceil(selectedQuantity / 4)); // 4 materials = 1 unit
-        const height = this.materialHeights[this.selectedMaterial] || 1; // Default height of 1
+        // Use direct Length/Width/Height values
+        const length = this.shapeLength;
+        const width = this.shapeWidth;
+        const height = this.shapeHeight;
 
-        // Calculate total materials needed: width² × height (for cube-like shapes)
-        const materialCost = (baseWidth * baseWidth) * height;
-        const size = { x: baseWidth, y: height, z: baseWidth };
+        // Calculate total materials needed: length × width × height × 2
+        const materialCost = length * width * height * 2;
 
-        console.log(`🎯 Using ${selectedQuantity}/${materialCost} ${this.selectedMaterial} for size ${baseWidth}x${height}x${baseWidth}`);
+        console.log(`🎯 Creating ${length}×${width}×${height} shape using ${materialCost} ${this.selectedMaterial}`);
 
         // Create the selected shape
         let previewMesh;
         switch (this.selectedShape) {
             case 'cube':
-                previewMesh = this.createCube(this.selectedMaterial, size);
+                previewMesh = this.createCube(this.selectedMaterial, length, width, height);
                 break;
             case 'sphere':
-                previewMesh = this.createSphere(this.selectedMaterial, size);
+                previewMesh = this.createSphere(this.selectedMaterial, length, width, height);
                 break;
             case 'cylinder':
-                previewMesh = this.createCylinder(this.selectedMaterial, size);
+                previewMesh = this.createCylinder(this.selectedMaterial, length, width, height);
                 break;
             case 'pyramid':
-                previewMesh = this.createPyramid(this.selectedMaterial, size);
+                previewMesh = this.createPyramid(this.selectedMaterial, length, width, height);
                 break;
             case 'stairs':
-                previewMesh = this.createStairs(this.selectedMaterial, size);
+                previewMesh = this.createStairs(this.selectedMaterial, length, width, height);
                 break;
             case 'wall':
-                previewMesh = this.createCube(this.selectedMaterial, { x: baseSize * 2, y: baseSize, z: 0.5 });
+                previewMesh = this.createWall(this.selectedMaterial, length, width, height);
                 break;
-            case 'hollow':
-                previewMesh = this.createHollowCube(this.selectedMaterial, size);
+            case 'hollow_cube':
+                previewMesh = this.createHollowCube(this.selectedMaterial, length, width, height);
                 break;
             default:
-                previewMesh = this.createCube(this.selectedMaterial, size);
+                previewMesh = this.createCube(this.selectedMaterial, length, width, height);
         }
 
         if (previewMesh) {
             // Mark as preview object for easy removal
             previewMesh.userData.isPreviewObject = true;
 
-            // Position at center of workspace
-            previewMesh.position.set(0, size.y / 2, 0);
+            // Position shapes to sit ON the ground (not float)
+            // Most shapes need their bottom at y=0, so position at height/2
+            // But stairs and some complex shapes handle their own positioning
+            if (this.selectedShape === 'stairs') {
+                previewMesh.position.set(0, 0, 0); // Stairs handle their own positioning
+            } else {
+                previewMesh.position.set(0, height / 2, 0); // Bottom of shape at y=0
+            }
 
             // Add to scene
             this.scene.add(previewMesh);
@@ -1233,12 +1510,13 @@ export class WorkbenchSystem {
 
         const material = this.selectedMaterial;
         const shape = this.selectedShape;
-        const baseWidth = Math.max(1, Math.ceil((this.materialQuantities[material] || 1) / 4));
-        const height = this.materialHeights[material] || 1;
-        const requiredQuantity = (baseWidth * baseWidth) * height; // Calculate actual material cost
+        const length = this.shapeLength;
+        const width = this.shapeWidth;
+        const height = this.shapeHeight;
+        const requiredQuantity = length * width * height * 2; // New cost calculation: L×W×H×2
         const availableQuantity = this.voxelWorld.inventory[material] || 0;
 
-        console.log(`🔨 Crafting ${shape} ${baseWidth}x${height}x${baseWidth} using ${requiredQuantity} ${material}`);
+        console.log(`🔨 Crafting ${shape} ${length}×${width}×${height} using ${requiredQuantity} ${material}`);
         console.log(`📦 Available: ${availableQuantity}, Required: ${requiredQuantity}`);
 
         // Check if player has enough materials
@@ -1248,8 +1526,17 @@ export class WorkbenchSystem {
             return;
         }
 
-        // Create crafted item name (e.g., "wood_cube_3x2x3")
-        const itemName = `${material}_${shape}_${baseWidth}x${height}x${baseWidth}`;
+        // Create crafted item with shape data
+        const shapeData = {
+            material: material,
+            shape: shape,
+            dimensions: { length, width, height },
+            cost: requiredQuantity,
+            timestamp: Date.now()
+        };
+
+        // Create crafted item name (e.g., "crafted_wood_cube_3x2x4")
+        const itemName = `crafted_${material}_${shape}_${length}x${width}x${height}`;
 
         // Consume materials from inventory
         this.voxelWorld.inventory[material] -= requiredQuantity;
@@ -1261,12 +1548,18 @@ export class WorkbenchSystem {
         }
         this.voxelWorld.inventory[itemName]++;
 
+        // Store shape metadata (create inventoryMetadata if it doesn't exist)
+        if (!this.voxelWorld.inventoryMetadata) {
+            this.voxelWorld.inventoryMetadata = {};
+        }
+        this.voxelWorld.inventoryMetadata[itemName] = shapeData;
+
         // Update UI displays
         this.voxelWorld.updateHotbarCounts();
         this.voxelWorld.updateBackpackInventoryDisplay();
 
-        // Refresh workbench materials (since quantities changed)
-        this.createMaterialsPanel();
+        // Update cost display and button state (since materials were consumed)
+        this.updateMaterialCostDisplay();
 
         // Success notification
         const emoji = this.voxelWorld.getItemIcon(material);
