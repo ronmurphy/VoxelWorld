@@ -289,3 +289,4 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Undo System**: Ctrl+Z for recent block changes
 - **Copy/Paste**: Select and duplicate sections of builds
 
+LAST THING WORKED ON > see trees.md
