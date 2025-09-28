@@ -225,11 +225,30 @@ export class InventorySystem {
         const hotbarSlot = this.hotbarSlots[hotbarIndex];
         if (hotbarSlot && hotbarSlot.itemType && hotbarSlot.quantity > 0) {
             const itemType = hotbarSlot.itemType;
-            const transferAmount = 1; // Transfer one item at a time
+            const transferAmount = hotbarSlot.quantity; // Transfer entire stack
 
-            // Find available space in backpack
-            const targetSlotIndex = this.findEmptyBackpackSlot();
+            // Find available space in backpack - try stacking first, then empty slot
+            let targetSlotIndex = -1;
+
+            // First, try to find existing slot with same item type that has space
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                const slot = this.backpackSlots[i];
+                if (slot.itemType === itemType && slot.quantity < this.STACK_LIMIT) {
+                    // Check if there's enough space for the full transfer
+                    if (slot.quantity + transferAmount <= this.STACK_LIMIT) {
+                        targetSlotIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // If no stackable slot found, find empty slot
+            if (targetSlotIndex === -1) {
+                targetSlotIndex = this.findEmptyBackpackSlot();
+            }
+
             if (targetSlotIndex !== -1) {
+                // Remove from hotbar
                 hotbarSlot.quantity -= transferAmount;
                 if (hotbarSlot.quantity === 0) {
                     hotbarSlot.itemType = '';
@@ -243,8 +262,8 @@ export class InventorySystem {
                 }
 
                 this.updateHotbarCounts();
-                this.updateBackpackInventoryDisplay();
-                console.log(`Transferred 1 ${itemType} from hotbar to backpack`);
+                this.voxelWorld.updateBackpackInventoryDisplay();
+                console.log(`Transferred ${transferAmount} ${itemType} from hotbar to backpack`);
 
                 if (this.voxelWorld.updateStatus) {
                     this.voxelWorld.updateStatus(`📦 Moved ${itemType} to backpack`, 'success');
@@ -261,11 +280,30 @@ export class InventorySystem {
         const backpackSlot = this.backpackSlots[backpackIndex];
         if (backpackSlot && backpackSlot.itemType && backpackSlot.quantity > 0) {
             const itemType = backpackSlot.itemType;
-            const transferAmount = 1; // Transfer one item at a time
+            const transferAmount = backpackSlot.quantity; // Transfer entire stack
 
-            // Find available space in hotbar
-            const targetSlotIndex = this.findEmptyHotbarSlot();
+            // Find available space in hotbar - try stacking first, then empty slot
+            let targetSlotIndex = -1;
+
+            // First, try to find existing slot with same item type that has space
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                const slot = this.hotbarSlots[i];
+                if (slot.itemType === itemType && slot.quantity < this.STACK_LIMIT) {
+                    // Check if there's enough space for the full transfer
+                    if (slot.quantity + transferAmount <= this.STACK_LIMIT) {
+                        targetSlotIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // If no stackable slot found, find empty slot
+            if (targetSlotIndex === -1) {
+                targetSlotIndex = this.findEmptyHotbarSlot();
+            }
+
             if (targetSlotIndex !== -1) {
+                // Remove from backpack
                 backpackSlot.quantity -= transferAmount;
                 if (backpackSlot.quantity === 0) {
                     backpackSlot.itemType = '';
@@ -279,8 +317,8 @@ export class InventorySystem {
                 }
 
                 this.updateHotbarCounts();
-                this.updateBackpackInventoryDisplay();
-                console.log(`Transferred 1 ${itemType} from backpack to hotbar`);
+                this.voxelWorld.updateBackpackInventoryDisplay();
+                console.log(`Transferred ${transferAmount} ${itemType} from backpack to hotbar`);
 
                 if (this.voxelWorld.updateStatus) {
                     this.voxelWorld.updateStatus(`🔧 Moved ${itemType} to hotbar`, 'success');
@@ -341,21 +379,16 @@ export class InventorySystem {
         });
     }
 
+    // 🔄 DELEGATED: Backpack UI updates now handled by VoxelWorld's beautiful restored UI
     updateBackpackInventoryDisplay() {
-        if (!this.backpackSlots) return;
-
-        // Don't try to create UI if container isn't ready
-        if (!this.voxelWorld.container) {
-            console.log('🎒 Deferring backpack UI update - container not ready');
+        // Delegate to VoxelWorld's polished UI system
+        if (this.voxelWorld && this.voxelWorld.updateBackpackInventoryDisplay) {
+            this.voxelWorld.updateBackpackInventoryDisplay();
             return;
         }
 
-        // Ensure backpack UI is created before updating
-        if (!this.backpackInventoryElement) {
-            this.createBackpackInventory();
-            // If creation failed, don't continue
-            if (!this.backpackInventoryElement) return;
-        }
+        // Legacy fallback (should not be used in hybrid system)
+        if (!this.backpackSlots) return;
 
         // Update each backpack slot using new slot system
         let filledSlots = 0;
