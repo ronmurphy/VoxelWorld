@@ -1216,64 +1216,7 @@ class NebulaVoxelApp {
             this.container.appendChild(this.hotbarElement);
         };
 
-        // Slot Management Helper Functions
-        this.getHotbarSlot = (index) => {
-            return this.hotbarSlots[index] || null;
-        };
-
-        this.getBackpackSlot = (index) => {
-            return this.backpackSlots[index] || null;
-        };
-
-        this.setHotbarSlot = (index, itemType, quantity) => {
-            if (index >= 0 && index < this.hotbarSlots.length) {
-                this.hotbarSlots[index] = { itemType, quantity };
-            }
-        };
-
-        this.setBackpackSlot = (index, itemType, quantity) => {
-            if (index >= 0 && index < this.backpackSlots.length) {
-                this.backpackSlots[index] = { itemType, quantity };
-            }
-        };
-
-        this.findEmptyHotbarSlot = () => {
-            for (let i = 0; i < this.hotbarSlots.length; i++) {
-                if (!this.hotbarSlots[i].itemType || this.hotbarSlots[i].quantity === 0) {
-                    return i;
-                }
-            }
-            return -1; // No empty slots
-        };
-
-        this.findEmptyBackpackSlot = () => {
-            for (let i = 0; i < this.backpackSlots.length; i++) {
-                if (!this.backpackSlots[i].itemType || this.backpackSlots[i].quantity === 0) {
-                    return i;
-                }
-            }
-            return -1; // No empty slots
-        };
-
-        this.findHotbarSlotWithItem = (itemType) => {
-            for (let i = 0; i < this.hotbarSlots.length; i++) {
-                if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity > 0) {
-                    return i;
-                }
-            }
-            return -1; // Item not found
-        };
-
-        this.findBackpackSlotWithItem = (itemType) => {
-            for (let i = 0; i < this.backpackSlots.length; i++) {
-                if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity > 0) {
-                    return i;
-                }
-            }
-            return -1; // Item not found
-        };
-
-        // Sync functions removed - using pure slot-based system now
+        // Duplicate function definitions removed - using the original correct implementations above
 
         // Get emoji icon for item types
         // Material Design icon system for crafted items
@@ -4011,6 +3954,11 @@ class NebulaVoxelApp {
                     modifiedBlocks: modifiedBlocks,
                     craftedObjects: craftedObjectsData, // NEW: Save crafted objects
                     inventoryMetadata: this.inventoryMetadata, // NEW: Save item metadata
+                    // NEW: Save inventory state to prevent duplicate backpack spawning
+                    hasBackpack: this.hasBackpack,
+                    hotbarSlots: this.hotbarSlots,
+                    backpackSlots: this.backpackSlots,
+                    selectedSlot: this.selectedSlot,
                     player: this.player,
                     worldSeed: this.worldSeed,
                     timestamp: Date.now()
@@ -4081,6 +4029,30 @@ class NebulaVoxelApp {
                 }
 
                 this.player = saveData.player;
+
+                // NEW: Restore inventory state to prevent duplicate backpack issues
+                if (saveData.hasBackpack !== undefined) {
+                    this.hasBackpack = saveData.hasBackpack;
+                    console.log(`📦 Restored hasBackpack state: ${this.hasBackpack}`);
+                }
+                if (saveData.hotbarSlots) {
+                    this.hotbarSlots = saveData.hotbarSlots;
+                    console.log(`🎯 Restored ${this.hotbarSlots.length} hotbar slots`);
+                }
+                if (saveData.backpackSlots) {
+                    this.backpackSlots = saveData.backpackSlots;
+                    console.log(`🎒 Restored ${this.backpackSlots.length} backpack slots`);
+                }
+                if (saveData.selectedSlot !== undefined) {
+                    this.selectedSlot = saveData.selectedSlot;
+                }
+
+                // Update UI to reflect restored inventory
+                if (this.hasBackpack) {
+                    this.showHotbarTutorial(); // Show hotbar since player has backpack
+                    this.updateHotbarCounts();
+                    this.updateBackpackInventoryDisplay();
+                }
 
                 // Restore seed if available, otherwise generate new one
                 if (saveData.worldSeed) {
