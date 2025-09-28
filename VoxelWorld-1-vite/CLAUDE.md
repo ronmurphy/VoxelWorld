@@ -289,4 +289,11 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Undo System**: Ctrl+Z for recent block changes
 - **Copy/Paste**: Select and duplicate sections of builds
 
+
+
+i, he user, keep on asking abou the inventory system, does overflow work, andi get told yes, and i realised, i am asking the wrong thing... in the backpack slide down UI, is it linked to the inventory sytem for overfloow?  because i collected over 100 shrub wood last night and i started seeing this console log, but the backpack ui showed it wasempty.
+
+No space for 1 wood items VoxelWorld.js:216:37
+
+
 LAST THING WORKED ON > see trees.md
