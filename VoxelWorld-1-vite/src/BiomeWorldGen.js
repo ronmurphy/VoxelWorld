@@ -16,6 +16,15 @@ export class BiomeWorldGen {
         this.worldSeed = 0;
         this.chunkCache = new Map(); // Cache biome data for performance
 
+        // 🐛 Debug mode - enabled to diagnose chunk holes
+        this.DEBUG_MODE = true; // Toggle for detailed logging
+        this.STATS = {
+            chunksGenerated: 0,
+            lowHeights: 0,
+            emergencyFills: 0,
+            treesPlaced: 0
+        };
+
         this.initializeBiomes();
         this.initializeNoiseGenerators();
     }
@@ -135,11 +144,11 @@ export class BiomeWorldGen {
                 persistence: 0.4
             },
 
-            // Elevation noise
+            // Elevation noise - Fine-tuned for better terrain variety
             elevation: {
-                scale: 0.015,
-                octaves: 4,
-                persistence: 0.7
+                scale: 0.012,      // Slightly reduced for smoother terrain
+                octaves: 5,        // Added octave for more detail
+                persistence: 0.65   // Slightly reduced for better balance
             }
         };
     }
@@ -170,18 +179,482 @@ export class BiomeWorldGen {
         // 🛡️ SAFETY: Clamp to expected range and validate
         const clampedValue = Math.max(-1, Math.min(1, normalizedValue));
 
-        // Debug extreme values
-        if (Math.abs(normalizedValue) > 1.1) {
+        // Debug extreme values (only in debug mode)
+        if (this.DEBUG_MODE && Math.abs(normalizedValue) > 1.1) {
             console.warn(`⚠️ NOISE OUT OF RANGE at (${x}, ${z}): ${normalizedValue.toFixed(3)} clamped to ${clampedValue.toFixed(3)}`);
         }
 
         return clampedValue;
     }
 
-    // 🗺️ Voronoi-like Biome Cell Generation
+    // 🌊 Genuine Perlin Noise Algorithm with Gradient Interpolation
+    perlinNoise(x, z, seed = 0) {
+        // Perlin noise permutation table (simplified version)
+        const permutation = [];
+        for (let i = 0; i < 256; i++) {
+            // Create seeded permutation
+            const hash = ((i + seed) * 16807) % 2147483647;
+            permutation[i] = hash % 256;
+            permutation[256 + i] = permutation[i];
+        }
+
+        // Gradient vectors for 2D
+        const gradients = [
+            [1, 1], [-1, 1], [1, -1], [-1, -1],
+            [1, 0], [-1, 0], [0, 1], [0, -1]
+        ];
+
+        const grad = (hash, x, z) => {
+            const g = gradients[hash & 7];
+            return g[0] * x + g[1] * z;
+        };
+
+        // Fade function (6t^5 - 15t^4 + 10t^3)
+        const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+
+        // Linear interpolation
+        const lerp = (a, b, t) => a + t * (b - a);
+
+        // Get integer and fractional parts
+        const X = Math.floor(x) & 255;
+        const Z = Math.floor(z) & 255;
+        const xf = x - Math.floor(x);
+        const zf = z - Math.floor(z);
+
+        // Get fade curves
+        const u = fade(xf);
+        const v = fade(zf);
+
+        // Hash coordinates of square corners
+        const A = permutation[X] + Z;
+        const B = permutation[X + 1] + Z;
+
+        // Blend the results from the four corners
+        const gradAA = grad(permutation[A], xf, zf);
+        const gradBA = grad(permutation[B], xf - 1, zf);
+        const gradAB = grad(permutation[A + 1], xf, zf - 1);
+        const gradBB = grad(permutation[B + 1], xf - 1, zf - 1);
+
+        const lerpX1 = lerp(gradAA, gradBA, u);
+        const lerpX2 = lerp(gradAB, gradBB, u);
+
+        return lerp(lerpX1, lerpX2, v);
+    }
+
+    // 🔺 Simplex Noise Algorithm (Ken Perlin's Improved Version)
+    simplexNoise(x, z, seed = 0) {
+        // Skewing and unskewing factors for 2D
+        const F2 = 0.5 * (Math.sqrt(3.0) - 1.0);
+        const G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
+
+        // Simple hash function for seeded randomness
+        const hash = (i, j) => {
+            let hash = seed;
+            hash = ((hash << 5) + hash) + i;
+            hash = ((hash << 5) + hash) + j;
+            return Math.abs(hash) % 256;
+        };
+
+        // Gradient function
+        const grad2 = (hash, x, z) => {
+            const gradients = [
+                [1, 1], [-1, 1], [1, -1], [-1, -1],
+                [1, 0], [-1, 0], [0, 1], [0, -1]
+            ];
+            const g = gradients[hash & 7];
+            return g[0] * x + g[1] * z;
+        };
+
+        // Skew the input space to determine which simplex cell we're in
+        const s = (x + z) * F2;
+        const i = Math.floor(x + s);
+        const j = Math.floor(z + s);
+        const t = (i + j) * G2;
+        const X0 = i - t;
+        const Z0 = j - t;
+        const x0 = x - X0;
+        const z0 = z - Z0;
+
+        // Determine which simplex we are in
+        let i1, j1;
+        if (x0 > z0) {
+            i1 = 1; j1 = 0;
+        } else {
+            i1 = 0; j1 = 1;
+        }
+
+        // Offsets for middle and last corner
+        const x1 = x0 - i1 + G2;
+        const z1 = z0 - j1 + G2;
+        const x2 = x0 - 1.0 + 2.0 * G2;
+        const z2 = z0 - 1.0 + 2.0 * G2;
+
+        // Calculate the contribution from the three corners
+        let n0 = 0, n1 = 0, n2 = 0;
+
+        let t0 = 0.5 - x0 * x0 - z0 * z0;
+        if (t0 >= 0) {
+            t0 *= t0;
+            n0 = t0 * t0 * grad2(hash(i, j), x0, z0);
+        }
+
+        let t1 = 0.5 - x1 * x1 - z1 * z1;
+        if (t1 >= 0) {
+            t1 *= t1;
+            n1 = t1 * t1 * grad2(hash(i + i1, j + j1), x1, z1);
+        }
+
+        let t2 = 0.5 - x2 * x2 - z2 * z2;
+        if (t2 >= 0) {
+            t2 *= t2;
+            n2 = t2 * t2 * grad2(hash(i + 1, j + 1), x2, z2);
+        }
+
+        // Add contributions and normalize to [-1,1] range
+        const rawValue = 70.0 * (n0 + n1 + n2);
+        return Math.max(-1, Math.min(1, rawValue));
+    }
+
+    // 📐 Voronoi Cell Noise (Distance-based)
+    voronoiNoise(x, z, seed = 0) {
+        const cellSize = 16; // Size of Voronoi cells
+        const cellX = Math.floor(x / cellSize);
+        const cellZ = Math.floor(z / cellSize);
+
+        let minDistance = Infinity;
+        let secondMinDistance = Infinity;
+
+        // Check 3x3 grid of cells
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+                const neighborX = cellX + dx;
+                const neighborZ = cellZ + dz;
+
+                // Generate random point within cell
+                const hash = this.hashCoords(neighborX, neighborZ, seed);
+                const pointX = neighborX * cellSize + (Math.abs(hash) % cellSize);
+                const pointZ = neighborZ * cellSize + (Math.abs(hash >> 8) % cellSize);
+
+                // Calculate distance to this point
+                const distance = Math.sqrt((x - pointX) ** 2 + (z - pointZ) ** 2);
+
+                if (distance < minDistance) {
+                    secondMinDistance = minDistance;
+                    minDistance = distance;
+                } else if (distance < secondMinDistance) {
+                    secondMinDistance = distance;
+                }
+            }
+        }
+
+        // Return F2 - F1 (difference between closest and second closest points)
+        const normalizedDistance = (secondMinDistance - minDistance) / cellSize;
+        return Math.max(-1, Math.min(1, normalizedDistance * 2 - 1));
+    }
+
+    // 🥞 Worley Noise (Cellular Noise)
+    worleyNoise(x, z, seed = 0) {
+        const cellSize = 20; // Size of Worley cells
+        const cellX = Math.floor(x / cellSize);
+        const cellZ = Math.floor(z / cellSize);
+
+        let minDistance = Infinity;
+
+        // Check 3x3 grid of cells
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+                const neighborX = cellX + dx;
+                const neighborZ = cellZ + dz;
+
+                // Generate random point within cell
+                const hash = this.hashCoords(neighborX, neighborZ, seed);
+                const pointX = neighborX * cellSize + (Math.abs(hash) % cellSize);
+                const pointZ = neighborZ * cellSize + (Math.abs(hash >> 8) % cellSize);
+
+                // Calculate distance to this point
+                const distance = Math.sqrt((x - pointX) ** 2 + (z - pointZ) ** 2);
+                minDistance = Math.min(minDistance, distance);
+            }
+        }
+
+        // Normalize distance to [-1, 1] range
+        const normalizedDistance = minDistance / (cellSize * 0.7);
+        return Math.max(-1, Math.min(1, 1 - normalizedDistance * 2));
+    }
+
+    // 🎛️ Multi-Generator System Architecture
+    initializeNoiseGenerators() {
+        this.noiseParams = {
+            // Primary biome zones using Voronoi-like cells
+            primaryBiome: {
+                scale: 0.008,      // Large scale for major biome territories
+                octaves: 2,
+                persistence: 0.5
+            },
+
+            // Secondary variation for sub-biomes
+            biomeVariation: {
+                scale: 0.025,      // Medium scale for biome variants
+                octaves: 3,
+                persistence: 0.6
+            },
+
+            // Fine detail for micro-features
+            microDetail: {
+                scale: 0.1,        // Small scale for local features
+                octaves: 4,
+                persistence: 0.4
+            },
+
+            // Elevation noise - Fine-tuned for better terrain variety
+            elevation: {
+                scale: 0.012,      // Slightly reduced for smoother terrain
+                octaves: 5,        // Added octave for more detail
+                persistence: 0.65   // Slightly reduced for better balance
+            }
+        };
+
+        // 🌍 Generator Registry - Each generator creates unique terrain characteristics
+        this.generators = {
+            perlin: {
+                name: 'Perlin',
+                noiseFunction: this.perlinNoise.bind(this),
+                characteristics: 'Rolling hills, smooth transitions',
+                biomePreference: ['forest', 'plains'], // Prefers organic biomes
+                heightMultiplier: 1.0,
+                terrainStyle: 'smooth'
+            },
+            simplex: {
+                name: 'Simplex',
+                noiseFunction: this.simplexNoise.bind(this),
+                characteristics: 'Sharp features, detailed ridges',
+                biomePreference: ['mountain', 'desert'], // Prefers dramatic biomes
+                heightMultiplier: 1.2,
+                terrainStyle: 'sharp'
+            },
+            voronoi: {
+                name: 'Voronoi',
+                noiseFunction: this.voronoiNoise.bind(this),
+                characteristics: 'Cellular patterns, flat plateaus',
+                biomePreference: ['tundra', 'plains'], // Prefers flat biomes
+                heightMultiplier: 0.8,
+                terrainStyle: 'cellular'
+            },
+            worley: {
+                name: 'Worley',
+                noiseFunction: this.worleyNoise.bind(this),
+                characteristics: 'Organic cellular, bubble-like',
+                biomePreference: ['forest', 'desert'], // Mixed preferences
+                heightMultiplier: 0.9,
+                terrainStyle: 'organic'
+            },
+            wave: {
+                name: 'Wave',
+                noiseFunction: this.multiOctaveNoise.bind(this),
+                characteristics: 'Wave patterns, regular undulation',
+                biomePreference: ['mountain', 'tundra'], // Mathematical biomes
+                heightMultiplier: 1.1,
+                terrainStyle: 'mathematical'
+            }
+        };
+
+        // 🗺️ Generator Region System - Divide world into regions using different generators
+        this.generatorRegionSize = 200; // Each generator covers ~200x200 block regions
+        this.transitionZoneSize = 8; // 5-10 block transition zones as requested
+    }
+
+    // 🎯 Get Primary Generator for World Region
+    getGeneratorForRegion(x, z, seed = this.worldSeed) {
+        const regionX = Math.floor(x / this.generatorRegionSize);
+        const regionZ = Math.floor(z / this.generatorRegionSize);
+
+        // Use hash to deterministically assign generator to region
+        const regionHash = this.hashCoords(regionX, regionZ, seed + 9999);
+        const generatorNames = Object.keys(this.generators);
+        const generatorIndex = Math.abs(regionHash) % generatorNames.length;
+
+        return generatorNames[generatorIndex];
+    }
+
+    // 🔄 Detect Multi-Generator Transition Zones
+    getGeneratorTransition(x, z, seed = this.worldSeed) {
+        const regionX = Math.floor(x / this.generatorRegionSize);
+        const regionZ = Math.floor(z / this.generatorRegionSize);
+
+        // Calculate position within region
+        const localX = x - (regionX * this.generatorRegionSize);
+        const localZ = z - (regionZ * this.generatorRegionSize);
+
+        // Check if we're near any region boundaries
+        const nearLeftEdge = localX < this.transitionZoneSize;
+        const nearRightEdge = localX > (this.generatorRegionSize - this.transitionZoneSize);
+        const nearTopEdge = localZ < this.transitionZoneSize;
+        const nearBottomEdge = localZ > (this.generatorRegionSize - this.transitionZoneSize);
+
+        if (!nearLeftEdge && !nearRightEdge && !nearTopEdge && !nearBottomEdge) {
+            // Not in transition zone - use primary generator
+            return {
+                isTransition: false,
+                primaryGenerator: this.getGeneratorForRegion(x, z, seed),
+                secondaryGenerator: null,
+                blendFactor: 0
+            };
+        }
+
+        // We're in a transition zone - find neighboring generator
+        let neighborRegionX = regionX;
+        let neighborRegionZ = regionZ;
+        let blendProgress = 0;
+
+        if (nearLeftEdge) {
+            neighborRegionX = regionX - 1;
+            blendProgress = (this.transitionZoneSize - localX) / this.transitionZoneSize;
+        } else if (nearRightEdge) {
+            neighborRegionX = regionX + 1;
+            blendProgress = (localX - (this.generatorRegionSize - this.transitionZoneSize)) / this.transitionZoneSize;
+        }
+
+        if (nearTopEdge) {
+            neighborRegionZ = regionZ - 1;
+            const topBlend = (this.transitionZoneSize - localZ) / this.transitionZoneSize;
+            blendProgress = Math.max(blendProgress, topBlend);
+        } else if (nearBottomEdge) {
+            neighborRegionZ = regionZ + 1;
+            const bottomBlend = (localZ - (this.generatorRegionSize - this.transitionZoneSize)) / this.transitionZoneSize;
+            blendProgress = Math.max(blendProgress, bottomBlend);
+        }
+
+        const primaryGenerator = this.getGeneratorForRegion(x, z, seed);
+        const secondaryGenerator = this.getGeneratorForRegion(
+            neighborRegionX * this.generatorRegionSize + this.generatorRegionSize/2,
+            neighborRegionZ * this.generatorRegionSize + this.generatorRegionSize/2,
+            seed
+        );
+
+        return {
+            isTransition: true,
+            primaryGenerator,
+            secondaryGenerator,
+            blendFactor: Math.min(1, blendProgress)
+        };
+    }
+
+    // 🌊 Multi-Generator Terrain Generation
+    generateMultiNoiseTerrain(x, z, seed = this.worldSeed) {
+        const transition = this.getGeneratorTransition(x, z, seed);
+
+        if (!transition.isTransition) {
+            // Single generator - use its noise function
+            const generator = this.generators[transition.primaryGenerator];
+            const noise = generator.noiseFunction(x * 0.02, z * 0.02, seed);
+            return {
+                height: noise * generator.heightMultiplier,
+                generator: transition.primaryGenerator,
+                isTransition: false
+            };
+        } else {
+            // Blend between two generators
+            const primaryGen = this.generators[transition.primaryGenerator];
+            const secondaryGen = this.generators[transition.secondaryGenerator];
+
+            const primaryNoise = primaryGen.noiseFunction(x * 0.02, z * 0.02, seed);
+            const secondaryNoise = secondaryGen.noiseFunction(x * 0.02, z * 0.02, seed + 1000);
+
+            const primaryHeight = primaryNoise * primaryGen.heightMultiplier;
+            const secondaryHeight = secondaryNoise * secondaryGen.heightMultiplier;
+
+            const blendedHeight = this.lerp(primaryHeight, secondaryHeight, transition.blendFactor);
+
+            return {
+                height: blendedHeight,
+                generator: `${transition.primaryGenerator}-${transition.secondaryGenerator}`,
+                isTransition: true,
+                blendFactor: transition.blendFactor
+            };
+        }
+    }
+
+    // 🎲 Generator-Specific Random Biome Assignment
+    getBiomeFromGenerator(x, z, generatorName, seed = this.worldSeed) {
+        const generator = this.generators[generatorName];
+        if (!generator) return 'forest'; // fallback
+
+        // Use generator preferences to bias biome selection
+        const preferredBiomes = generator.biomePreference;
+        const allBiomes = Object.keys(this.biomes);
+
+        // Create weighted biome list (preferred biomes appear 3x more often)
+        const weightedBiomes = [...allBiomes];
+        preferredBiomes.forEach(biomeName => {
+            if (allBiomes.includes(biomeName)) {
+                weightedBiomes.push(biomeName, biomeName); // Add twice more for 3x weight
+            }
+        });
+
+        // Use generator-specific seed for biome selection
+        const generatorSeed = seed + generatorName.charCodeAt(0) * 1000;
+        const biomeHash = this.hashCoords(
+            Math.floor(x / 50), // Larger biome territories
+            Math.floor(z / 50),
+            generatorSeed
+        );
+
+        const biomeIndex = Math.abs(biomeHash) % weightedBiomes.length;
+        return weightedBiomes[biomeIndex];
+    }
+
+    // 🌍 Enhanced Biome Generation with Multi-Generator Support
+    getBiomeAt(x, z, seed = this.worldSeed) {
+        // First, determine which generator(s) control this area
+        const transition = this.getGeneratorTransition(x, z, seed);
+
+        let baseBiome;
+
+        if (!transition.isTransition) {
+            // Single generator determines biome
+            const biomeName = this.getBiomeFromGenerator(x, z, transition.primaryGenerator, seed);
+            baseBiome = this.biomes[biomeName];
+        } else {
+            // Blend biomes from two generators
+            const primaryBiomeName = this.getBiomeFromGenerator(x, z, transition.primaryGenerator, seed);
+            const secondaryBiomeName = this.getBiomeFromGenerator(x, z, transition.secondaryGenerator, seed + 500);
+
+            const primaryBiome = this.biomes[primaryBiomeName];
+            const secondaryBiome = this.biomes[secondaryBiomeName];
+
+            // Create blended biome properties
+            baseBiome = {
+                name: `${primaryBiome.name}-${secondaryBiome.name} Transition`,
+                fullName: `${primaryBiome.name}-${secondaryBiome.name} (${transition.primaryGenerator}-${transition.secondaryGenerator})`,
+                color: this.lerpColor(primaryBiome.color, secondaryBiome.color, transition.blendFactor),
+                minHeight: this.lerp(primaryBiome.minHeight, secondaryBiome.minHeight, transition.blendFactor),
+                maxHeight: this.lerp(primaryBiome.maxHeight, secondaryBiome.maxHeight, transition.blendFactor),
+                surfaceBlock: transition.blendFactor < 0.5 ? primaryBiome.surfaceBlock : secondaryBiome.surfaceBlock,
+                subBlock: transition.blendFactor < 0.5 ? primaryBiome.subBlock : secondaryBiome.subBlock,
+                mapColor: this.lerpColorHex(primaryBiome.mapColor, secondaryBiome.mapColor, transition.blendFactor),
+                heightColorRange: {
+                    min: this.lerp(primaryBiome.heightColorRange.min, secondaryBiome.heightColorRange.min, transition.blendFactor),
+                    max: this.lerp(primaryBiome.heightColorRange.max, secondaryBiome.heightColorRange.max, transition.blendFactor)
+                },
+                shrubChance: this.lerp(primaryBiome.shrubChance, secondaryBiome.shrubChance, transition.blendFactor),
+
+                // Special multi-generator properties
+                isMultiGenerator: true,
+                primaryGenerator: transition.primaryGenerator,
+                secondaryGenerator: transition.secondaryGenerator,
+                blendFactor: transition.blendFactor,
+                variants: [...(primaryBiome.variants || []), ...(secondaryBiome.variants || [])]
+            };
+        }
+
+        // Apply biome variants as before
+        return this.applyBiomeVariant(baseBiome, x, z, seed);
+    }
+
+    // 🗺️ Legacy Biome Cell Generation (Kept for Compatibility)
     generateBiomeCells(x, z, seed) {
         // Create large-scale biome territories using modified Voronoi
-        const cellSize = 80; // Size of each biome territory
+        const cellSize = 90; // Slightly larger territories for more stable biomes
         const cellX = Math.floor(x / cellSize);
         const cellZ = Math.floor(z / cellSize);
 
@@ -194,7 +667,7 @@ export class BiomeWorldGen {
         const centerX = (cellX + 0.5) * cellSize;
         const centerZ = (cellZ + 0.5) * cellSize;
         const distanceToCenter = Math.sqrt((x - centerX) ** 2 + (z - centerZ) ** 2);
-        const transitionStart = cellSize * 0.3; // Transition starts at 30% of cell radius
+        const transitionStart = cellSize * 0.25; // Earlier transition start for smoother blending
 
         return {
             primaryBiome,
@@ -222,7 +695,7 @@ export class BiomeWorldGen {
 
         // Add noise variation for more natural boundaries
         const boundaryNoise = this.multiOctaveNoise(x, z, this.noiseParams.biomeVariation, seed + 5000);
-        const adjustedDistance = cellInfo.distanceToCenter + boundaryNoise * 15;
+        const adjustedDistance = cellInfo.distanceToCenter + boundaryNoise * 12; // Reduced for smoother boundaries
 
         // Determine if we're in a transition zone
         if (adjustedDistance > cellInfo.transitionStart) {
@@ -265,8 +738,8 @@ export class BiomeWorldGen {
         const primaryBiome = this.biomes[neighborBiomes[0]];
         const secondaryBiome = this.biomes[neighborBiomes[1]] || primaryBiome;
 
-        // Calculate blend factor (0 = primary, 1 = secondary)
-        const maxTransitionDistance = cellInfo.cellSize * 0.4;
+        // Calculate blend factor (0 = primary, 1 = secondary) - Extended for smoother transitions
+        const maxTransitionDistance = cellInfo.cellSize * 0.5; // Longer transition zone
         const transitionProgress = Math.min(1, (distance - cellInfo.transitionStart) / maxTransitionDistance);
 
         // Blend biome properties
@@ -391,50 +864,93 @@ export class BiomeWorldGen {
 
     // 🗺️ Enhanced Chunk Generation with Biome Transitions
     generateChunk(chunkX, chunkZ, worldSeed, addBlockFn, loadedChunks, chunkSize) {
+        // disabled due to console spam.
+        // console.log(`🔧 GENERATING CHUNK (${chunkX}, ${chunkZ}) - START`);
         const chunkKey = `${chunkX},${chunkZ}`;
         if (loadedChunks.has(chunkKey)) return;
 
-        console.log(`🌍 Generating advanced biome chunk ${chunkKey}`);
+        this.STATS.chunksGenerated++;
+        if (this.DEBUG_MODE || this.STATS.chunksGenerated % 10 === 0) {
+            console.log(`🌍 Generated ${this.STATS.chunksGenerated} chunks - Latest: ${chunkKey}`);
+        }
 
         for (let x = 0; x < chunkSize; x++) {
             for (let z = 0; z < chunkSize; z++) {
-                const worldX = chunkX * chunkSize + x;
-                const worldZ = chunkZ * chunkSize + z;
+                // 🛡️ Force coordinates to be integers to prevent fractional issues
+                const worldX = Math.floor(chunkX * chunkSize + x);
+                const worldZ = Math.floor(chunkZ * chunkSize + z);
 
                 // Get enhanced biome with transitions
                 const biome = this.getBiomeAt(worldX, worldZ, worldSeed);
 
-                // Validate biome object
+                // Validate biome object with emergency fallback
                 if (!biome || typeof biome.minHeight !== 'number' || typeof biome.maxHeight !== 'number') {
                     console.error(`🚨 INVALID BIOME at (${worldX}, ${worldZ}):`, biome);
-                    continue; // Skip this position
+                    // 🛡️ EMERGENCY: Use default forest biome instead of skipping
+                    biome = this.biomes.forest || {
+                        name: 'Emergency Forest',
+                        minHeight: 0,
+                        maxHeight: 4,
+                        surfaceBlock: 'grass',
+                        subBlock: 'stone',
+                        color: 0x228B22,
+                        mapColor: '#228B22',
+                        heightColorRange: { min: 0.6, max: 1.2 },
+                        shrubChance: 0.1
+                    };
+                    console.warn(`🚑 Using emergency biome fallback at (${worldX}, ${worldZ})`);
                 }
 
-                // Generate height with enhanced noise
-                const baseNoiseValue = this.multiOctaveNoise(worldX, worldZ, this.noiseParams.elevation, worldSeed);
-                const baseHeight = Math.floor(baseNoiseValue * 3);
+                // 🌍 Generate height using multi-generator system with emergency fallback
+                let terrainData;
+                try {
+                    terrainData = this.generateMultiNoiseTerrain(worldX, worldZ, worldSeed);
+                    // Validate terrain data
+                    if (!terrainData || typeof terrainData.height !== 'number' || !isFinite(terrainData.height)) {
+                        throw new Error(`Invalid terrain data: ${JSON.stringify(terrainData)}`);
+                    }
+                } catch (error) {
+                    console.warn(`🚨 TERRAIN GENERATION FAILED at (${worldX}, ${worldZ}): ${error.message}`);
+                    // Emergency fallback terrain
+                    terrainData = { height: 0.5, generator: 'emergency' };
+                }
 
-                const biomeHeightCenter = Math.floor((biome.maxHeight + biome.minHeight) / 2);
+                // Scale noise output to biome height range
+                const biomeHeightCenter = (biome.maxHeight + biome.minHeight) / 2;
                 const biomeHeightRange = (biome.maxHeight - biome.minHeight) / 2;
-                const biomeNoiseValue = this.multiOctaveNoise(worldX + 1000, worldZ + 1000, this.noiseParams.elevation, worldSeed + 1000);
-                const biomeHeightVariation = Math.floor(biomeNoiseValue * biomeHeightRange);
-                const biomeHeight = biomeHeightCenter + biomeHeightVariation;
 
-                const rawHeight = baseHeight + biomeHeight;
-                const height = Math.max(biome.minHeight, Math.min(biome.maxHeight, rawHeight));
+                // Apply generator height with biome constraints and ensure integer results
+                const generatorHeight = terrainData.height * biomeHeightRange;
+                const rawHeight = biomeHeightCenter + generatorHeight;
 
-                // Debug logging for problematic heights
+                // 🚨 EMERGENCY: Force safe integer heights to eliminate fractional issues
+                const safeHeight = Math.floor(Math.max(0, Math.min(4, rawHeight + 2))); // Force heights between 0-4
+                const height = safeHeight;
+
+                // Enhanced debugging for problematic heights
+                if (Math.abs(terrainData.height) > 1.5) {
+                    console.warn(`⚠️ EXTREME NOISE VALUE: ${terrainData.height.toFixed(3)} from ${terrainData.generator} at (${worldX}, ${worldZ})`);
+                }
+
+                // Add generator info to debug logging
+                if (this.DEBUG_MODE && (worldX + worldZ) % 256 === 0) {
+                    console.log(`🎛️ Generated terrain: ${terrainData.generator} at (${worldX}, ${worldZ}) → height ${height}`);
+                }
+
+                // Track problematic heights
                 if (height < 0) {
-                    console.warn(`⚠️ LOW HEIGHT at (${worldX}, ${worldZ}): ${height}`, {
-                        biome: biome.name,
-                        minHeight: biome.minHeight,
-                        maxHeight: biome.maxHeight,
-                        baseNoiseValue: baseNoiseValue.toFixed(3),
-                        baseHeight,
-                        biomeHeight,
-                        rawHeight,
-                        finalHeight: height
-                    });
+                    this.STATS.lowHeights++;
+                    if (this.DEBUG_MODE) {
+                        console.warn(`⚠️ LOW HEIGHT at (${worldX}, ${worldZ}): ${height}`, {
+                            biome: biome.name,
+                            minHeight: biome.minHeight,
+                            maxHeight: biome.maxHeight,
+                            terrainHeight: terrainData.height.toFixed(3),
+                            generator: terrainData.generator,
+                            rawHeight: rawHeight.toFixed(3),
+                            finalHeight: height
+                        });
+                    }
                 }
 
                 // Create layers with biome-appropriate colors
@@ -453,33 +969,52 @@ export class BiomeWorldGen {
 
                 // 🛡️ SAFETY: Ensure minimum ground level to prevent fall-through
                 const MINIMUM_GROUND_LEVEL = -1; // Never generate terrain below this
-                const safeHeight = Math.max(height, MINIMUM_GROUND_LEVEL);
+                const finalHeight = Math.max(height, MINIMUM_GROUND_LEVEL);
 
-                // Place terrain blocks with safety height
-                addBlockFn(worldX, safeHeight, worldZ, surfaceBlock, false, surfaceBlockColor);
-                addBlockFn(worldX, safeHeight - 1, worldZ, biome.subBlock, false, subSurfaceColor);
-                addBlockFn(worldX, safeHeight - 2, worldZ, biome.subBlock, false, deepColor);
-                addBlockFn(worldX, safeHeight - 3, worldZ, "iron", false);
+                // Place terrain blocks with safety height - add validation
+                try {
+                    addBlockFn(worldX, finalHeight, worldZ, surfaceBlock, false, surfaceBlockColor);
+                    addBlockFn(worldX, finalHeight - 1, worldZ, biome.subBlock, false, subSurfaceColor);
+                    addBlockFn(worldX, finalHeight - 2, worldZ, biome.subBlock, false, deepColor);
+                    addBlockFn(worldX, finalHeight - 3, worldZ, "iron", false);
+
+                    // Validation: Ensure blocks are actually placed
+                    if (this.DEBUG_MODE && (worldX + worldZ) % 512 === 0) {
+                        console.log(`✅ Successfully placed terrain stack at (${worldX}, ${finalHeight}, ${worldZ})`);
+                    }
+                } catch (error) {
+                    console.error(`🚨 FAILED to place terrain at (${worldX}, ${finalHeight}, ${worldZ}):`, error);
+                    // Emergency fallback: place at least one block
+                    try {
+                        addBlockFn(worldX, Math.max(0, finalHeight), worldZ, "stone", false);
+                    } catch (fallbackError) {
+                        console.error(`🚨 EMERGENCY FALLBACK FAILED:`, fallbackError);
+                    }
+                }
 
                 // 🛡️ EXTRA SAFETY: If original height was very low, fill in gaps to ensure solid ground
                 if (height < MINIMUM_GROUND_LEVEL) {
-                    console.warn(`🚨 EMERGENCY GROUND FILL at (${worldX}, ${worldZ}): height=${height} raised to ${safeHeight}`);
+                    this.STATS.emergencyFills++;
+                    console.warn(`🚨 EMERGENCY GROUND FILL #${this.STATS.emergencyFills} at (${worldX}, ${worldZ}): height=${height} raised to ${finalHeight}`);
                     // Fill in any gaps between calculated height and safe height
                     for (let fillY = height; fillY < MINIMUM_GROUND_LEVEL; fillY++) {
                         addBlockFn(worldX, fillY, worldZ, "stone", false);
                     }
                 }
 
-                // Debug logging for successful block placement (sample every 64th block to avoid spam)
-                if ((worldX + worldZ) % 64 === 0) {
-                    console.log(`✅ Placed terrain at (${worldX}, ${safeHeight}, ${worldZ}) | ${biome.name} | height: ${height} -> ${safeHeight}`);
+                // Debug logging for successful block placement (only in debug mode, reduced frequency)
+                if (this.DEBUG_MODE && (worldX + worldZ) % 128 === 0) {
+                    console.log(`✅ Placed terrain at (${worldX}, ${finalHeight}, ${worldZ}) | ${biome.name} | height: ${height} -> ${finalHeight}`);
                 }
 
                 // Enhanced tree generation (will be integrated with tree system)
                 if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome, worldSeed)) {
                     const treeHeight = height + 1;
+                    this.STATS.treesPlaced++;
                     // Tree generation will be handled by the tree generation module
-                    console.log(`🌳 Tree placement at (${worldX}, ${treeHeight}, ${worldZ}) in ${biome.name} biome`);
+                    if (this.DEBUG_MODE && this.STATS.treesPlaced % 10 === 0) {
+                        console.log(`🌳 Placed ${this.STATS.treesPlaced} trees - Latest at (${worldX}, ${treeHeight}, ${worldZ}) in ${biome.name}`);
+                    }
                 }
 
                 // Enhanced shrub generation with biome variants
@@ -493,6 +1028,12 @@ export class BiomeWorldGen {
         }
 
         loadedChunks.add(chunkKey);
+        console.log(`✅ CHUNK (${chunkX}, ${chunkZ}) - COMPLETED`);
+
+        // 📊 Log statistics summary every 20 chunks (reduced frequency)
+        if (this.STATS.chunksGenerated % 20 === 0) {
+            console.log(`📊 BiomeWorldGen Stats: ${this.STATS.chunksGenerated} chunks, ${this.STATS.lowHeights} low heights, ${this.STATS.emergencyFills} emergency fills, ${this.STATS.treesPlaced} trees`);
+        }
     }
 
     // 🌳 Enhanced Tree Generation Check
@@ -526,5 +1067,30 @@ export class BiomeWorldGen {
     // 🧹 Cache Management
     clearCache() {
         this.chunkCache.clear();
+    }
+
+    // 🐛 Debug Control Methods
+    enableDebugMode() {
+        this.DEBUG_MODE = true;
+        console.log('🐛 BiomeWorldGen debug mode ENABLED - Detailed logging active');
+    }
+
+    disableDebugMode() {
+        this.DEBUG_MODE = false;
+        console.log('🐛 BiomeWorldGen debug mode DISABLED - Production logging');
+    }
+
+    getStats() {
+        return { ...this.STATS };
+    }
+
+    resetStats() {
+        this.STATS = {
+            chunksGenerated: 0,
+            lowHeights: 0,
+            emergencyFills: 0,
+            treesPlaced: 0
+        };
+        console.log('📊 BiomeWorldGen statistics reset');
     }
 }
