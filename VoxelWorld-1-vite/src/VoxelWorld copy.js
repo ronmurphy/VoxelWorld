@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { WorkbenchSystem } from './WorkbenchSystem.js';
+import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
     constructor(container) {
@@ -28,37 +31,209 @@ class NebulaVoxelApp {
         this.harvestingTarget = null;
         this.harvestingStartTime = 0;
         this.harvestingDuration = 0;
-        this.inventory = {
-            grass: 0,
-            stone: 0,
-            wood: 0,
-            sand: 0,
-            glass: 0,
-            brick: 0,
-            glowstone: 0,
-            iron: 0,
-            flowers: 0,
-            workbench: 0,
-            dirt: 0,
-            coal: 0,
-            skull: 0,
-            leaf: 0,
-            crystal: 0,
-            oreNugget: 0,
-            wheat: 0,
-            feather: 0,
-            bone: 0,
-            shell: 0,
-            fur: 0,
-            iceShard: 0,
-            mushroom: 0,
-            flower: 0,
-            berry: 0,
-            rustySword: 0,
-            oldPickaxe: 0,
-            ancientAmulet: 0
+        // Legacy inventory removed - using pure slot-based system
+        // NEW: Slot-based inventory system (5 pure item slots)
+        this.hotbarSlots = [
+            { itemType: null, quantity: 0 }, // Slot 1: Empty initially
+            { itemType: null, quantity: 0 }, // Slot 2: Empty initially
+            { itemType: null, quantity: 0 }, // Slot 3: Empty initially
+            { itemType: null, quantity: 0 }, // Slot 4: Empty initially
+            { itemType: null, quantity: 0 }  // Slot 5: Empty initially
+        ];
+
+        // All items now use the slot-based system exclusively
+
+        // NEW: Backpack slots (25 slots total)
+        this.backpackSlots = [];
+        for (let i = 0; i < 25; i++) {
+            this.backpackSlots.push({ itemType: null, quantity: 0 });
+        }
+
+        // Stack limit for items per slot
+        this.STACK_LIMIT = 8;
+
+        // Slot helper functions
+        this.getHotbarSlot = (index) => {
+            return this.hotbarSlots[index] || null;
         };
-        this.hotbarSlots = ['grass', 'stone', 'wood', 'workbench', 'glass', 'brick', 'glowstone', 'iron'];
+
+        this.setHotbarSlot = (index, itemType, quantity) => {
+            if (index >= 0 && index < this.hotbarSlots.length) {
+                this.hotbarSlots[index] = { itemType, quantity: Math.min(quantity, this.STACK_LIMIT) };
+            }
+        };
+
+        this.findEmptyHotbarSlot = () => {
+            for (let i = 0; i < this.hotbarSlots.length; i++) { // All 5 slots are item slots
+                if (!this.hotbarSlots[i].itemType || this.hotbarSlots[i].quantity === 0) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+
+        this.getBackpackSlot = (index) => {
+            return this.backpackSlots[index] || null;
+        };
+
+        this.setBackpackSlot = (index, itemType, quantity) => {
+            if (index >= 0 && index < this.backpackSlots.length) {
+                const existingElement = this.backpackSlots[index].element;
+                this.backpackSlots[index] = {
+                    itemType,
+                    quantity: Math.min(quantity, this.STACK_LIMIT),
+                    element: existingElement
+                };
+            }
+        };
+
+        this.findEmptyBackpackSlot = () => {
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (!this.backpackSlots[i].itemType || this.backpackSlots[i].quantity === 0) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+
+        this.findItemInSlots = (itemType) => {
+            // Check hotbar first (all 5 slots are item slots)
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity < this.STACK_LIMIT) {
+                    return { location: 'hotbar', index: i };
+                }
+            }
+            // Then check backpack
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity < this.STACK_LIMIT) {
+                    return { location: 'backpack', index: i };
+                }
+            }
+            return null; // Item not found or all stacks are full
+        };
+
+        this.countItemInSlots = (itemType) => {
+            let total = 0;
+            // Count in hotbar (all 5 slots are item slots)
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                if (this.hotbarSlots[i].itemType === itemType) {
+                    total += this.hotbarSlots[i].quantity;
+                }
+            }
+            // Count in backpack
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                if (this.backpackSlots[i].itemType === itemType) {
+                    total += this.backpackSlots[i].quantity;
+                }
+            }
+            return total;
+        };
+
+        this.getAllMaterialsFromSlots = () => {
+            const materials = {};
+            // Check hotbar (all 5 slots are item slots)
+            for (let i = 0; i < this.hotbarSlots.length; i++) {
+                const slot = this.hotbarSlots[i];
+                if (slot.itemType && slot.quantity > 0) {
+                    materials[slot.itemType] = (materials[slot.itemType] || 0) + slot.quantity;
+                }
+            }
+            // Check backpack
+            for (let i = 0; i < this.backpackSlots.length; i++) {
+                const slot = this.backpackSlots[i];
+                if (slot.itemType && slot.quantity > 0) {
+                    materials[slot.itemType] = (materials[slot.itemType] || 0) + slot.quantity;
+                }
+            }
+            return materials;
+        };
+
+        this.removeFromInventory = (itemType, quantity = 1) => {
+            let remaining = quantity;
+
+            // First check hotbar (all 5 slots are item slots)
+            for (let i = 0; i < this.hotbarSlots.length && remaining > 0; i++) {
+                const slot = this.hotbarSlots[i];
+                if (slot.itemType === itemType && slot.quantity > 0) {
+                    const removeAmount = Math.min(slot.quantity, remaining);
+                    slot.quantity -= removeAmount;
+                    remaining -= removeAmount;
+
+                    // Clear slot if empty
+                    if (slot.quantity === 0) {
+                        slot.itemType = '';
+                    }
+                }
+            }
+
+            // Then check backpack
+            for (let i = 0; i < this.backpackSlots.length && remaining > 0; i++) {
+                const slot = this.backpackSlots[i];
+                if (slot.itemType === itemType && slot.quantity > 0) {
+                    const removeAmount = Math.min(slot.quantity, remaining);
+                    slot.quantity -= removeAmount;
+                    remaining -= removeAmount;
+
+                    // Clear slot if empty
+                    if (slot.quantity === 0) {
+                        slot.itemType = '';
+                    }
+                }
+            }
+
+            // Update UI
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            return quantity - remaining; // Return how many were actually removed
+        };
+
+        // Smart inventory addition that respects stacking
+        this.addToInventory = (itemType, quantity = 1) => {
+            let remaining = quantity;
+
+            // First, try to add to existing stacks
+            while (remaining > 0) {
+                const existingSlot = this.findItemInSlots(itemType);
+                if (existingSlot) {
+                    const slot = existingSlot.location === 'hotbar'
+                        ? this.hotbarSlots[existingSlot.index]
+                        : this.backpackSlots[existingSlot.index];
+
+                    const canAdd = Math.min(remaining, this.STACK_LIMIT - slot.quantity);
+                    slot.quantity += canAdd;
+                    remaining -= canAdd;
+                } else {
+                    // No existing stack with space, find empty slot
+                    const emptyHotbar = this.findEmptyHotbarSlot();
+                    if (emptyHotbar !== -1) {
+                        const canAdd = Math.min(remaining, this.STACK_LIMIT);
+                        this.setHotbarSlot(emptyHotbar, itemType, canAdd);
+                        remaining -= canAdd;
+                    } else {
+                        const emptyBackpack = this.findEmptyBackpackSlot();
+                        if (emptyBackpack !== -1) {
+                            const canAdd = Math.min(remaining, this.STACK_LIMIT);
+                            this.setBackpackSlot(emptyBackpack, itemType, canAdd);
+                            remaining -= canAdd;
+                        } else {
+                            // No space left
+                            console.warn(`No space for ${remaining} ${itemType} items`);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Pure slot-based system - no legacy inventory needed
+
+            // Update UI
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            return quantity - remaining; // Return how many were actually added
+        };
+
         this.container = container;
         this.controlsEnabled = true;
         this.isPaused = false;
@@ -77,6 +252,10 @@ class NebulaVoxelApp {
         this.rightJoystickCenter = { x: 0, y: 0 };
         this.leftJoystickValue = { x: 0, y: 0 };
         this.rightJoystickValue = { x: 0, y: 0 };
+
+        // Initialize new WorkbenchSystem
+        this.workbenchSystem = new WorkbenchSystem(this);
+
         this.addBlock = (x, y, z, type, playerPlaced = false, customColor = null) => {
             const geo = new THREE.BoxGeometry(1, 1, 1);
 
@@ -107,6 +286,125 @@ class NebulaVoxelApp {
             }
 
             this.world[`${x},${y},${z}`] = { type, mesh: cube, playerPlaced, billboard };
+        };
+
+        // 🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
+        this.placeCraftedObject = (x, y, z, itemId) => {
+            console.log(`🎯 placeCraftedObject called: ${itemId} at (${x},${y},${z})`);
+
+            // Get crafted item metadata
+            const metadata = this.inventoryMetadata[itemId];
+            if (!metadata) {
+                console.error(`❌ No metadata found for crafted item: ${itemId}`);
+                return;
+            }
+
+            console.log('📊 Crafted item metadata:', metadata);
+
+            // Extract shape and dimensions
+            const shapeType = metadata.shape.type;
+            const dimensions = metadata.shape.dimensions;
+            const material = metadata.material.type;
+            const color = metadata.appearance.color;
+
+            console.log(`🔧 Creating ${shapeType} (${dimensions.length}x${dimensions.width}x${dimensions.height}) from ${material}`);
+
+            // Create geometry based on shape type and actual dimensions
+            let geometry;
+            switch (shapeType) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                case 'sphere':
+                    const radius = Math.max(dimensions.length, dimensions.width, dimensions.height) / 2;
+                    geometry = new THREE.SphereGeometry(radius, 16, 16);
+                    break;
+                case 'cylinder':
+                    const cylinderRadius = Math.max(dimensions.length, dimensions.width) / 2;
+                    geometry = new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, dimensions.height, 16);
+                    break;
+                case 'pyramid':
+                    const pyramidRadius = Math.max(dimensions.length, dimensions.width) / 2;
+                    geometry = new THREE.ConeGeometry(pyramidRadius, dimensions.height, 8);
+                    break;
+                case 'stairs':
+                    // For now, create a simple box - can enhance later
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                case 'wall':
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                case 'hollow_cube':
+                    // For now, create a regular box - can enhance with hollow geometry later
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                default:
+                    console.warn(`⚠️ Unknown shape type: ${shapeType}, defaulting to cube`);
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+            }
+
+            // Create material based on crafted item's material and color
+            let craftedMaterial;
+            if (this.blockTypes[material]) {
+                // Use the base material type with custom color
+                craftedMaterial = new THREE.MeshLambertMaterial({
+                    map: this.materials[material].map,
+                    color: new THREE.Color(color)
+                });
+            } else {
+                // Fallback to basic colored material
+                craftedMaterial = new THREE.MeshLambertMaterial({
+                    color: new THREE.Color(color)
+                });
+            }
+
+            // Create the 3D mesh
+            const craftedObject = new THREE.Mesh(geometry, craftedMaterial);
+
+            // PHASE 3: Smart Floor Positioning - treat target as floor surface
+            const floorY = y; // Target position becomes the floor
+            const objectY = floorY + dimensions.height / 2; // Object bottom sits on floor, center vertically
+
+            // Handle objects larger than 1x1 footprint by centering them on target
+            const objectX = x; // Center X on target
+            const objectZ = z; // Center Z on target
+
+            console.log(`📍 Positioning: Floor at Y=${floorY}, Object center at (${objectX}, ${objectY}, ${objectZ})`);
+            console.log(`📏 Object footprint: ${dimensions.length}x${dimensions.width}, Height: ${dimensions.height}`);
+
+            craftedObject.position.set(objectX, objectY, objectZ);
+
+            // Set user data for identification
+            craftedObject.userData = {
+                type: 'craftedObject',
+                itemId: itemId,
+                metadata: metadata,
+                originalName: metadata.name,
+                dimensions: dimensions,
+                isCraftedObject: true
+            };
+
+            // Add to scene
+            this.scene.add(craftedObject);
+
+            // 🎯 PHASE 2.1: Create physics body for collision detection
+            this.createPhysicsBodyForCraftedObject(craftedObject, shapeType, dimensions, material);
+
+            // PHASE 4: Track in crafted objects system
+            if (!this.craftedObjects) {
+                this.craftedObjects = {};
+            }
+            const objectKey = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+            this.craftedObjects[objectKey] = {
+                mesh: craftedObject,
+                itemId: itemId,
+                metadata: metadata,
+                position: { x, y, z },
+                dimensions: dimensions
+            };
+
+            console.log(`✅ Created crafted object "${metadata.name}" at (${x},${y},${z})`);
+            this.updateStatus(`🎨 Placed "${metadata.name}"!`, 'craft');
         };
 
         // Check if block type should use billboard
@@ -224,10 +522,11 @@ class NebulaVoxelApp {
 
                 // Check if it's a shrub for harvesting
                 if (blockData.type === 'shrub') {
-                    this.inventory.wood += 1; // Add 1 wood to inventory
-                    console.log(`Harvested shrub! Wood: ${this.inventory.wood}`);
-                    this.updateStatus(`Harvested shrub! Wood: ${this.inventory.wood}`);
-                    this.updateHotbarCounts(); // Update hotbar display
+                    this.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
+                    const totalWood = this.countItemInSlots('wood');
+                    console.log(`Harvested shrub! Wood: ${totalWood}`);
+                    this.updateStatus(`Harvested shrub! Wood: ${totalWood}`);
+                    // addToInventory already handles UI updates
                 }
                 // Check if it's a backpack for pickup
                 else if (blockData.type === 'backpack' && !this.hasBackpack) {
@@ -235,21 +534,22 @@ class NebulaVoxelApp {
                     this.backpackPosition = null; // Remove from minimap
                     this.generateBackpackLoot(); // Add random starting items
                     this.showHotbarTutorial(); // Show hotbar and tutorial
+                    this.showToolButtons(); // Show tool menu buttons
                     console.log(`Found backpack! Hotbar unlocked!`);
-                    this.updateStatus(`🎒 Found backpack! Use 1-4 for quick access, 5 to open storage!`, 'discovery');
+                    this.updateStatus(`🎒 Found backpack! Inventory system unlocked!`, 'discovery');
                 }
                 // Random drop system for regular blocks
                 else if (blockData.type === 'grass') {
                     // 10% chance to get dirt when harvesting grass
                     if (Math.random() < 0.1) {
-                        this.addItemToInventory('dirt');
+                        this.addToInventory('dirt', 1);
                         this.updateStatus(`🪨 Found dirt!`, 'discovery');
                     }
                 }
                 else if (blockData.type === 'stone') {
                     // 5% chance to get coal when harvesting stone
                     if (Math.random() < 0.05) {
-                        this.addItemToInventory('coal');
+                        this.addToInventory('coal', 1);
                         this.updateStatus(`⚫ Found coal!`, 'discovery');
                     }
                 }
@@ -373,36 +673,84 @@ class NebulaVoxelApp {
 
         // Generate random loot when backpack is found
         this.generateBackpackLoot = () => {
+            console.log('🎒 Starting backpack loot generation...');
+
             // Helper function for random range
             const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
 
-            // Guaranteed items (survival essentials)
-            this.inventory.wood = randomRange(8, 16);      // Always get wood for tools
-            this.inventory.stone = randomRange(4, 10);     // Basic building material
-            this.inventory.workbench = 1;                  // ESSENTIAL - needed for crafting system!
+            // CRITICAL: Add workbench FIRST to guarantee it gets a hotbar slot
+            console.log('🔧 Adding essential workbench first...');
+            this.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
 
+            // Guaranteed starter materials (but smaller amounts to fit in hotbar + backpack)
+            const woodCount = randomRange(4, 8);  // Reduced from 8-16
+            console.log(`🪵 Adding ${woodCount} wood...`);
+            this.addToInventory('wood', woodCount);
+
+            const stoneCount = randomRange(2, 6);  // Reduced from 4-10
+            console.log(`🪨 Adding ${stoneCount} stone...`);
+            this.addToInventory('stone', stoneCount);
+
+            
             // Common items (high chance)
-            if (this.seededRandom() > 0.2) this.inventory.sand = randomRange(2, 6);      // 80% chance
-            if (this.seededRandom() > 0.3) this.inventory.grass = randomRange(3, 8);     // 70% chance
+            if (this.seededRandom() > 0.2) {
+                const sandCount = randomRange(2, 6);
+                this.addToInventory('sand', sandCount);
+            }
+            if (this.seededRandom() > 0.3) {
+                const grassCount = randomRange(3, 8);
+                this.addToInventory('grass', grassCount);
+            }
 
             // Uncommon items (medium chance)
-            if (this.seededRandom() > 0.5) this.inventory.glass = randomRange(1, 3);     // 50% chance
-            if (this.seededRandom() > 0.6) this.inventory.brick = randomRange(1, 2);     // 40% chance
-            if (this.seededRandom() > 0.7) this.inventory.flowers = randomRange(1, 3);   // 30% chance
+            if (this.seededRandom() > 0.5) {
+                const glassCount = randomRange(1, 3);
+                this.addToInventory('glass', glassCount);
+            }
+            if (this.seededRandom() > 0.6) {
+                const brickCount = randomRange(1, 2);
+                this.addToInventory('brick', brickCount);
+            }
+            if (this.seededRandom() > 0.7) {
+                const flowersCount = randomRange(1, 3);
+                this.addToInventory('flowers', flowersCount);
+            }
 
             // Rare items (low chance but exciting!)
-            if (this.seededRandom() > 0.8) this.inventory.glowstone = 1;                 // 20% chance - lucky!
-            if (this.seededRandom() > 0.9) this.inventory.iron = 1;                      // 10% chance - jackpot!
+            if (this.seededRandom() > 0.8) {
+                this.addToInventory('glowstone', 1);  // 20% chance - lucky!
+            }
+            if (this.seededRandom() > 0.9) {
+                this.addToInventory('iron', 1);  // 10% chance - jackpot!
+            }
 
             // Log what we found for excitement
-            const foundItems = [];
-            for (const [item, count] of Object.entries(this.inventory)) {
-                if (count > 0) foundItems.push(`${item}: ${count}`);
-            }
-            console.log(`Backpack contained: ${foundItems.join(', ')}`);
+            // Items automatically added to slots via addToInventory()
+            console.log(`Backpack loot generated and added to slots!`);
 
-            // Update UI
-            this.updateHotbarCounts();
+            // Debug: Check what ended up where
+            console.log('🔍 HOTBAR CONTENTS:');
+            this.hotbarSlots.forEach((slot, index) => {
+                if (slot.itemType) {
+                    console.log(`  Slot ${index}: ${slot.itemType} x${slot.quantity}`);
+                } else {
+                    console.log(`  Slot ${index}: EMPTY`);
+                }
+            });
+
+            console.log('🔍 BACKPACK CONTENTS:');
+            let backpackHasItems = false;
+            this.backpackSlots.forEach((slot, index) => {
+                if (slot.itemType && slot.quantity > 0) {
+                    console.log(`  Backpack slot ${index}: ${slot.itemType} x${slot.quantity}`);
+                    backpackHasItems = true;
+                }
+            });
+            if (!backpackHasItems) {
+                console.log('  Backpack is EMPTY');
+            }
+
+            // Note: addToInventory() already handles UI updates
         };
 
         // World item spawning system for random discoveries
@@ -640,11 +988,8 @@ class NebulaVoxelApp {
             }
             
             // Add to inventory
-            if (!this.inventory[itemType]) {
-                this.inventory[itemType] = 0;
-            }
-            this.inventory[itemType]++;
-            
+            this.addToInventory(itemType, 1);
+
             // Remove from scene and world
             this.scene.remove(sprite);
             
@@ -663,8 +1008,77 @@ class NebulaVoxelApp {
             this.updateBackpackInventoryDisplay();
             
             // Notification
-            this.updateStatus(`${emoji} Found ${itemType}! (${this.inventory[itemType]} total)`, 'discovery');
+            this.updateStatus(`${emoji} Found ${itemType}! (${this.countItemInSlots(itemType)} total)`, 'discovery');
             console.log(`Harvested world item: ${itemType} (${emoji})`);
+        };
+
+        // PHASE 6: Harvest crafted objects and return original items to inventory
+        this.harvestCraftedObject = (craftedMesh) => {
+            console.log(`🎨 Harvesting crafted object...`);
+
+            // Get object data from userData
+            const itemId = craftedMesh.userData.itemId;
+            const originalName = craftedMesh.userData.originalName;
+            const position = craftedMesh.position;
+
+            console.log(`🔧 Harvesting "${originalName}" (${itemId}) at (${position.x},${position.y},${position.z})`);
+
+            // Find and remove from crafted objects tracking
+            let removedKey = null;
+            if (this.craftedObjects) {
+                for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                    if (objectData.mesh === craftedMesh) {
+                        removedKey = key;
+                        break;
+                    }
+                }
+                if (removedKey) {
+                    delete this.craftedObjects[removedKey];
+                    console.log(`🗑️ Removed from crafted objects tracking: ${removedKey}`);
+                }
+            }
+
+            // 🎯 PHASE 2.1 & 2.2: Remove physics bodies from physics world (including hollow objects)
+            if (craftedMesh.userData.physicsBodies) {
+                // Multiple physics bodies (hollow object)
+                craftedMesh.userData.physicsBodies.forEach(body => {
+                    this.physicsWorld.removeBody(body);
+                });
+                this.physicsObjects.delete(craftedMesh);
+                console.log(`🗑️ Removed ${craftedMesh.userData.physicsBodies.length} physics bodies for hollow crafted object`);
+            } else if (this.physicsObjects.has(craftedMesh)) {
+                // Single physics body (solid object)
+                const cannonBody = this.physicsObjects.get(craftedMesh);
+                this.physicsWorld.removeBody(cannonBody);
+                this.physicsObjects.delete(craftedMesh);
+                console.log(`🗑️ Removed physics body for harvested crafted object`);
+            }
+
+            // Remove 3D mesh from scene
+            this.scene.remove(craftedMesh);
+
+            // Clean up mesh resources
+            if (craftedMesh.geometry) {
+                craftedMesh.geometry.dispose();
+            }
+            if (craftedMesh.material) {
+                if (craftedMesh.material.map) {
+                    // Don't dispose shared textures
+                }
+                craftedMesh.material.dispose();
+            }
+
+            // Add original crafted item back to inventory
+            this.addToInventory(itemId, 1);
+
+            // Update UI displays
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            // Success notification with custom name
+            const icon = this.getItemIcon(itemId);
+            this.updateStatus(`${icon} Harvested "${originalName}"!`, 'harvest');
+            console.log(`✅ Successfully harvested crafted object "${originalName}" → returned ${itemId} to inventory`);
         };
 
         // Show hotbar and tutorial after backpack pickup
@@ -683,8 +1097,28 @@ class NebulaVoxelApp {
             }, 1000);
 
             setTimeout(() => {
-                this.updateStatus('Slots 1-4 for quick access, slot 5 opens full inventory. Harvest shrubs for more wood!');
+                this.updateStatus('Use 1-5 for items, B for backpack, E for workbench!');
             }, 4000);
+        };
+
+        // Show tool buttons when backpack is found
+        this.showToolButtons = () => {
+            if (this.backpackTool) {
+                this.backpackTool.style.display = 'block';
+                console.log('🎒 Backpack tool button enabled');
+            }
+
+            // Check if player has workbench in inventory and show workbench tool
+            const workbenchCount = this.countItemInSlots('workbench');
+            if (workbenchCount > 0 && this.workbenchTool) {
+                this.workbenchTool.style.display = 'block';
+                console.log('🔨 Workbench tool button enabled');
+            }
+
+            // Initialize hotkey label colors based on current time
+            if (this.timeOfDay !== undefined) {
+                this.updateToolHotkeyColors(this.timeOfDay);
+            }
         };
 
         // Create the hotbar UI element
@@ -740,52 +1174,44 @@ class NebulaVoxelApp {
                 `;
                 slot.appendChild(slotNumber);
 
-                // Slot 5 is special - it's the backpack button
-                if (i === 4) {
-                    const backpackIcon = document.createElement('div');
-                    backpackIcon.textContent = '🎒';
-                    backpackIcon.style.fontSize = '20px';
-                    slot.appendChild(backpackIcon);
+                // All slots are now pure item slots
+                const slotData = this.hotbarSlots[i];
+                const itemName = slotData ? slotData.itemType : null;
+                const itemCount = slotData ? slotData.quantity : 0;
 
-                    const label = document.createElement('div');
-                    label.textContent = 'BAG';
-                    label.style.fontSize = '8px';
-                    slot.appendChild(label);
+                const itemIcon = document.createElement('div');
+                itemIcon.className = 'item-icon';
+                // Use innerHTML for crafted items (HTML icons), textContent for emojis
+                if (itemName) {
+                    const iconContent = this.getItemIcon(itemName);
+                    if (iconContent.includes('<span')) {
+                        itemIcon.innerHTML = iconContent;
+                    } else {
+                        itemIcon.textContent = iconContent;
+                    }
                 } else {
-                    // Regular inventory slots
-                    const itemName = this.hotbarSlots[i];
-                    const itemCount = this.inventory[itemName] || 0;
-
-                    const itemIcon = document.createElement('div');
-                    itemIcon.textContent = this.getItemIcon(itemName);
-                    itemIcon.style.fontSize = '16px';
-                    slot.appendChild(itemIcon);
-
-                    const itemCountDiv = document.createElement('div');
-                    itemCountDiv.textContent = itemCount > 0 ? itemCount : '';
-                    itemCountDiv.className = `item-count-${i}`;
-                    itemCountDiv.style.fontSize = '10px';
-                    slot.appendChild(itemCountDiv);
+                    itemIcon.textContent = ''; // Empty slot
                 }
+                itemIcon.style.fontSize = '16px';
+                slot.appendChild(itemIcon);
+
+                const itemCountDiv = document.createElement('div');
+                itemCountDiv.textContent = itemCount > 0 ? itemCount : '';
+                itemCountDiv.className = `item-count-${i}`;
+                itemCountDiv.style.fontSize = '10px';
+                slot.appendChild(itemCountDiv);
 
                 // Click handler for slot selection
                 slot.addEventListener('click', () => {
-                    if (i === 4) {
-                        // Backpack button clicked - toggle inventory
-                        this.toggleBackpackInventory();
-                    } else {
-                        this.selectedSlot = i;
-                        this.updateHotbarSelection();
-                    }
+                    this.selectedSlot = i;
+                    this.updateHotbarSelection();
                 });
 
                 // Right-click handler for item transfer to backpack
-                if (i < 4) { // Only for actual hotbar slots, not backpack button
-                    slot.addEventListener('contextmenu', (e) => {
-                        e.preventDefault(); // Prevent context menu
-                        this.transferItemToBackpack(i);
-                    });
-                }
+                slot.addEventListener('contextmenu', (e) => {
+                    e.preventDefault(); // Prevent context menu
+                    this.transferItemToBackpack(i);
+                });
 
                 this.hotbarElement.appendChild(slot);
             }
@@ -794,12 +1220,93 @@ class NebulaVoxelApp {
             this.container.appendChild(this.hotbarElement);
         };
 
+        // Duplicate function definitions removed - using the original correct implementations above
+
         // Get emoji icon for item types
+        // Material Design icon system for crafted items
+        this.getMaterialColor = (material) => {
+            const materialColors = {
+                wood: '#8B4513',      // Brown (legacy)
+                stone: '#708090',     // Slate gray
+                iron: '#C0C0C0',      // Silver
+                glass: '#87CEEB',     // Sky blue
+                sand: '#F4A460',      // Sandy brown
+                grass: '#228B22',     // Forest green
+                brick: '#B22222',     // Fire brick
+                glowstone: '#FFD700', // Gold
+                coal: '#2F4F4F',      // Dark slate gray
+                dirt: '#8B7355',      // Burlywood
+
+                // NEW: Biome-specific wood colors
+                oak_wood: '#8B4513',      // Classic brown oak
+                pine_wood: '#654321',     // Darker brown pine
+                palm_wood: '#D2B48C',     // Light tan palm
+                birch_wood: '#F5F5DC',    // Pale birch
+
+                // NEW: Biome-specific leaf colors
+                forest_leaves: '#228B22',   // Bright green
+                mountain_leaves: '#006400', // Dark green needles
+                desert_leaves: '#9ACD32',   // Yellow-green fronds
+                plains_leaves: '#90EE90',   // Light green
+                tundra_leaves: '#708090'    // Gray-green hardy
+            };
+            return materialColors[material] || '#666666';
+        };
+
+        this.getShapeIcon = (shape) => {
+            const shapeIcons = {
+                cube: 'crop_square',           // ⬜ Square
+                sphere: 'radio_button_unchecked', // ⭕ Circle
+                cylinder: 'settings',          // ⚙️ Gear (cylindrical)
+                pyramid: 'change_history',     // 🔺 Triangle
+                stairs: 'stairs',              // 🪜 Stairs
+                wall: 'crop_portrait',         // ▮ Vertical rectangle
+                hollow_cube: 'crop_square'     // ⬜ Square (will be styled differently)
+            };
+            return shapeIcons[shape] || 'help_outline';
+        };
+
+        this.getCraftedItemIcon = (material, shape, dimensions) => {
+            const color = this.getMaterialColor(material);
+            const icon = this.getShapeIcon(shape);
+            const size = dimensions ? `${dimensions.length}×${dimensions.width}×${dimensions.height}` : '';
+
+            return `<span class="material-icons crafted-item-icon" style="color: ${color}; font-size: 16px;" title="${material} ${shape} ${size}">${icon}</span>`;
+        };
+
         this.getItemIcon = (itemType) => {
+            // Check if this is a crafted item (starts with "crafted_")
+            if (itemType.startsWith('crafted_')) {
+                // Parse crafted item format: "crafted_wood_cube_3x2x4"
+                const parts = itemType.replace('crafted_', '').split('_');
+
+                if (parts.length >= 2) {
+                    const material = parts[0];
+                    const shape = parts[1];
+
+                    // Extract dimensions if present
+                    let dimensions = null;
+                    if (parts.length > 2) {
+                        const dimensionPart = parts[parts.length - 1];
+                        const dimensionMatch = dimensionPart.match(/(\d+)x(\d+)x(\d+)/);
+                        if (dimensionMatch) {
+                            dimensions = {
+                                length: parseInt(dimensionMatch[1]),
+                                width: parseInt(dimensionMatch[2]),
+                                height: parseInt(dimensionMatch[3])
+                            };
+                        }
+                    }
+
+                    return this.getCraftedItemIcon(material, shape, dimensions);
+                }
+            }
+
+            // Default emoji icons for base materials
             const icons = {
                 grass: '🌱',
                 stone: '🪨',
-                wood: '🪵',
+                wood: '🪵',      // Legacy wood
                 workbench: '🔨',
                 sand: '🏖️',
                 glass: '💎',
@@ -811,16 +1318,20 @@ class NebulaVoxelApp {
                 dirt: '🪨',
                 coal: '⚫',
                 skull: '💀',
-                leaf: '🍃',
-                // Add crafted ShapeForge items
-                grass_cube: '🟩',
-                stone_cube: '🟫',
-                wood_cube: '🟤',
-                sand_cube: '🟨',
-                grass_sphere: '🟢',
-                stone_sphere: '⚫',
-                wood_sphere: '🟤',
-                sand_sphere: '🟡'
+                leaf: '🍃',      // Legacy leaf
+
+                // NEW: Biome-specific wood types
+                oak_wood: '🪵',      // Classic brown oak
+                pine_wood: '🌲',     // Evergreen pine
+                palm_wood: '🥥',     // Tropical palm
+                birch_wood: '🍃',    // Light birch
+
+                // NEW: Biome-specific leaf types
+                forest_leaves: '🌿',   // Bright green forest
+                mountain_leaves: '🌲', // Dark green needles
+                desert_leaves: '🌴',   // Yellow-green fronds
+                plains_leaves: '🌱',   // Light green plains
+                tundra_leaves: '🍂'    // Gray-green hardy
             };
             return icons[itemType] || '❓';
         };
@@ -836,16 +1347,39 @@ class NebulaVoxelApp {
             });
         };
 
-        // Update hotbar item counts
+        // Update hotbar item counts and icons
         this.updateHotbarCounts = () => {
             if (!this.hotbarElement) return;
 
             for (let i = 0; i < 4; i++) {
-                const itemName = this.hotbarSlots[i];
-                const itemCount = this.inventory[itemName] || 0;
+                // NEW: Use slot-based system
+                const slot = this.hotbarSlots[i];
+                const itemCount = slot ? slot.quantity : 0;
+                const itemType = slot ? slot.itemType : null;
+
+                // Update count
                 const countElement = this.hotbarElement.querySelector(`.item-count-${i}`);
                 if (countElement) {
                     countElement.textContent = itemCount > 0 ? itemCount : '';
+                }
+
+                // Update icon
+                const slotElement = this.hotbarElement.querySelector(`.slot-${i}`);
+                if (slotElement) {
+                    const iconElement = slotElement.querySelector('.item-icon');
+                    if (iconElement) {
+                        if (itemType && itemCount > 0) {
+                            const iconContent = this.getItemIcon(itemType);
+                            if (iconContent.includes('<span')) {
+                                iconElement.innerHTML = iconContent;
+                            } else {
+                                iconElement.textContent = iconContent;
+                            }
+                        } else {
+                            iconElement.textContent = '';
+                            iconElement.innerHTML = '';
+                        }
+                    }
                 }
             }
         };
@@ -925,8 +1459,7 @@ class NebulaVoxelApp {
                 margin-bottom: 15px;
             `;
 
-            // Create 25 inventory slots (5x5)
-            this.backpackSlots = [];
+            // Create 25 inventory slots (5x5) - slots data already exists, just create UI
             for (let i = 0; i < 25; i++) {
                 const slot = document.createElement('div');
                 slot.className = `backpack-slot slot-${i}`;
@@ -972,12 +1505,8 @@ class NebulaVoxelApp {
                 });
 
                 // Store slot reference
-                this.backpackSlots.push({
-                    element: slot,
-                    itemType: null,
-                    itemCount: 0,
-                    maxStack: 8 // Starting stack size
-                });
+                // Store DOM element reference (data is in this.backpackSlots array)
+                this.backpackSlots[i].element = slot;
 
                 gridContainer.appendChild(slot);
             }
@@ -1018,30 +1547,7 @@ class NebulaVoxelApp {
             this.container.appendChild(this.backpackInventoryElement);
         };
 
-        // Open workbench crafting modal
-        this.openWorkbenchModal = (x, y, z) => {
-            console.log(`Opening workbench at position ${x}, ${y}, ${z}`);
-
-            // Release pointer lock so user can interact with the modal
-            if (document.pointerLockElement) {
-                document.exitPointerLock();
-            }
-
-            // Create modal if it doesn't exist
-            if (!this.workbenchModal) {
-                this.createWorkbenchModal();
-            }
-
-            // Store workbench position for later use
-            this.currentWorkbench = { x, y, z };
-
-            // Show modal
-            this.workbenchModal.style.display = 'block';
-            this.updateStatus('🔨 Workbench opened - Create custom objects!', 'craft', false);
-
-            // Show tutorial on first use
-            this.showWorkbenchTutorial();
-        };
+        // TODO: Replace with new WorkbenchSystem
 
         // Create workbench modal UI
         this.createWorkbenchModal = () => {
@@ -1192,9 +1698,10 @@ class NebulaVoxelApp {
                 gap: 10px;
             `;
 
-            // Show available materials from inventory
-            Object.keys(this.inventory).forEach(materialType => {
-                const count = this.inventory[materialType];
+            // Show available materials from slots
+            const availableMaterials = this.getAllMaterialsFromSlots();
+            Object.keys(availableMaterials).forEach(materialType => {
+                const count = availableMaterials[materialType];
                 if (count > 0 && materialType !== 'workbench') { // Don't show workbench as material
                     const materialItem = document.createElement('div');
                     materialItem.style.cssText = `
@@ -1308,10 +1815,10 @@ class NebulaVoxelApp {
             // Create Three.js scene for 3D preview
             console.log('🎬 Creating workbench 3D scene...');
             this.workbenchScene = new THREE.Scene();
-            this.workbenchScene.background = new THREE.Color(0x0a0a0a);
+            this.workbenchScene.background = new THREE.Color(0x111111);
 
-            this.workbenchCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-            this.workbenchCamera.position.set(2, 2, 2);
+            this.workbenchCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+            this.workbenchCamera.position.set(3, 3, 3);
             this.workbenchCamera.lookAt(0, 0, 0);
 
             this.workbenchRenderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1326,11 +1833,11 @@ class NebulaVoxelApp {
             });
 
             // Add lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            const ambientLight = new THREE.AmbientLight(0x666666, 1.0);
             this.workbenchScene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-            directionalLight.position.set(5, 5, 5);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
             directionalLight.castShadow = true;
             directionalLight.shadow.mapSize.width = 1024;
             directionalLight.shadow.mapSize.height = 1024;
@@ -1343,6 +1850,14 @@ class NebulaVoxelApp {
 
             // Add canvas to container
             previewContainer.appendChild(this.workbenchRenderer.domElement);
+
+            // Add OrbitControls for camera interaction
+            this.workbenchControls = new OrbitControls(this.workbenchCamera, this.workbenchRenderer.domElement);
+            this.workbenchControls.enableDamping = true;
+            this.workbenchControls.dampingFactor = 0.25;
+            this.workbenchControls.enableZoom = true;
+            this.workbenchControls.enableRotate = true;
+            this.workbenchControls.enablePan = false;
 
             // Store reference to current preview object
             this.currentPreviewObject = null;
@@ -1669,8 +2184,9 @@ class NebulaVoxelApp {
             }
 
             // Check if player has enough materials (for now, require 1 of selected material)
-            if (this.inventory[this.selectedMaterial] < 1) {
-                this.updateStatus(`⚠️ Not enough ${this.selectedMaterial}! Need 1, have ${this.inventory[this.selectedMaterial]}`, 'error');
+            const availableCount = this.countItemInSlots(this.selectedMaterial);
+            if (availableCount < 1) {
+                this.updateStatus(`⚠️ Not enough ${this.selectedMaterial}! Need 1, have ${availableCount}`, 'error');
                 return;
             }
 
@@ -1682,16 +2198,13 @@ class NebulaVoxelApp {
             });
 
             // Use material
-            this.inventory[this.selectedMaterial]--;
+            this.removeFromInventory(this.selectedMaterial, 1);
 
             // Create the object (placeholder for now)
             const objectName = `${this.selectedMaterial}_${this.selectedShape}`;
 
-            // Add to inventory (simplified for now)
-            if (!this.inventory[objectName]) {
-                this.inventory[objectName] = 0;
-            }
-            this.inventory[objectName]++;
+            // Add crafted object to inventory
+            this.addToInventory(objectName, 1);
 
             // Update all displays
             this.updateHotbarCounts();
@@ -1705,9 +2218,539 @@ class NebulaVoxelApp {
         };
 
         // Start workbench preview rendering loop
+        // 🎯 PHASE 1.3: Physics objects synchronization method
+        this.updatePhysicsObjects = () => {
+            // Sync Three.js objects with their Cannon.js physics bodies
+            for (const [threeObject, cannonBody] of this.physicsObjects) {
+                // Update Three.js object position from physics body
+                threeObject.position.copy(cannonBody.position);
+                threeObject.quaternion.copy(cannonBody.quaternion);
+            }
+        };
+
+        // 🎯 PHASE 2.1: Create physics body for crafted objects
+        this.createPhysicsBodyForCraftedObject = (threeObject, shapeType, dimensions, materialType) => {
+            console.log(`🔧 Creating physics body for ${shapeType} with dimensions:`, dimensions);
+
+            // 🎯 PHASE 2.2: Hollow space detection for doors/windows
+            if (this.hasHollowSpaces(shapeType)) {
+                console.log(`🚪 Detected hollow spaces in ${shapeType} - creating complex collision`);
+                this.createHollowPhysicsBody(threeObject, shapeType, dimensions, materialType);
+                return;
+            }
+
+            let cannonShape;
+
+            // Create appropriate physics shape based on object type
+            switch (shapeType) {
+                case 'cube':
+                    cannonShape = new CANNON.Box(new CANNON.Vec3(
+                        dimensions.length / 2,
+                        dimensions.height / 2,
+                        dimensions.width / 2
+                    ));
+                    break;
+                case 'sphere':
+                    const radius = Math.max(dimensions.length, dimensions.width, dimensions.height) / 2;
+                    cannonShape = new CANNON.Sphere(radius);
+                    break;
+                case 'cylinder':
+                    cannonShape = new CANNON.Cylinder(
+                        dimensions.width / 2,  // radiusTop
+                        dimensions.width / 2,  // radiusBottom
+                        dimensions.height,     // height
+                        8                      // numSegments
+                    );
+                    break;
+                default:
+                    // Default to box shape for complex shapes
+                    cannonShape = new CANNON.Box(new CANNON.Vec3(
+                        dimensions.length / 2,
+                        dimensions.height / 2,
+                        dimensions.width / 2
+                    ));
+                    break;
+            }
+
+            // Create physics body
+            const cannonBody = new CANNON.Body({
+                mass: 0, // Static body (won't fall or move)
+                shape: cannonShape,
+                position: new CANNON.Vec3(threeObject.position.x, threeObject.position.y, threeObject.position.z),
+                material: this.physicsMaterials[materialType] || this.physicsMaterials.wood
+            });
+
+            // Add to physics world and tracking
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(threeObject, cannonBody);
+
+            console.log(`✅ Physics body created for crafted object at (${threeObject.position.x}, ${threeObject.position.y}, ${threeObject.position.z})`);
+        };
+
+        // 🎯 PHASE 2.2: Check if shape has hollow spaces that players can walk through
+        this.hasHollowSpaces = (shapeType) => {
+            const hollowShapes = ['hollow_cube', 'door', 'window', 'archway', 'simple_house'];
+            return hollowShapes.includes(shapeType);
+        };
+
+        // 🎯 PHASE 2.2: Create complex physics body for hollow objects
+        this.createHollowPhysicsBody = (threeObject, shapeType, dimensions, materialType) => {
+            console.log(`🏗️ Creating hollow physics body for ${shapeType}`);
+
+            const cannonBodies = [];
+            const material = this.physicsMaterials[materialType] || this.physicsMaterials.wood;
+
+            switch (shapeType) {
+                case 'hollow_cube':
+                    // Create 6 walls for a hollow cube (minus one face for entrance)
+                    const wallThickness = 0.2;
+                    const halfLength = dimensions.length / 2;
+                    const halfHeight = dimensions.height / 2;
+                    const halfWidth = dimensions.width / 2;
+
+                    // Front wall (with opening)
+                    // Left side of opening
+                    const leftWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(wallThickness / 2, halfHeight, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x - halfLength + wallThickness / 2,
+                            threeObject.position.y,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(leftWall);
+
+                    // Right side of opening
+                    const rightWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(wallThickness / 2, halfHeight, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x + halfLength - wallThickness / 2,
+                            threeObject.position.y,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(rightWall);
+
+                    // Top wall
+                    const topWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(halfLength, wallThickness / 2, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y + halfHeight - wallThickness / 2,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(topWall);
+
+                    // Bottom wall (floor)
+                    const bottomWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(halfLength, wallThickness / 2, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y - halfHeight + wallThickness / 2,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(bottomWall);
+                    break;
+
+                case 'simple_house':
+                    // Create house walls with door opening
+                    const houseWallThickness = 0.3;
+                    const houseHalfLength = dimensions.length / 2;
+                    const houseHalfHeight = dimensions.height / 2;
+                    const houseHalfWidth = dimensions.width / 2;
+
+                    // Four walls with door opening in front wall
+                    // Back wall (solid)
+                    const backWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(houseWallThickness / 2, houseHalfHeight, houseHalfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x + houseHalfLength - houseWallThickness / 2,
+                            threeObject.position.y,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(backWall);
+
+                    // Side walls
+                    const leftSideWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(houseHalfLength, houseHalfHeight, houseWallThickness / 2)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y,
+                            threeObject.position.z - houseHalfWidth + houseWallThickness / 2
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(leftSideWall);
+
+                    const rightSideWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(houseHalfLength, houseHalfHeight, houseWallThickness / 2)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y,
+                            threeObject.position.z + houseHalfWidth - houseWallThickness / 2
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(rightSideWall);
+                    break;
+
+                default:
+                    console.warn(`❌ Hollow shape ${shapeType} not implemented yet - using solid collision`);
+                    // Fallback to solid shape
+                    const solidShape = new CANNON.Box(new CANNON.Vec3(
+                        dimensions.length / 2,
+                        dimensions.height / 2,
+                        dimensions.width / 2
+                    ));
+                    const solidBody = new CANNON.Body({
+                        mass: 0,
+                        shape: solidShape,
+                        position: new CANNON.Vec3(threeObject.position.x, threeObject.position.y, threeObject.position.z),
+                        material: material
+                    });
+                    cannonBodies.push(solidBody);
+                    break;
+            }
+
+            // Add all bodies to physics world and track them
+            cannonBodies.forEach(body => {
+                this.physicsWorld.addBody(body);
+                this.physicsObjects.set(threeObject, body); // Map to first body (for cleanup)
+            });
+
+            // Store all bodies for this object for proper cleanup
+            threeObject.userData.physicsBodies = cannonBodies;
+
+            console.log(`✅ Created ${cannonBodies.length} physics bodies for hollow ${shapeType}`);
+        };
+
+        // 🌳 HELPER: Check if a block type is any kind of wood
+        this.isWoodBlock = (blockType) => {
+            const woodTypes = ['wood', 'oak_wood', 'pine_wood', 'palm_wood', 'birch_wood'];
+            return woodTypes.includes(blockType);
+        };
+
+        // 🌳 HELPER: Check if a block type is any kind of leaf
+        this.isLeafBlock = (blockType) => {
+            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'];
+            return leafTypes.includes(blockType);
+        };
+
+        // 🎯 PHASE 3: Revolutionary Tree Physics Implementation
+        this.checkTreeFalling = (harvestedX, harvestedY, harvestedZ) => {
+            console.log(`🌳 Checking tree falling for harvested wood at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
+
+            // Find all connected wood blocks above the harvested position
+            const treeBlocks = this.scanTreeStructure(harvestedX, harvestedY + 1, harvestedZ);
+
+            if (treeBlocks.length === 0) {
+                console.log(`🌳 No tree structure found above harvested block`);
+                return;
+            }
+
+            console.log(`🌳 Found tree structure with ${treeBlocks.length} wood blocks - TIMBER!`);
+
+            // Create dramatic falling tree effect
+            this.createFallingTreePhysics(treeBlocks, harvestedX, harvestedY, harvestedZ);
+
+            // 🍃 NEW: Also cascade any leaves that were connected to these wood blocks
+            this.cascadeDisconnectedLeaves(treeBlocks);
+        };
+
+        // 🎯 PHASE 3: Scan connected wood blocks to find tree structure
+        this.scanTreeStructure = (startX, startY, startZ) => {
+            const visited = new Set();
+            const treeBlocks = [];
+            const queue = [{ x: startX, y: startY, z: startZ }];
+
+            while (queue.length > 0) {
+                const { x, y, z } = queue.shift();
+                const key = `${x},${y},${z}`;
+
+                if (visited.has(key)) continue;
+                visited.add(key);
+
+                // Check if there's a wood block at this position
+                const blockData = this.getBlock(x, y, z);
+                if (!blockData || !this.isWoodBlock(blockData.type)) continue;
+
+                treeBlocks.push({ x, y, z, blockData });
+
+                // Search for connected wood blocks (above, diagonal up, and adjacent)
+                const searchOffsets = [
+                    { dx: 0, dy: 1, dz: 0 },   // Directly above
+                    { dx: 1, dy: 1, dz: 0 },   // Diagonal up-north
+                    { dx: -1, dy: 1, dz: 0 },  // Diagonal up-south
+                    { dx: 0, dy: 1, dz: 1 },   // Diagonal up-east
+                    { dx: 0, dy: 1, dz: -1 },  // Diagonal up-west
+                    { dx: 1, dy: 0, dz: 0 },   // Adjacent north
+                    { dx: -1, dy: 0, dz: 0 },  // Adjacent south
+                    { dx: 0, dy: 0, dz: 1 },   // Adjacent east
+                    { dx: 0, dy: 0, dz: -1 },  // Adjacent west
+                ];
+
+                searchOffsets.forEach(offset => {
+                    const newX = x + offset.dx;
+                    const newY = y + offset.dy;
+                    const newZ = z + offset.dz;
+                    const newKey = `${newX},${newY},${newZ}`;
+
+                    if (!visited.has(newKey)) {
+                        queue.push({ x: newX, y: newY, z: newZ });
+                    }
+                });
+            }
+
+            return treeBlocks;
+        };
+
+        // 🍃 NEW: Find and cascade leaves that are no longer connected to wood
+        this.cascadeDisconnectedLeaves = (fallenWoodBlocks) => {
+            console.log(`🍃 Checking for disconnected leaves around ${fallenWoodBlocks.length} fallen wood blocks`);
+
+            const leafBlocks = [];
+            const searchRadius = 3; // Search 3 blocks around each fallen wood block
+
+            // Find all leaf blocks near the fallen wood blocks
+            fallenWoodBlocks.forEach(({ x: woodX, y: woodY, z: woodZ }) => {
+                for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+                    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+                        for (let dz = -searchRadius; dz <= searchRadius; dz++) {
+                            const leafX = woodX + dx;
+                            const leafY = woodY + dy;
+                            const leafZ = woodZ + dz;
+
+                            const blockData = this.getBlock(leafX, leafY, leafZ);
+                            if (blockData && this.isLeafBlock(blockData.type)) {
+                                // Check if this leaf is still connected to standing wood
+                                if (!this.isLeafConnectedToWood(leafX, leafY, leafZ)) {
+                                    leafBlocks.push({ x: leafX, y: leafY, z: leafZ, type: blockData.type });
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (leafBlocks.length > 0) {
+                console.log(`🍃 Found ${leafBlocks.length} disconnected leaf blocks - cascading!`);
+                this.createFallingLeaves(leafBlocks);
+            }
+        };
+
+        // 🍃 Check if a leaf block is connected to standing wood (within 2 blocks)
+        this.isLeafConnectedToWood = (leafX, leafY, leafZ) => {
+            const connectionRadius = 2;
+
+            for (let dx = -connectionRadius; dx <= connectionRadius; dx++) {
+                for (let dy = -connectionRadius; dy <= connectionRadius; dy++) {
+                    for (let dz = -connectionRadius; dz <= connectionRadius; dz++) {
+                        const checkX = leafX + dx;
+                        const checkY = leafY + dy;
+                        const checkZ = leafZ + dz;
+
+                        const blockData = this.getBlock(checkX, checkY, checkZ);
+                        if (blockData && this.isWoodBlock(blockData.type)) {
+                            return true; // Found standing wood nearby
+                        }
+                    }
+                }
+            }
+            return false; // No wood found, leaf is disconnected
+        };
+
+        // 🍃 Create falling leaf blocks with lighter physics
+        this.createFallingLeaves = (leafBlocks) => {
+            leafBlocks.forEach(({ x, y, z, type }, index) => {
+                setTimeout(() => {
+                    // Remove the stationary leaf block
+                    this.removeBlock(x, y, z);
+
+                    // Create falling leaf with appropriate color
+                    const leafColor = this.getLeafColor(type);
+                    this.createFallingLeafBlock(x, y, z, leafColor);
+                }, index * 25); // 25ms delay between leaves for cascade effect
+            });
+
+            this.updateStatus(`🍃 ${leafBlocks.length} leaves cascading from fallen tree!`, 'discovery');
+        };
+
+        // 🍃 Get color for different leaf types
+        this.getLeafColor = (leafType) => {
+            const leafColors = {
+                leaf: 0x228B22,           // Legacy green
+                forest_leaves: 0x228B22,   // Bright green
+                mountain_leaves: 0x006400, // Dark green needles
+                desert_leaves: 0x9ACD32,   // Yellow-green fronds
+                plains_leaves: 0x90EE90,   // Light green
+                tundra_leaves: 0x708090    // Gray-green hardy
+            };
+            return leafColors[leafType] || 0x228B22;
+        };
+
+        // 🍃 Create individual falling leaf block
+        this.createFallingLeafBlock = (x, y, z, color) => {
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color });
+            const fallingLeaf = new THREE.Mesh(geometry, material);
+            fallingLeaf.position.set(x, y, z);
+            this.scene.add(fallingLeaf);
+
+            // Lighter physics for leaves
+            const cannonShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+            const cannonBody = new CANNON.Body({
+                mass: 2, // Much lighter than wood (wood is mass 10)
+                shape: cannonShape,
+                position: new CANNON.Vec3(x, y, z),
+                material: this.physicsMaterials.forest_leaves // Use leaf material
+            });
+
+            // Gentle falling motion for leaves
+            cannonBody.velocity.set(
+                (Math.random() - 0.5) * 5, // Light horizontal drift
+                Math.random() * 2,         // Slight upward velocity
+                (Math.random() - 0.5) * 5
+            );
+
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(fallingLeaf, cannonBody);
+
+            // Auto-cleanup leaves faster (15 seconds vs 30 for wood)
+            setTimeout(() => {
+                this.scene.remove(fallingLeaf);
+                this.physicsWorld.removeBody(cannonBody);
+                this.physicsObjects.delete(fallingLeaf);
+            }, 15000);
+        };
+
+        // 🎯 PHASE 3: Create dramatic falling tree physics
+        this.createFallingTreePhysics = (treeBlocks, chopX, chopY, chopZ) => {
+            console.log(`🎬 Creating dramatic falling tree animation with ${treeBlocks.length} blocks!`);
+
+            // Calculate fall direction (away from player)
+            const playerX = this.player.position.x;
+            const playerZ = this.player.position.z;
+            const fallDirectionX = chopX - playerX;
+            const fallDirectionZ = chopZ - playerZ;
+            const fallLength = Math.sqrt(fallDirectionX * fallDirectionX + fallDirectionZ * fallDirectionZ);
+            const normalizedFallX = fallLength > 0 ? fallDirectionX / fallLength : 1;
+            const normalizedFallZ = fallLength > 0 ? fallDirectionZ / fallLength : 0;
+
+            // Create falling tree as single physics object
+            treeBlocks.forEach((block, index) => {
+                // Remove original block from world
+                this.removeBlock(block.x, block.y, block.z);
+
+                // Create falling physics block with delay for dramatic effect
+                setTimeout(() => {
+                    this.createFallingWoodBlock(
+                        block.x, block.y, block.z,
+                        normalizedFallX, normalizedFallZ,
+                        index * 0.1, // Staggered falling for dramatic effect
+                        block.blockData.type // Pass the actual wood type
+                    );
+                }, index * 50); // 50ms delay between each block
+            });
+
+            // Add satisfying tree fall sound effect notification
+            this.updateStatus(`🌳 TIMBER! Tree crashed down with ${treeBlocks.length} wood blocks!`, 'discovery');
+            console.log(`🎉 Tree falling sequence initiated - blocks will fall dramatically!`);
+        };
+
+        // 🪵 Get color for different wood types
+        this.getWoodColor = (woodType) => {
+            const woodColors = {
+                wood: 0x8B4513,      // Legacy brown
+                oak_wood: 0x8B4513,  // Classic brown oak
+                pine_wood: 0x654321, // Darker brown pine
+                palm_wood: 0xD2B48C, // Light tan palm
+                birch_wood: 0xF5F5DC // Pale birch
+            };
+            return woodColors[woodType] || 0x8B4513;
+        };
+
+        // 🎯 PHASE 3: Create individual falling wood block with physics
+        this.createFallingWoodBlock = (x, y, z, fallDirX, fallDirZ, delay, woodType = 'wood') => {
+            // Create Three.js mesh for falling wood block with appropriate color
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const woodColor = this.getWoodColor(woodType);
+            const material = new THREE.MeshLambertMaterial({ color: woodColor });
+            const fallingBlock = new THREE.Mesh(geometry, material);
+            fallingBlock.position.set(x, y, z);
+
+            // Add to scene
+            this.scene.add(fallingBlock);
+
+            // Create physics body with realistic wood properties
+            const cannonShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+            const cannonBody = new CANNON.Body({
+                mass: 10, // Wood blocks have mass so they fall!
+                shape: cannonShape,
+                position: new CANNON.Vec3(x, y, z),
+                material: this.physicsMaterials.wood
+            });
+
+            // Apply dramatic falling force
+            const fallForce = 50 + Math.random() * 30; // Random force for natural effect
+            cannonBody.velocity.set(
+                fallDirX * fallForce + (Math.random() - 0.5) * 20, // Random horizontal spread
+                Math.random() * 10, // Slight upward velocity
+                fallDirZ * fallForce + (Math.random() - 0.5) * 20
+            );
+
+            // Add rotational tumbling for realistic tree falling
+            cannonBody.angularVelocity.set(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10
+            );
+
+            // Add to physics world
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(fallingBlock, cannonBody);
+
+            // Mark as falling tree block for special handling
+            fallingBlock.userData = {
+                type: 'fallingTreeBlock',
+                spawnTime: Date.now(),
+                collected: false
+            };
+
+            // Auto-cleanup after 30 seconds to prevent world clutter
+            setTimeout(() => {
+                if (fallingBlock.userData && !fallingBlock.userData.collected) {
+                    this.scene.remove(fallingBlock);
+                    this.physicsWorld.removeBody(cannonBody);
+                    this.physicsObjects.delete(fallingBlock);
+                    console.log(`🗑️ Auto-cleaned up fallen wood block after 30 seconds`);
+                }
+            }, 30000);
+
+            console.log(`🪵 Created falling wood block with physics at (${x}, ${y}, ${z})`);
+        };
+
         this.startWorkbenchPreviewLoop = () => {
             const animate = () => {
                 if (this.workbenchRenderer && this.workbenchScene && this.workbenchCamera) {
+                    // Update controls for smooth interaction
+                    if (this.workbenchControls) {
+                        this.workbenchControls.update();
+                    }
                     this.workbenchRenderer.render(this.workbenchScene, this.workbenchCamera);
                 }
                 if (this.workbenchModal && this.workbenchModal.style.display !== 'none') {
@@ -1904,6 +2947,60 @@ class NebulaVoxelApp {
             this.container.appendChild(tutorialOverlay);
         };
 
+        // 🌍 Update biome indicator in status display
+        this.updateBiomeIndicator = () => {
+            const playerX = Math.floor(this.player.position.x);
+            const playerZ = Math.floor(this.player.position.z);
+            const currentBiome = this.getBiomeAt(playerX, playerZ);
+
+            // Only update if biome changed to avoid spam
+            if (this.lastDisplayedBiome !== currentBiome.name) {
+                this.lastDisplayedBiome = currentBiome.name;
+
+                // Get biome icon and tree chance
+                const biomeInfo = this.getBiomeDisplayInfo(currentBiome);
+
+                // Update status display with biome info
+                const statusText = document.getElementById('status-text');
+                const statusIcon = document.getElementById('status-icon');
+
+                if (statusText && statusIcon) {
+                    statusIcon.textContent = biomeInfo.icon;
+                    statusText.textContent = `${currentBiome.name} Biome - ${biomeInfo.description}`;
+
+                    // Optional: Add tree count for debugging
+                    const treeChance = this.getTreeChanceForBiome(currentBiome.name);
+                    if (treeChance > 0) {
+                        statusText.textContent += ` (${Math.round(treeChance * 100)}% trees)`;
+                    }
+                }
+            }
+        };
+
+        // 🌍 Get display info for biomes
+        this.getBiomeDisplayInfo = (biome) => {
+            const biomeInfo = {
+                Forest: { icon: '🌲', description: 'Dense woodlands with oak trees' },
+                Mountain: { icon: '⛰️', description: 'Rocky peaks with pine forests' },
+                Plains: { icon: '🌾', description: 'Open grasslands with scattered groves' },
+                Desert: { icon: '🏜️', description: 'Arid sands with rare palm oases' },
+                Tundra: { icon: '🌨️', description: 'Frozen wilderness with hardy birch trees' }
+            };
+            return biomeInfo[biome.name] || { icon: '🌍', description: 'Unknown terrain' };
+        };
+
+        // 🌍 Get tree spawn chance for biome
+        this.getTreeChanceForBiome = (biomeName) => {
+            const treeChances = {
+                Forest: 0.30,
+                Mountain: 0.25,
+                Plains: 0.08,
+                Desert: 0.02,
+                Tundra: 0.03
+            };
+            return treeChances[biomeName] || 0;
+        };
+
         // Check for nearby workbench and show interaction prompt
         this.checkWorkbenchProximity = () => {
             if (!this.player) return;
@@ -1974,7 +3071,7 @@ class NebulaVoxelApp {
                     <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Tap to craft objects</div>
                 `;
                 this.workbenchPrompt.addEventListener('click', () => {
-                    this.openWorkbenchModal(workbench.x, workbench.y, workbench.z);
+                    this.workbenchSystem.open(workbench.x, workbench.y, workbench.z);
                 });
                 this.workbenchPrompt.style.cursor = 'pointer';
             } else {
@@ -2012,35 +3109,42 @@ class NebulaVoxelApp {
         this.updateBackpackInventoryDisplay = () => {
             if (!this.backpackSlots) return;
 
-            // Get all inventory items (excluding hotbar items for now)
-            const inventoryItems = [];
-            Object.keys(this.inventory).forEach(itemType => {
-                const count = this.inventory[itemType];
-                if (count > 0 && !this.hotbarSlots.includes(itemType)) {
-                    inventoryItems.push({ type: itemType, count });
-                }
-            });
+            // Ensure backpack UI is created before updating
+            if (!this.backpackInventoryElement) {
+                this.createBackpackInventory();
+            }
+
+            // Update each backpack slot using new slot system
+            let filledSlots = 0;
 
             // Update each backpack slot
             for (let i = 0; i < this.backpackSlots.length; i++) {
                 const slotData = this.backpackSlots[i];
                 const slot = slotData.element;
 
+                // Skip if slot element doesn't exist yet
+                if (!slot) continue;
+
                 // Clear current content
                 slot.innerHTML = '';
 
-                if (i < inventoryItems.length) {
+                if (slotData.itemType && slotData.quantity > 0) {
                     // Has an item
-                    const item = inventoryItems[i];
-                    const emoji = this.getItemIcon(item.type);
-                    const name = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+                    filledSlots++;
+                    const iconContent = this.getItemIcon(slotData.itemType);
+                    const name = slotData.itemType.charAt(0).toUpperCase() + slotData.itemType.slice(1);
 
                     // Store item type for transfers
-                    slot.dataset.itemType = item.type;
+                    slot.dataset.itemType = slotData.itemType;
 
                     // Create item icon
                     const itemIcon = document.createElement('div');
-                    itemIcon.textContent = emoji;
+                    // Use innerHTML for crafted items (HTML icons), textContent for emojis
+                    if (iconContent.includes('<span')) {
+                        itemIcon.innerHTML = iconContent;
+                    } else {
+                        itemIcon.textContent = iconContent;
+                    }
                     itemIcon.style.cssText = `
                         font-size: 20px;
                         margin-bottom: 2px;
@@ -2049,7 +3153,7 @@ class NebulaVoxelApp {
 
                     // Create item count
                     const itemCount = document.createElement('div');
-                    itemCount.textContent = item.count;
+                    itemCount.textContent = slotData.quantity;
                     itemCount.style.cssText = `
                         font-size: 10px;
                         font-weight: bold;
@@ -2068,15 +3172,13 @@ class NebulaVoxelApp {
                     slot.appendChild(itemName);
 
                     // Add tooltip on hover
-                    slot.title = `${name}: ${item.count}`;
+                    slot.title = `${name}: ${slotData.quantity}`;
 
                     // Update slot styling for filled slot
                     slot.style.background = 'rgba(40, 80, 40, 0.8)';
                     slot.style.borderColor = '#4CAF50';
 
-                    // Store item data
-                    slotData.itemType = item.type;
-                    slotData.itemCount = item.count;
+                    // Slot data already contains the correct values
                 } else {
                     // Empty slot
                     slot.dataset.itemType = '';
@@ -2103,30 +3205,59 @@ class NebulaVoxelApp {
                     slot.style.borderColor = '#555';
                     slot.title = 'Empty slot';
 
-                    // Clear item data
-                    slotData.itemType = null;
-                    slotData.itemCount = 0;
+                    // Slot data already handles empty state
                 }
             }
 
-            console.log(`Backpack updated: ${inventoryItems.length} different item types`);
+            console.log(`Backpack updated: ${filledSlots} filled slots out of ${this.backpackSlots.length} total`);
         };
 
         // Transfer item from hotbar to backpack
         this.transferItemToBackpack = (hotbarIndex) => {
-            const itemType = this.hotbarSlots[hotbarIndex];
-            const itemCount = this.inventory[itemType];
+            const hotbarSlot = this.hotbarSlots[hotbarIndex];
+            if (!hotbarSlot.itemType || hotbarSlot.quantity === 0) {
+                this.updateStatus(`No items in hotbar slot ${hotbarIndex + 1}`, 'warning');
+                return;
+            }
 
-            if (itemCount > 0) {
-                // Transfer 1 item from hotbar to general inventory
-                // Note: Backpack shows all non-hotbar items, so just removing from hotbar is enough
-                this.inventory[itemType]--;
+            // Find an empty backpack slot or one with the same item type
+            const emptyBackpackSlot = this.findEmptyBackpackSlot();
+            const existingSlot = this.findItemInSlots(hotbarSlot.itemType);
+
+            let targetSlotIndex = -1;
+            if (existingSlot && existingSlot.location === 'backpack') {
+                const backpackSlot = this.backpackSlots[existingSlot.index];
+                if (backpackSlot.quantity < this.STACK_LIMIT) {
+                    targetSlotIndex = existingSlot.index;
+                }
+            } else if (emptyBackpackSlot !== -1) {
+                targetSlotIndex = emptyBackpackSlot;
+            }
+
+            if (targetSlotIndex !== -1) {
+                // Transfer 1 item from hotbar to backpack
+                const itemType = hotbarSlot.itemType;
+                const transferAmount = 1;
+
+                // Remove from hotbar
+                hotbarSlot.quantity -= transferAmount;
+                if (hotbarSlot.quantity === 0) {
+                    hotbarSlot.itemType = '';
+                }
+
+                // Add to backpack
+                if (this.backpackSlots[targetSlotIndex].itemType === itemType) {
+                    this.backpackSlots[targetSlotIndex].quantity += transferAmount;
+                } else {
+                    this.setBackpackSlot(targetSlotIndex, itemType, transferAmount);
+                }
+
                 this.updateHotbarCounts();
                 this.updateBackpackInventoryDisplay();
-                console.log(`Transferred 1 ${itemType} from hotbar to storage`);
-                this.updateStatus(`📦 Moved ${itemType} to storage`, 'success');
+                console.log(`Transferred 1 ${itemType} from hotbar to backpack`);
+                this.updateStatus(`📦 Moved ${itemType} to backpack`, 'success');
             } else {
-                this.updateStatus(`No ${itemType} to transfer`, 'warning');
+                this.updateStatus(`Backpack is full!`, 'warning');
             }
         };
 
@@ -2135,21 +3266,50 @@ class NebulaVoxelApp {
             // Get the item type from the backpack slot
             if (!this.backpackSlots || !this.backpackSlots[backpackIndex]) return;
 
-            const slotData = this.backpackSlots[backpackIndex];
-            if (!slotData.element || !slotData.element.dataset.itemType) return;
+            const backpackSlot = this.backpackSlots[backpackIndex];
+            if (!backpackSlot.itemType || backpackSlot.quantity === 0) {
+                this.updateStatus(`No items in backpack slot`, 'warning');
+                return;
+            }
 
-            const itemType = slotData.element.dataset.itemType;
-            const itemCount = this.inventory[itemType];
+            // Find an empty hotbar slot or one with the same item type (excluding backpack button)
+            const emptyHotbarSlot = this.findEmptyHotbarSlot();
+            const existingSlot = this.findItemInSlots(backpackSlot.itemType);
 
-            if (itemCount > 0) {
-                // Add 1 item back to inventory for hotbar use
-                this.inventory[itemType]++;
+            let targetSlotIndex = -1;
+            if (existingSlot && existingSlot.location === 'hotbar') {
+                const hotbarSlot = this.hotbarSlots[existingSlot.index];
+                if (hotbarSlot.quantity < this.STACK_LIMIT) {
+                    targetSlotIndex = existingSlot.index;
+                }
+            } else if (emptyHotbarSlot !== -1) {
+                targetSlotIndex = emptyHotbarSlot;
+            }
+
+            if (targetSlotIndex !== -1) {
+                // Transfer 1 item from backpack to hotbar
+                const itemType = backpackSlot.itemType;
+                const transferAmount = 1;
+
+                // Remove from backpack
+                backpackSlot.quantity -= transferAmount;
+                if (backpackSlot.quantity === 0) {
+                    backpackSlot.itemType = '';
+                }
+
+                // Add to hotbar
+                if (this.hotbarSlots[targetSlotIndex].itemType === itemType) {
+                    this.hotbarSlots[targetSlotIndex].quantity += transferAmount;
+                } else {
+                    this.setHotbarSlot(targetSlotIndex, itemType, transferAmount);
+                }
+
                 this.updateHotbarCounts();
                 this.updateBackpackInventoryDisplay();
-                console.log(`Transferred 1 ${itemType} from storage to hotbar`);
+                console.log(`Transferred 1 ${itemType} from backpack to hotbar`);
                 this.updateStatus(`🔧 Moved ${itemType} to hotbar`, 'success');
             } else {
-                this.updateStatus(`No ${itemType} available`, 'warning');
+                this.updateStatus(`Hotbar is full!`, 'warning');
             }
         };
 
@@ -2271,19 +3431,19 @@ class NebulaVoxelApp {
                     blockData: blockData
                 });
 
-                if (!this.inventory[blockType]) {
-                    this.inventory[blockType] = 0;
-                }
-                this.inventory[blockType]++;
-                console.log(`Harvested ${blockType}! Total: ${this.inventory[blockType]}`);
+                this.addToInventory(blockType, 1);
+                console.log(`Harvested ${blockType}!`);
 
-                // Update displays
-                this.updateHotbarCounts();
-                this.updateBackpackInventoryDisplay();
+                // addToInventory() already handles UI updates
 
                 // Use enhanced notification system with harvest type
                 const emoji = this.getItemIcon(blockType);
-                this.updateStatus(`${emoji} Harvested ${blockType}! (${this.inventory[blockType]} total)`, 'harvest');
+                this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
+
+                // 🎯 PHASE 3: Revolutionary tree physics - Check if we just chopped a tree base!
+                if (this.isWoodBlock(blockType)) {
+                    this.checkTreeFalling(x, y, z);
+                }
             } else if (!blockData) {
                 console.log(`No block data found at ${key}`);
             } else {
@@ -2404,7 +3564,7 @@ class NebulaVoxelApp {
             dirt: { color: 0x8B4513, texture: 'dirt' },      // Brown dirt texture
             stone: { color: 0x696969, texture: 'stone' },    // Dim gray with stone pattern
             coal: { color: 0x2F2F2F, texture: 'coal' },      // Dark gray/black coal texture
-            wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain
+            wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain (legacy)
             sand: { color: 0xF4A460, texture: 'sand' },      // Sandy brown with grain texture
             glass: { color: 0x87CEEB, texture: 'glass' },    // Sky blue, translucent
             brick: { color: 0xB22222, texture: 'brick' },    // Fire brick with mortar lines
@@ -2414,6 +3574,19 @@ class NebulaVoxelApp {
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
             backpack: { color: 0x8B4513, texture: 'transparent' }, // Transparent for billboard
+
+            // NEW: Biome-specific wood types
+            oak_wood: { color: 0x8B4513, texture: 'oak_wood' },      // Classic brown oak
+            pine_wood: { color: 0x654321, texture: 'pine_wood' },    // Darker brown pine
+            palm_wood: { color: 0xD2B48C, texture: 'palm_wood' },    // Light tan palm
+            birch_wood: { color: 0xF5F5DC, texture: 'birch_wood' },  // Pale birch
+
+            // NEW: Biome-specific leaf types
+            forest_leaves: { color: 0x228B22, texture: 'forest_leaves' },   // Bright green
+            mountain_leaves: { color: 0x006400, texture: 'mountain_leaves' }, // Dark green needles
+            desert_leaves: { color: 0x9ACD32, texture: 'desert_leaves' },   // Yellow-green fronds
+            plains_leaves: { color: 0x90EE90, texture: 'plains_leaves' },   // Light green
+            tundra_leaves: { color: 0x708090, texture: 'tundra_leaves' },   // Gray-green hardy
             workbench: { color: 0x8B7355, texture: 'workbench' } // Tan brown workbench
         };
 
@@ -2599,6 +3772,124 @@ class NebulaVoxelApp {
                 ctx.fillRect(54, 4, 6, 6);
                 ctx.fillRect(4, 54, 6, 6);
                 ctx.fillRect(54, 54, 6, 6);
+
+            // NEW: Biome-specific wood textures
+            } else if (blockType.texture === 'oak_wood') {
+                // Oak wood - classic brown with vertical grain
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 10; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 6 + Math.random() * 3, 0);
+                    ctx.lineTo(i * 6 + Math.random() * 3, 64);
+                    ctx.stroke();
+                }
+                // Oak rings
+                ctx.strokeStyle = '#5D4037';
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(32, 32, 10 + i * 8, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'pine_wood') {
+                // Pine wood - darker with tight grain
+                ctx.strokeStyle = '#4A2C17';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 12; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 5 + Math.random() * 2, 0);
+                    ctx.lineTo(i * 5 + Math.random() * 2, 64);
+                    ctx.stroke();
+                }
+                // Resin marks
+                ctx.fillStyle = '#8B4513';
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 4);
+                }
+            } else if (blockType.texture === 'palm_wood') {
+                // Palm wood - light with horizontal rings
+                ctx.strokeStyle = '#BC9A6A';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 8; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 8 + i * 6 + Math.random() * 2);
+                    ctx.lineTo(64, 8 + i * 6 + Math.random() * 2);
+                    ctx.stroke();
+                }
+                // Fiber texture
+                ctx.strokeStyle = '#A0826D';
+                for (let i = 0; i < 6; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 10, 0);
+                    ctx.lineTo(i * 10 + 2, 64);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'birch_wood') {
+                // Birch wood - light with dark horizontal marks
+                ctx.strokeStyle = '#2F4F4F';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 6; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, Math.random() * 64);
+                    ctx.lineTo(64, Math.random() * 64);
+                    ctx.stroke();
+                }
+                // Birch spots
+                ctx.fillStyle = '#696969';
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 3, 2);
+                }
+
+            // NEW: Biome-specific leaf textures
+            } else if (blockType.texture === 'forest_leaves') {
+                // Forest leaves - bright green with leaf patterns
+                ctx.fillStyle = '#32CD32';
+                for (let i = 0; i < 15; i++) {
+                    const x = Math.random() * 64;
+                    const y = Math.random() * 64;
+                    ctx.fillRect(x, y, 3, 2);
+                    ctx.fillRect(x + 1, y - 1, 1, 4);
+                }
+            } else if (blockType.texture === 'mountain_leaves') {
+                // Mountain leaves - dark green needles
+                ctx.strokeStyle = '#228B22';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 25; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(Math.random() * 64, Math.random() * 64);
+                    ctx.lineTo(Math.random() * 64, Math.random() * 64);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'desert_leaves') {
+                // Desert leaves - yellow-green fronds
+                ctx.strokeStyle = '#ADFF2F';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const centerX = 32;
+                    const centerY = 32;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(centerX + Math.cos(i * Math.PI / 4) * 20, centerY + Math.sin(i * Math.PI / 4) * 20);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'plains_leaves') {
+                // Plains leaves - light green with soft texture
+                ctx.fillStyle = '#98FB98';
+                for (let i = 0; i < 20; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+                }
+            } else if (blockType.texture === 'tundra_leaves') {
+                // Tundra leaves - gray-green hardy leaves
+                ctx.fillStyle = '#8FBC8F';
+                for (let i = 0; i < 12; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 4, 1);
+                }
+                // Frost effect
+                ctx.fillStyle = '#F0F8FF';
+                ctx.globalAlpha = 0.2;
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+                }
             }
 
             const texture = new THREE.CanvasTexture(canvas);
@@ -2637,7 +3928,7 @@ class NebulaVoxelApp {
 
             // Pre-create darker materials for player-placed blocks (performance optimization)
             const darkerColor = new THREE.Color(this.blockTypes[type].color).multiplyScalar(0.7);
-            this.playerMaterials[type] = new THREE.MeshBasicMaterial({
+            this.playerMaterials[type] = new THREE.MeshLambertMaterial({
                 map: this.materials[type].map,
                 color: darkerColor
             });
@@ -2645,6 +3936,107 @@ class NebulaVoxelApp {
 
         // Three.js setup
         this.scene = new THREE.Scene();
+
+        // 🎯 PHASE 1.2: Physics World Setup
+        this.physicsWorld = new CANNON.World();
+        this.physicsWorld.gravity.set(0, -9.82, 0); // Earth gravity
+        this.physicsWorld.broadphase = new CANNON.NaiveBroadphase(); // Simple collision detection
+        this.physicsWorld.solver.iterations = 10; // Solver precision
+
+        // 🎯 PHASE 2.3: Enhanced physics materials with realistic properties
+        this.physicsMaterials = {
+            ground: new CANNON.Material('ground'),
+            wood: new CANNON.Material('wood'),
+            stone: new CANNON.Material('stone'),
+            iron: new CANNON.Material('iron'),
+            glass: new CANNON.Material('glass'),
+            brick: new CANNON.Material('brick'),
+            sand: new CANNON.Material('sand'),
+            grass: new CANNON.Material('grass'),
+            glowstone: new CANNON.Material('glowstone'),
+            coal: new CANNON.Material('coal'),
+
+            // NEW: Biome-specific wood materials (all behave like wood)
+            oak_wood: new CANNON.Material('oak_wood'),
+            pine_wood: new CANNON.Material('pine_wood'),
+            palm_wood: new CANNON.Material('palm_wood'),
+            birch_wood: new CANNON.Material('birch_wood'),
+
+            // NEW: Leaf materials (lighter than wood)
+            forest_leaves: new CANNON.Material('forest_leaves'),
+            mountain_leaves: new CANNON.Material('mountain_leaves'),
+            desert_leaves: new CANNON.Material('desert_leaves'),
+            plains_leaves: new CANNON.Material('plains_leaves'),
+            tundra_leaves: new CANNON.Material('tundra_leaves')
+        };
+
+        // 🎯 PHASE 2.3: Enhanced material contact properties for realistic behavior
+        const materialContacts = [
+            // Wood contacts - moderate friction, some bounce
+            { mat1: 'ground', mat2: 'wood', friction: 0.4, restitution: 0.3 },
+            { mat1: 'wood', mat2: 'wood', friction: 0.6, restitution: 0.2 },
+
+            // Stone contacts - high friction, low bounce (heavy/stable)
+            { mat1: 'ground', mat2: 'stone', friction: 0.8, restitution: 0.1 },
+            { mat1: 'stone', mat2: 'stone', friction: 0.9, restitution: 0.05 },
+
+            // Iron contacts - very high friction, almost no bounce (very heavy)
+            { mat1: 'ground', mat2: 'iron', friction: 0.9, restitution: 0.05 },
+            { mat1: 'iron', mat2: 'iron', friction: 0.95, restitution: 0.02 },
+
+            // Glass contacts - low friction, high bounce (slippery, brittle)
+            { mat1: 'ground', mat2: 'glass', friction: 0.2, restitution: 0.7 },
+            { mat1: 'glass', mat2: 'glass', friction: 0.1, restitution: 0.8 },
+
+            // Brick contacts - similar to stone but slightly less friction
+            { mat1: 'ground', mat2: 'brick', friction: 0.7, restitution: 0.15 },
+            { mat1: 'brick', mat2: 'brick', friction: 0.8, restitution: 0.1 },
+
+            // Sand contacts - medium friction, absorbs energy
+            { mat1: 'ground', mat2: 'sand', friction: 0.6, restitution: 0.2 },
+            { mat1: 'sand', mat2: 'sand', friction: 0.7, restitution: 0.1 },
+
+            // Grass contacts - low friction, springy
+            { mat1: 'ground', mat2: 'grass', friction: 0.3, restitution: 0.4 },
+            { mat1: 'grass', mat2: 'grass', friction: 0.4, restitution: 0.5 },
+
+            // Glowstone contacts - magical properties, medium bounce
+            { mat1: 'ground', mat2: 'glowstone', friction: 0.5, restitution: 0.4 },
+            { mat1: 'glowstone', mat2: 'glowstone', friction: 0.6, restitution: 0.3 },
+
+            // Coal contacts - similar to stone but slightly grittier
+            { mat1: 'ground', mat2: 'coal', friction: 0.7, restitution: 0.1 },
+            { mat1: 'coal', mat2: 'coal', friction: 0.8, restitution: 0.05 },
+
+            // Cross-material interactions
+            { mat1: 'wood', mat2: 'stone', friction: 0.6, restitution: 0.2 },
+            { mat1: 'wood', mat2: 'iron', friction: 0.5, restitution: 0.15 },
+            { mat1: 'wood', mat2: 'glass', friction: 0.3, restitution: 0.4 },
+            { mat1: 'stone', mat2: 'iron', friction: 0.8, restitution: 0.08 },
+            { mat1: 'stone', mat2: 'glass', friction: 0.4, restitution: 0.3 },
+            { mat1: 'iron', mat2: 'glass', friction: 0.2, restitution: 0.5 }
+        ];
+
+        // Create and add all contact materials
+        materialContacts.forEach(contact => {
+            const material1 = this.physicsMaterials[contact.mat1];
+            const material2 = this.physicsMaterials[contact.mat2];
+            if (material1 && material2) {
+                const contactMaterial = new CANNON.ContactMaterial(material1, material2, {
+                    friction: contact.friction,
+                    restitution: contact.restitution
+                });
+                this.physicsWorld.addContactMaterial(contactMaterial);
+            }
+        });
+
+        console.log(`✅ Created ${materialContacts.length} material contact interactions`);
+
+        console.log('✅ Physics world initialized with gravity and materials');
+
+        // Physics objects tracking
+        this.physicsObjects = new Map(); // Maps Three.js objects to Cannon.js bodies
+
         const width = window.innerWidth;
         const height = window.innerHeight;
         this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
@@ -2826,8 +4218,13 @@ class NebulaVoxelApp {
                     this.addBlock(worldX, height - 2, worldZ, biome.subBlock, false, deepColor);            // More sub-surface
                     this.addBlock(worldX, height - 3, worldZ, "iron");                                     // Iron at bottom (unbreakable)
 
-                    // Generate shrubs on top of surface (if no snow)
-                    if (!hasSnow && biome.shrubChance > 0) {
+                    // 🌳 Generate trees based on biome (before shrubs)
+                    if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome)) {
+                        const treeHeight = height + 1; // Place tree on surface
+                        this.generateTreeForBiome(worldX, treeHeight, worldZ, biome);
+                    }
+                    // Generate shrubs on top of surface (if no snow and no tree)
+                    else if (!hasSnow && biome.shrubChance > 0) {
                         const shrubNoise = this.seededNoise(worldX + 3000, worldZ + 3000, this.worldSeed);
                         if (shrubNoise > (1 - biome.shrubChance * 2)) { // Convert chance to noise threshold
                             this.addBlock(worldX, height + 1, worldZ, 'shrub', false); // Place shrub on top of surface
@@ -2837,6 +4234,216 @@ class NebulaVoxelApp {
             }
 
             this.loadedChunks.add(chunkKey);
+        };
+
+        // 🌳 TREE GENERATION ALGORITHMS
+        // Generate Oak Tree (Forest/Plains biomes)
+        this.generateOakTree = (x, y, z) => {
+            const height = 4 + Math.floor(this.seededNoise(x + 5000, z + 5000, this.worldSeed) * 4); // 4-7 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'oak_wood', false);
+            }
+
+            // Generate canopy (3x3 at top, expanding to 5x5 in middle)
+            const canopyCenter = y + height;
+
+            // Top layer (3x3)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= 2) { // Cross pattern
+                        this.addBlock(x + dx, canopyCenter, z + dz, 'forest_leaves', false);
+                    }
+                }
+            }
+
+            // Middle layer (5x5)
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dz = -2; dz <= 2; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= 3 && !(Math.abs(dx) === 2 && Math.abs(dz) === 2)) {
+                        this.addBlock(x + dx, canopyCenter - 1, z + dz, 'forest_leaves', false);
+                    }
+                }
+            }
+
+            // Bottom layer (3x3)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= 2) {
+                        this.addBlock(x + dx, canopyCenter - 2, z + dz, 'forest_leaves', false);
+                    }
+                }
+            }
+        };
+
+        // Generate Pine Tree (Mountain biome)
+        this.generatePineTree = (x, y, z) => {
+            const height = 6 + Math.floor(this.seededNoise(x + 6000, z + 6000, this.worldSeed) * 5); // 6-10 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'pine_wood', false);
+            }
+
+            // Generate conical canopy (starts small at top, gets wider)
+            const canopyStart = y + height - 1;
+            const layers = Math.min(5, height - 2);
+
+            for (let layer = 0; layer < layers; layer++) {
+                const layerY = canopyStart - layer;
+                const radius = Math.min(layer + 1, 3); // Max radius of 3
+
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dz = -radius; dz <= radius; dz++) {
+                        const distance = Math.sqrt(dx * dx + dz * dz);
+                        if (distance <= radius && !(dx === 0 && dz === 0)) {
+                            // Add some randomness to make it less perfect
+                            const leafNoise = this.seededNoise(x + dx + 7000, z + dz + 7000, this.worldSeed);
+                            if (leafNoise > -0.3) { // 80% chance for each leaf
+                                this.addBlock(x + dx, layerY, z + dz, 'mountain_leaves', false);
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        // Generate Palm Tree (Desert biome)
+        this.generatePalmTree = (x, y, z) => {
+            const height = 5 + Math.floor(this.seededNoise(x + 8000, z + 8000, this.worldSeed) * 4); // 5-8 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'palm_wood', false);
+            }
+
+            // Generate fronds at top (8-directional pattern)
+            const topY = y + height;
+            const directions = [
+                [2, 0], [-2, 0], [0, 2], [0, -2],  // Cardinal directions
+                [1, 1], [-1, 1], [1, -1], [-1, -1] // Diagonal directions
+            ];
+
+            // Central fronds cluster
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) === 1) { // Plus pattern
+                        this.addBlock(x + dx, topY, z + dz, 'desert_leaves', false);
+                    }
+                }
+            }
+
+            // Extending fronds
+            directions.forEach(([dx, dz]) => {
+                this.addBlock(x + dx, topY, z + dz, 'desert_leaves', false);
+                // Sometimes add a second frond block
+                const extendNoise = this.seededNoise(x + dx + 9000, z + dz + 9000, this.worldSeed);
+                if (extendNoise > 0.2) {
+                    this.addBlock(x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'desert_leaves', false);
+                }
+            });
+        };
+
+        // Generate Birch Tree (Tundra biome)
+        this.generateBirchTree = (x, y, z) => {
+            const height = 2 + Math.floor(this.seededNoise(x + 10000, z + 10000, this.worldSeed) * 3); // 2-4 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'birch_wood', false);
+            }
+
+            // Generate sparse, hardy canopy
+            const topY = y + height;
+
+            // Small 3x3 canopy but sparse
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    // Only place leaves in plus pattern and with randomness
+                    if (Math.abs(dx) + Math.abs(dz) === 1) {
+                        const leafNoise = this.seededNoise(x + dx + 11000, z + dz + 11000, this.worldSeed);
+                        if (leafNoise > 0.1) { // 70% chance for sparse look
+                            this.addBlock(x + dx, topY, z + dz, 'tundra_leaves', false);
+                        }
+                    }
+                }
+            }
+
+            // Sometimes add a few leaves below
+            if (height > 2) {
+                const belowNoise = this.seededNoise(x + 12000, z + 12000, this.worldSeed);
+                if (belowNoise > 0.3) {
+                    this.addBlock(x + 1, topY - 1, z, 'tundra_leaves', false);
+                }
+                if (belowNoise > 0.6) {
+                    this.addBlock(x - 1, topY - 1, z, 'tundra_leaves', false);
+                }
+            }
+        };
+
+        // 🌳 TREE GENERATION HELPERS
+        // Determine if a tree should be generated at this location
+        this.shouldGenerateTree = (worldX, worldZ, biome) => {
+            // Define tree spawn rates based on biome (from trees.md design)
+            const treeChances = {
+                Forest: 0.30,    // 30% coverage - dense forest
+                Mountain: 0.25,  // 25% coverage - dense at low elevation
+                Plains: 0.08,    // 8% coverage - scattered groves
+                Desert: 0.02,    // 2% coverage - rare oasis trees
+                Tundra: 0.03     // 3% coverage - hardy survivors
+            };
+
+            const treeChance = treeChances[biome.name] || 0;
+            if (treeChance === 0) return false;
+
+            // Use noise for natural tree distribution
+            const treeNoise = this.seededNoise(worldX + 4000, worldZ + 4000, this.worldSeed);
+
+            // For mountains, reduce tree density at higher elevations
+            if (biome.name === 'Mountain') {
+                const elevationFactor = 1 - ((worldZ * 0.1) % 1); // Simulate elevation
+                return treeNoise > (1 - treeChance * elevationFactor);
+            }
+
+            return treeNoise > (1 - treeChance * 2); // Convert chance to noise threshold
+        };
+
+        // Generate the appropriate tree type for the biome
+        this.generateTreeForBiome = (worldX, treeHeight, worldZ, biome) => {
+            // Only generate trees on appropriate ground blocks
+            const groundBlock = this.getBlock(worldX, treeHeight - 1, worldZ);
+            if (!groundBlock || !['grass', 'dirt', 'sand'].includes(groundBlock.userData?.type)) {
+                return; // Don't generate trees on inappropriate ground
+            }
+
+            // Check for space - don't overlap with existing blocks
+            const existingBlock = this.getBlock(worldX, treeHeight, worldZ);
+            if (existingBlock) {
+                return; // Don't generate if space is occupied
+            }
+
+            // Generate tree based on biome type
+            switch (biome.name) {
+                case 'Forest':
+                    this.generateOakTree(worldX, treeHeight, worldZ);
+                    break;
+                case 'Plains':
+                    this.generateOakTree(worldX, treeHeight, worldZ); // Oak trees in plains too
+                    break;
+                case 'Mountain':
+                    this.generatePineTree(worldX, treeHeight, worldZ);
+                    break;
+                case 'Desert':
+                    this.generatePalmTree(worldX, treeHeight, worldZ);
+                    break;
+                case 'Tundra':
+                    this.generateBirchTree(worldX, treeHeight, worldZ);
+                    break;
+                default:
+                    // Fallback to oak tree for unknown biomes
+                    this.generateOakTree(worldX, treeHeight, worldZ);
+            }
         };
 
         const unloadChunk = (chunkX, chunkZ) => {
@@ -2921,15 +4528,35 @@ class NebulaVoxelApp {
                     }
                 }
 
+                // PHASE 5: Collect crafted objects for saving
+                const craftedObjectsData = [];
+                if (this.craftedObjects) {
+                    for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                        craftedObjectsData.push({
+                            key: key,
+                            itemId: objectData.itemId,
+                            position: objectData.position,
+                            metadata: objectData.metadata
+                        });
+                    }
+                }
+
                 const saveData = {
                     modifiedBlocks: modifiedBlocks,
+                    craftedObjects: craftedObjectsData, // NEW: Save crafted objects
+                    inventoryMetadata: this.inventoryMetadata, // NEW: Save item metadata
+                    // NEW: Save inventory state to prevent duplicate backpack spawning
+                    hasBackpack: this.hasBackpack,
+                    hotbarSlots: this.hotbarSlots,
+                    backpackSlots: this.backpackSlots,
+                    selectedSlot: this.selectedSlot,
                     player: this.player,
                     worldSeed: this.worldSeed,
                     timestamp: Date.now()
                 };
 
                 localStorage.setItem("NebulaWorld", JSON.stringify(saveData));
-                this.updateStatus(`World saved (${modifiedBlocks.length} custom blocks)`);
+                this.updateStatus(`World saved (${modifiedBlocks.length} blocks, ${craftedObjectsData.length} crafted objects)`);
                 return true;
             } catch (error) {
                 console.error("Save failed:", error);
@@ -2962,7 +4589,62 @@ class NebulaVoxelApp {
                     this.addBlock(x, y, z, b.type, true); // Mark as player-placed
                 });
 
+                // PHASE 5: Load crafted objects and inventory metadata
+                if (saveData.inventoryMetadata) {
+                    this.inventoryMetadata = saveData.inventoryMetadata;
+                    console.log(`📦 Restored ${Object.keys(this.inventoryMetadata).length} item metadata entries`);
+                }
+
+                if (saveData.craftedObjects && saveData.craftedObjects.length > 0) {
+                    console.log(`🎨 Loading ${saveData.craftedObjects.length} crafted objects...`);
+                    // Clear existing crafted objects first
+                    if (this.craftedObjects) {
+                        for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                            if (objectData.mesh) {
+                                this.scene.remove(objectData.mesh);
+                            }
+                        }
+                    }
+                    this.craftedObjects = {};
+
+                    // Recreate each crafted object
+                    saveData.craftedObjects.forEach(objData => {
+                        console.log(`🔧 Recreating crafted object: ${objData.itemId} at ${objData.key}`);
+                        // Restore metadata to inventoryMetadata if missing
+                        if (!this.inventoryMetadata[objData.itemId]) {
+                            this.inventoryMetadata[objData.itemId] = objData.metadata;
+                        }
+                        // Recreate the 3D object at its saved position
+                        this.placeCraftedObject(objData.position.x, objData.position.y, objData.position.z, objData.itemId);
+                    });
+                }
+
                 this.player = saveData.player;
+
+                // NEW: Restore inventory state to prevent duplicate backpack issues
+                if (saveData.hasBackpack !== undefined) {
+                    this.hasBackpack = saveData.hasBackpack;
+                    console.log(`📦 Restored hasBackpack state: ${this.hasBackpack}`);
+                }
+                if (saveData.hotbarSlots) {
+                    this.hotbarSlots = saveData.hotbarSlots;
+                    console.log(`🎯 Restored ${this.hotbarSlots.length} hotbar slots`);
+                }
+                if (saveData.backpackSlots) {
+                    this.backpackSlots = saveData.backpackSlots;
+                    console.log(`🎒 Restored ${this.backpackSlots.length} backpack slots`);
+                }
+                if (saveData.selectedSlot !== undefined) {
+                    this.selectedSlot = saveData.selectedSlot;
+                }
+
+                // Update UI to reflect restored inventory
+                if (this.hasBackpack) {
+                    this.showHotbarTutorial(); // Show hotbar since player has backpack
+                    this.showToolButtons(); // Show tool menu buttons
+                    this.updateHotbarCounts();
+                    this.updateBackpackInventoryDisplay();
+                }
 
                 // Restore seed if available, otherwise generate new one
                 if (saveData.worldSeed) {
@@ -2974,7 +4656,8 @@ class NebulaVoxelApp {
                     this.seededRandom = this.createSeededRandom(this.worldSeed);
                 }
 
-                this.updateStatus(`World loaded (${saveData.modifiedBlocks.length} custom blocks)`);
+                const craftedCount = saveData.craftedObjects ? saveData.craftedObjects.length : 0;
+                this.updateStatus(`World loaded (${saveData.modifiedBlocks.length} blocks, ${craftedCount} crafted objects)`);
                 return true;
             } catch (error) {
                 console.error("Load failed:", error);
@@ -3086,6 +4769,36 @@ class NebulaVoxelApp {
             this.timeIndicator.textContent = icon;
             this.timeIndicator.style.color = color;
             this.timeIndicator.title = title;
+
+            // Update tool hotkey label colors for day/night contrast
+            this.updateToolHotkeyColors(time);
+        };
+
+        // Update tool hotkey label colors for day/night contrast
+        this.updateToolHotkeyColors = (time) => {
+            let labelColor, shadowColor;
+
+            if (time >= 6 && time < 19) {
+                // Day/Dawn/Dusk - use dark text with light shadow for contrast against bright sky
+                labelColor = '#000000'; // Black
+                shadowColor = 'rgba(255,255,255,0.8)'; // White shadow
+            } else {
+                // Night/Evening - use light text with dark shadow for contrast against dark sky
+                labelColor = '#FFFFFF'; // White
+                shadowColor = 'rgba(0,0,0,0.8)'; // Black shadow
+            }
+
+            // Update backpack hotkey label
+            if (this.backpackHotkeyLabel) {
+                this.backpackHotkeyLabel.style.color = labelColor;
+                this.backpackHotkeyLabel.style.textShadow = `1px 1px 2px ${shadowColor}`;
+            }
+
+            // Update workbench hotkey label
+            if (this.workbenchHotkeyLabel) {
+                this.workbenchHotkeyLabel.style.color = labelColor;
+                this.workbenchHotkeyLabel.style.textShadow = `1px 1px 2px ${shadowColor}`;
+            }
         };
 
         // Update mini-map
@@ -3168,11 +4881,20 @@ class NebulaVoxelApp {
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
 
+            // 🎯 PHASE 1.3: Physics Update Loop
+            if (this.physicsWorld) {
+                this.physicsWorld.step(deltaTime);
+                this.updatePhysicsObjects();
+            }
+
             // Animate billboards (even when paused - they should keep floating)
             this.animateBillboards(currentTime);
 
             // Check for nearby workbench (even when paused)
             this.checkWorkbenchProximity();
+
+            // 🌍 Update biome indicator based on player position
+            this.updateBiomeIndicator();
 
             // Always continue animation loop, but skip input processing if paused or controls disabled
             if (this.isPaused || !this.controlsEnabled) {
@@ -3316,6 +5038,34 @@ class NebulaVoxelApp {
                         }
                     }
                 }
+
+                // 🎯 PHASE 2.1: Check collision with crafted objects
+                if (this.craftedObjects) {
+                    for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                        const craftedMesh = objectData.mesh;
+                        const dimensions = objectData.dimensions;
+
+                        // Create hitbox for crafted object
+                        const craftedHitbox = {
+                            minX: craftedMesh.position.x - dimensions.length / 2,
+                            maxX: craftedMesh.position.x + dimensions.length / 2,
+                            minY: craftedMesh.position.y - dimensions.height / 2,
+                            maxY: craftedMesh.position.y + dimensions.height / 2,
+                            minZ: craftedMesh.position.z - dimensions.width / 2,
+                            maxZ: craftedMesh.position.z + dimensions.width / 2
+                        };
+
+                        if (hitboxesCollide(playerHitbox, craftedHitbox)) {
+                            return {
+                                collision: true,
+                                craftedObject: true,
+                                objectName: objectData.metadata.name,
+                                objectId: objectData.itemId
+                            };
+                        }
+                    }
+                }
+
                 return { collision: false };
             };
             // ========== END HITBOX UTILITIES ==========
@@ -3480,18 +5230,16 @@ class NebulaVoxelApp {
                 e.preventDefault();
             }
             
-            // Hotbar selection (1-4) and backpack toggle (5)
-            if (key >= '1' && key <= '9') {
+            // Hotbar selection (1-5)
+            if (key >= '1' && key <= '5') {
                 const slot = parseInt(key) - 1;
-                if (slot < this.hotbarSlots.length && slot < 4) {
-                    // Keys 1-4: Select hotbar slots
+                if (slot < this.hotbarSlots.length) {
+                    // Keys 1-5: Select hotbar slots
                     this.selectedSlot = slot;
                     this.updateHotbarSelection();
-                    console.log(`Selected hotbar slot ${slot + 1}: ${this.hotbarSlots[slot]}`);
-                    e.preventDefault();
-                } else if (key === '5' && this.hasBackpack) {
-                    // Key 5: Toggle backpack inventory
-                    this.toggleBackpackInventory();
+                    const slotData = this.hotbarSlots[slot];
+                    const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
+                    console.log(`Selected hotbar slot ${slot + 1}: ${displayText}`);
                     e.preventDefault();
                 }
             }
@@ -3509,13 +5257,21 @@ class NebulaVoxelApp {
             if (key === 'q') {
                 this.selectedSlot = (this.selectedSlot - 1 + this.hotbarSlots.length) % this.hotbarSlots.length;
                 this.updateHotbarSelection();
-                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
+                const slotData = this.hotbarSlots[this.selectedSlot];
+                const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
+                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
                 e.preventDefault();
             }
             if (key === 'e') {
-                // Check if near workbench first
-                if (this.currentNearbyWorkbench) {
-                    this.openWorkbenchModal(
+                // Check if player has workbench in inventory for direct access
+                const workbenchCount = this.countItemInSlots('workbench');
+                if (workbenchCount > 0) {
+                    // Direct workbench access from inventory
+                    this.workbenchSystem.open(0, 0, 0); // Use dummy coordinates for direct access
+                    e.preventDefault();
+                } else if (this.currentNearbyWorkbench) {
+                    // Legacy: placed workbench nearby
+                    this.workbenchSystem.open(
                         this.currentNearbyWorkbench.x,
                         this.currentNearbyWorkbench.y,
                         this.currentNearbyWorkbench.z
@@ -3525,9 +5281,17 @@ class NebulaVoxelApp {
                     // Fallback to hotbar navigation
                     this.selectedSlot = (this.selectedSlot + 1) % this.hotbarSlots.length;
                     this.updateHotbarSelection();
-                    console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${this.hotbarSlots[this.selectedSlot]}`);
+                    const slotData = this.hotbarSlots[this.selectedSlot];
+                const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
+                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
                     e.preventDefault();
                 }
+            }
+
+            // B key: Toggle backpack inventory
+            if (key === 'b' && this.hasBackpack) {
+                this.toggleBackpackInventory();
+                e.preventDefault();
             }
         };
         
@@ -3605,21 +5369,43 @@ class NebulaVoxelApp {
                     return;
                 }
                 
-                if (e.button === 0) { // Left click - start harvesting
-                    this.startHarvesting(pos.x, pos.y, pos.z);
+                if (e.button === 0) { // Left click - harvesting (blocks or crafted objects)
+                    // PHASE 6: Check if clicked object is a crafted object
+                    if (hit.object.userData && hit.object.userData.isCraftedObject) {
+                        console.log(`🎨 Harvesting crafted object: ${hit.object.userData.originalName}`);
+                        this.harvestCraftedObject(hit.object);
+                    } else {
+                        // Regular block harvesting
+                        this.startHarvesting(pos.x, pos.y, pos.z);
+                    }
                 } else if (e.button === 2) { // Right click - block placement only
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
-                    const selectedBlock = this.hotbarSlots[this.selectedSlot];
+                    const selectedSlot = this.hotbarSlots[this.selectedSlot];
+                    const selectedBlock = selectedSlot?.itemType;
 
-                    if (this.inventory[selectedBlock] > 0) {
-                        this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
-                        this.inventory[selectedBlock]--;
+                    if (selectedBlock && selectedSlot.quantity > 0) {
+                        // 🎯 THE BIG MOMENT: Detect crafted items vs regular blocks
+                        if (selectedBlock.startsWith('crafted_')) {
+                            // Place crafted 3D object with real dimensions!
+                            console.log(`🎨 Placing crafted object: ${selectedBlock}`);
+                            this.placeCraftedObject(placePos.x, placePos.y, placePos.z, selectedBlock);
+                        } else {
+                            // Place regular 1x1x1 block
+                            this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
+                        }
+                        selectedSlot.quantity--;
+
+                        // Clear slot if empty
+                        if (selectedSlot.quantity === 0) {
+                            selectedSlot.itemType = '';
+                        }
+
                         this.updateHotbarCounts(); // Update hotbar display
                         this.updateBackpackInventoryDisplay(); // Update backpack display
-                        console.log(`Placed ${selectedBlock}, ${this.inventory[selectedBlock]} remaining`);
+                        console.log(`Placed ${selectedBlock}, ${selectedSlot.quantity} remaining in slot`);
                     } else {
-                        console.log(`No ${selectedBlock} in inventory!`);
+                        console.log(`No items in selected hotbar slot!`);
                     }
                 }
             }
@@ -3731,6 +5517,104 @@ class NebulaVoxelApp {
         `;
         this.timeIndicator.title = 'Click to open menu';
         contentArea.appendChild(this.timeIndicator);
+
+        // Vertical tool menu below time indicator
+        this.toolMenu = document.createElement('div');
+        this.toolMenu.style.cssText = `
+            position: absolute;
+            top: 88px;
+            left: 16px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: auto;
+        `;
+        contentArea.appendChild(this.toolMenu);
+
+        // Backpack tool button (initially hidden)
+        this.backpackTool = document.createElement('div');
+        this.backpackTool.style.cssText = `
+            font-size: 28px;
+            cursor: pointer;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            transition: all 0.3s ease;
+            display: none;
+            text-align: center;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            position: relative;
+        `;
+        this.backpackTool.textContent = '🎒';
+        this.backpackTool.title = 'Open backpack inventory (B key)';
+
+        // Add hotkey label
+        const backpackLabel = document.createElement('div');
+        backpackLabel.textContent = 'B';
+        backpackLabel.style.cssText = `
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            font-size: 8px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            pointer-events: none;
+            font-family: monospace;
+        `;
+        this.backpackTool.appendChild(backpackLabel);
+        this.backpackHotkeyLabel = backpackLabel; // Store reference for day/night updates
+
+        this.backpackTool.addEventListener('click', () => {
+            this.toggleBackpackInventory();
+        });
+        this.toolMenu.appendChild(this.backpackTool);
+
+        // Workbench tool button (initially hidden)
+        this.workbenchTool = document.createElement('div');
+        this.workbenchTool.style.cssText = `
+            font-size: 28px;
+            cursor: pointer;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            transition: all 0.3s ease;
+            display: none;
+            text-align: center;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            position: relative;
+        `;
+        this.workbenchTool.textContent = '🔨';
+        this.workbenchTool.title = 'Open workbench crafting (E key)';
+
+        // Add hotkey label
+        const workbenchLabel = document.createElement('div');
+        workbenchLabel.textContent = 'E';
+        workbenchLabel.style.cssText = `
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            font-size: 8px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            pointer-events: none;
+            font-family: monospace;
+        `;
+        this.workbenchTool.appendChild(workbenchLabel);
+        this.workbenchHotkeyLabel = workbenchLabel; // Store reference for day/night updates
+
+        this.workbenchTool.addEventListener('click', () => {
+            // Direct workbench access from inventory
+            const workbenchCount = this.countItemInSlots('workbench');
+            if (workbenchCount > 0) {
+                this.workbenchSystem.open(0, 0, 0); // Direct access
+            } else {
+                this.updateStatus('⚠️ No workbench in inventory! Find a workbench to craft items.', 'warning');
+            }
+        });
+        this.toolMenu.appendChild(this.workbenchTool);
 
         // Mini-map
         this.miniMap = document.createElement('canvas');
@@ -3896,6 +5780,42 @@ class NebulaVoxelApp {
                     0% { transform: translateX(0) scale(1); }
                     50% { transform: translateX(-2px) scale(1.02); }
                     100% { transform: translateX(0) scale(1); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Add Material Design icon styles for crafted items
+        if (!document.head.querySelector('style[data-crafted-icons]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-crafted-icons', 'true');
+            style.textContent = `
+                /* Material Design icons for crafted items */
+                .crafted-item-icon {
+                    display: inline-block !important;
+                    vertical-align: middle;
+                    font-size: 16px !important;
+                    line-height: 1;
+                    font-family: 'Material Icons' !important;
+                    font-weight: normal;
+                    font-style: normal;
+                    text-decoration: none;
+                    text-transform: none;
+                    letter-spacing: normal;
+                    word-wrap: normal;
+                    white-space: nowrap;
+                    direction: ltr;
+                    -webkit-font-smoothing: antialiased;
+                    text-rendering: optimizeLegibility;
+                    -moz-osx-font-smoothing: grayscale;
+                    font-feature-settings: 'liga';
+                    user-select: none;
+                }
+
+                /* Ensure proper sizing in hotbar and backpack */
+                .hotbar-slot .crafted-item-icon,
+                .backpack-slot .crafted-item-icon {
+                    font-size: 16px !important;
                 }
             `;
             document.head.appendChild(style);
@@ -4100,6 +6020,10 @@ export async function initVoxelWorld(container) {
     try {
         const app = new NebulaVoxelApp(container);
         console.log('📱 NebulaVoxelApp created');
+
+        // Initialize workbench system
+        app.workbenchSystem.init();
+        console.log('🔨 WorkbenchSystem initialized');
 
         console.log('✅ VoxelWorld initialization completed');
 
