@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
+import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
     constructor(container) {
@@ -382,6 +383,9 @@ class NebulaVoxelApp {
             // Add to scene
             this.scene.add(craftedObject);
 
+            // 🎯 PHASE 2.1: Create physics body for collision detection
+            this.createPhysicsBodyForCraftedObject(craftedObject, shapeType, dimensions, material);
+
             // PHASE 4: Track in crafted objects system
             if (!this.craftedObjects) {
                 this.craftedObjects = {};
@@ -664,17 +668,23 @@ class NebulaVoxelApp {
 
         // Generate random loot when backpack is found
         this.generateBackpackLoot = () => {
+            console.log('🎒 Starting backpack loot generation...');
+
             // Helper function for random range
             const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
 
-            // BradCode - needs to not overwrite having workbench
-
-            // Guaranteed items (survival essentials)
-            const woodCount = randomRange(8, 16);
-            this.addToInventory('wood', woodCount);
-            const stoneCount = randomRange(4, 10);
-            this.addToInventory('stone', stoneCount);
+            // CRITICAL: Add workbench FIRST to guarantee it gets a hotbar slot
+            console.log('🔧 Adding essential workbench first...');
             this.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
+
+            // Guaranteed starter materials (but smaller amounts to fit in hotbar + backpack)
+            const woodCount = randomRange(4, 8);  // Reduced from 8-16
+            console.log(`🪵 Adding ${woodCount} wood...`);
+            this.addToInventory('wood', woodCount);
+
+            const stoneCount = randomRange(2, 6);  // Reduced from 4-10
+            console.log(`🪨 Adding ${stoneCount} stone...`);
+            this.addToInventory('stone', stoneCount);
 
             
             // Common items (high chance)
@@ -712,6 +722,29 @@ class NebulaVoxelApp {
             // Log what we found for excitement
             // Items automatically added to slots via addToInventory()
             console.log(`Backpack loot generated and added to slots!`);
+
+            // Debug: Check what ended up where
+            console.log('🔍 HOTBAR CONTENTS:');
+            this.hotbarSlots.forEach((slot, index) => {
+                if (slot.itemType) {
+                    console.log(`  Slot ${index}: ${slot.itemType} x${slot.quantity}`);
+                } else {
+                    console.log(`  Slot ${index}: EMPTY`);
+                }
+            });
+
+            console.log('🔍 BACKPACK CONTENTS:');
+            let backpackHasItems = false;
+            this.backpackSlots.forEach((slot, index) => {
+                if (slot.itemType && slot.quantity > 0) {
+                    console.log(`  Backpack slot ${index}: ${slot.itemType} x${slot.quantity}`);
+                    backpackHasItems = true;
+                }
+            });
+            if (!backpackHasItems) {
+                console.log('  Backpack is EMPTY');
+            }
+
             // Note: addToInventory() already handles UI updates
         };
 
@@ -998,6 +1031,22 @@ class NebulaVoxelApp {
                     delete this.craftedObjects[removedKey];
                     console.log(`🗑️ Removed from crafted objects tracking: ${removedKey}`);
                 }
+            }
+
+            // 🎯 PHASE 2.1 & 2.2: Remove physics bodies from physics world (including hollow objects)
+            if (craftedMesh.userData.physicsBodies) {
+                // Multiple physics bodies (hollow object)
+                craftedMesh.userData.physicsBodies.forEach(body => {
+                    this.physicsWorld.removeBody(body);
+                });
+                this.physicsObjects.delete(craftedMesh);
+                console.log(`🗑️ Removed ${craftedMesh.userData.physicsBodies.length} physics bodies for hollow crafted object`);
+            } else if (this.physicsObjects.has(craftedMesh)) {
+                // Single physics body (solid object)
+                const cannonBody = this.physicsObjects.get(craftedMesh);
+                this.physicsWorld.removeBody(cannonBody);
+                this.physicsObjects.delete(craftedMesh);
+                console.log(`🗑️ Removed physics body for harvested crafted object`);
             }
 
             // Remove 3D mesh from scene
@@ -2196,6 +2245,384 @@ class NebulaVoxelApp {
         };
 
         // Start workbench preview rendering loop
+        // 🎯 PHASE 1.3: Physics objects synchronization method
+        this.updatePhysicsObjects = () => {
+            // Sync Three.js objects with their Cannon.js physics bodies
+            for (const [threeObject, cannonBody] of this.physicsObjects) {
+                // Update Three.js object position from physics body
+                threeObject.position.copy(cannonBody.position);
+                threeObject.quaternion.copy(cannonBody.quaternion);
+            }
+        };
+
+        // 🎯 PHASE 2.1: Create physics body for crafted objects
+        this.createPhysicsBodyForCraftedObject = (threeObject, shapeType, dimensions, materialType) => {
+            console.log(`🔧 Creating physics body for ${shapeType} with dimensions:`, dimensions);
+
+            // 🎯 PHASE 2.2: Hollow space detection for doors/windows
+            if (this.hasHollowSpaces(shapeType)) {
+                console.log(`🚪 Detected hollow spaces in ${shapeType} - creating complex collision`);
+                this.createHollowPhysicsBody(threeObject, shapeType, dimensions, materialType);
+                return;
+            }
+
+            let cannonShape;
+
+            // Create appropriate physics shape based on object type
+            switch (shapeType) {
+                case 'cube':
+                    cannonShape = new CANNON.Box(new CANNON.Vec3(
+                        dimensions.length / 2,
+                        dimensions.height / 2,
+                        dimensions.width / 2
+                    ));
+                    break;
+                case 'sphere':
+                    const radius = Math.max(dimensions.length, dimensions.width, dimensions.height) / 2;
+                    cannonShape = new CANNON.Sphere(radius);
+                    break;
+                case 'cylinder':
+                    cannonShape = new CANNON.Cylinder(
+                        dimensions.width / 2,  // radiusTop
+                        dimensions.width / 2,  // radiusBottom
+                        dimensions.height,     // height
+                        8                      // numSegments
+                    );
+                    break;
+                default:
+                    // Default to box shape for complex shapes
+                    cannonShape = new CANNON.Box(new CANNON.Vec3(
+                        dimensions.length / 2,
+                        dimensions.height / 2,
+                        dimensions.width / 2
+                    ));
+                    break;
+            }
+
+            // Create physics body
+            const cannonBody = new CANNON.Body({
+                mass: 0, // Static body (won't fall or move)
+                shape: cannonShape,
+                position: new CANNON.Vec3(threeObject.position.x, threeObject.position.y, threeObject.position.z),
+                material: this.physicsMaterials[materialType] || this.physicsMaterials.wood
+            });
+
+            // Add to physics world and tracking
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(threeObject, cannonBody);
+
+            console.log(`✅ Physics body created for crafted object at (${threeObject.position.x}, ${threeObject.position.y}, ${threeObject.position.z})`);
+        };
+
+        // 🎯 PHASE 2.2: Check if shape has hollow spaces that players can walk through
+        this.hasHollowSpaces = (shapeType) => {
+            const hollowShapes = ['hollow_cube', 'door', 'window', 'archway', 'simple_house'];
+            return hollowShapes.includes(shapeType);
+        };
+
+        // 🎯 PHASE 2.2: Create complex physics body for hollow objects
+        this.createHollowPhysicsBody = (threeObject, shapeType, dimensions, materialType) => {
+            console.log(`🏗️ Creating hollow physics body for ${shapeType}`);
+
+            const cannonBodies = [];
+            const material = this.physicsMaterials[materialType] || this.physicsMaterials.wood;
+
+            switch (shapeType) {
+                case 'hollow_cube':
+                    // Create 6 walls for a hollow cube (minus one face for entrance)
+                    const wallThickness = 0.2;
+                    const halfLength = dimensions.length / 2;
+                    const halfHeight = dimensions.height / 2;
+                    const halfWidth = dimensions.width / 2;
+
+                    // Front wall (with opening)
+                    // Left side of opening
+                    const leftWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(wallThickness / 2, halfHeight, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x - halfLength + wallThickness / 2,
+                            threeObject.position.y,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(leftWall);
+
+                    // Right side of opening
+                    const rightWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(wallThickness / 2, halfHeight, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x + halfLength - wallThickness / 2,
+                            threeObject.position.y,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(rightWall);
+
+                    // Top wall
+                    const topWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(halfLength, wallThickness / 2, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y + halfHeight - wallThickness / 2,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(topWall);
+
+                    // Bottom wall (floor)
+                    const bottomWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(halfLength, wallThickness / 2, halfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y - halfHeight + wallThickness / 2,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(bottomWall);
+                    break;
+
+                case 'simple_house':
+                    // Create house walls with door opening
+                    const houseWallThickness = 0.3;
+                    const houseHalfLength = dimensions.length / 2;
+                    const houseHalfHeight = dimensions.height / 2;
+                    const houseHalfWidth = dimensions.width / 2;
+
+                    // Four walls with door opening in front wall
+                    // Back wall (solid)
+                    const backWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(houseWallThickness / 2, houseHalfHeight, houseHalfWidth)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x + houseHalfLength - houseWallThickness / 2,
+                            threeObject.position.y,
+                            threeObject.position.z
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(backWall);
+
+                    // Side walls
+                    const leftSideWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(houseHalfLength, houseHalfHeight, houseWallThickness / 2)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y,
+                            threeObject.position.z - houseHalfWidth + houseWallThickness / 2
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(leftSideWall);
+
+                    const rightSideWall = new CANNON.Body({
+                        mass: 0,
+                        shape: new CANNON.Box(new CANNON.Vec3(houseHalfLength, houseHalfHeight, houseWallThickness / 2)),
+                        position: new CANNON.Vec3(
+                            threeObject.position.x,
+                            threeObject.position.y,
+                            threeObject.position.z + houseHalfWidth - houseWallThickness / 2
+                        ),
+                        material: material
+                    });
+                    cannonBodies.push(rightSideWall);
+                    break;
+
+                default:
+                    console.warn(`❌ Hollow shape ${shapeType} not implemented yet - using solid collision`);
+                    // Fallback to solid shape
+                    const solidShape = new CANNON.Box(new CANNON.Vec3(
+                        dimensions.length / 2,
+                        dimensions.height / 2,
+                        dimensions.width / 2
+                    ));
+                    const solidBody = new CANNON.Body({
+                        mass: 0,
+                        shape: solidShape,
+                        position: new CANNON.Vec3(threeObject.position.x, threeObject.position.y, threeObject.position.z),
+                        material: material
+                    });
+                    cannonBodies.push(solidBody);
+                    break;
+            }
+
+            // Add all bodies to physics world and track them
+            cannonBodies.forEach(body => {
+                this.physicsWorld.addBody(body);
+                this.physicsObjects.set(threeObject, body); // Map to first body (for cleanup)
+            });
+
+            // Store all bodies for this object for proper cleanup
+            threeObject.userData.physicsBodies = cannonBodies;
+
+            console.log(`✅ Created ${cannonBodies.length} physics bodies for hollow ${shapeType}`);
+        };
+
+        // 🎯 PHASE 3: Revolutionary Tree Physics Implementation
+        this.checkTreeFalling = (harvestedX, harvestedY, harvestedZ) => {
+            console.log(`🌳 Checking tree falling for harvested wood at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
+
+            // Find all connected wood blocks above the harvested position
+            const treeBlocks = this.scanTreeStructure(harvestedX, harvestedY + 1, harvestedZ);
+
+            if (treeBlocks.length === 0) {
+                console.log(`🌳 No tree structure found above harvested block`);
+                return;
+            }
+
+            console.log(`🌳 Found tree structure with ${treeBlocks.length} wood blocks - TIMBER!`);
+
+            // Create dramatic falling tree effect
+            this.createFallingTreePhysics(treeBlocks, harvestedX, harvestedY, harvestedZ);
+        };
+
+        // 🎯 PHASE 3: Scan connected wood blocks to find tree structure
+        this.scanTreeStructure = (startX, startY, startZ) => {
+            const visited = new Set();
+            const treeBlocks = [];
+            const queue = [{ x: startX, y: startY, z: startZ }];
+
+            while (queue.length > 0) {
+                const { x, y, z } = queue.shift();
+                const key = `${x},${y},${z}`;
+
+                if (visited.has(key)) continue;
+                visited.add(key);
+
+                // Check if there's a wood block at this position
+                const blockData = this.getBlock(x, y, z);
+                if (!blockData || blockData.type !== 'wood') continue;
+
+                treeBlocks.push({ x, y, z, blockData });
+
+                // Search for connected wood blocks (above, diagonal up, and adjacent)
+                const searchOffsets = [
+                    { dx: 0, dy: 1, dz: 0 },   // Directly above
+                    { dx: 1, dy: 1, dz: 0 },   // Diagonal up-north
+                    { dx: -1, dy: 1, dz: 0 },  // Diagonal up-south
+                    { dx: 0, dy: 1, dz: 1 },   // Diagonal up-east
+                    { dx: 0, dy: 1, dz: -1 },  // Diagonal up-west
+                    { dx: 1, dy: 0, dz: 0 },   // Adjacent north
+                    { dx: -1, dy: 0, dz: 0 },  // Adjacent south
+                    { dx: 0, dy: 0, dz: 1 },   // Adjacent east
+                    { dx: 0, dy: 0, dz: -1 },  // Adjacent west
+                ];
+
+                searchOffsets.forEach(offset => {
+                    const newX = x + offset.dx;
+                    const newY = y + offset.dy;
+                    const newZ = z + offset.dz;
+                    const newKey = `${newX},${newY},${newZ}`;
+
+                    if (!visited.has(newKey)) {
+                        queue.push({ x: newX, y: newY, z: newZ });
+                    }
+                });
+            }
+
+            return treeBlocks;
+        };
+
+        // 🎯 PHASE 3: Create dramatic falling tree physics
+        this.createFallingTreePhysics = (treeBlocks, chopX, chopY, chopZ) => {
+            console.log(`🎬 Creating dramatic falling tree animation with ${treeBlocks.length} blocks!`);
+
+            // Calculate fall direction (away from player)
+            const playerX = this.player.position.x;
+            const playerZ = this.player.position.z;
+            const fallDirectionX = chopX - playerX;
+            const fallDirectionZ = chopZ - playerZ;
+            const fallLength = Math.sqrt(fallDirectionX * fallDirectionX + fallDirectionZ * fallDirectionZ);
+            const normalizedFallX = fallLength > 0 ? fallDirectionX / fallLength : 1;
+            const normalizedFallZ = fallLength > 0 ? fallDirectionZ / fallLength : 0;
+
+            // Create falling tree as single physics object
+            treeBlocks.forEach((block, index) => {
+                // Remove original block from world
+                this.removeBlock(block.x, block.y, block.z);
+
+                // Create falling physics block with delay for dramatic effect
+                setTimeout(() => {
+                    this.createFallingWoodBlock(
+                        block.x, block.y, block.z,
+                        normalizedFallX, normalizedFallZ,
+                        index * 0.1 // Staggered falling for dramatic effect
+                    );
+                }, index * 50); // 50ms delay between each block
+            });
+
+            // Add satisfying tree fall sound effect notification
+            this.updateStatus(`🌳 TIMBER! Tree crashed down with ${treeBlocks.length} wood blocks!`, 'discovery');
+            console.log(`🎉 Tree falling sequence initiated - blocks will fall dramatically!`);
+        };
+
+        // 🎯 PHASE 3: Create individual falling wood block with physics
+        this.createFallingWoodBlock = (x, y, z, fallDirX, fallDirZ, delay) => {
+            // Create Three.js mesh for falling wood block
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown wood color
+            const fallingBlock = new THREE.Mesh(geometry, material);
+            fallingBlock.position.set(x, y, z);
+
+            // Add to scene
+            this.scene.add(fallingBlock);
+
+            // Create physics body with realistic wood properties
+            const cannonShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+            const cannonBody = new CANNON.Body({
+                mass: 10, // Wood blocks have mass so they fall!
+                shape: cannonShape,
+                position: new CANNON.Vec3(x, y, z),
+                material: this.physicsMaterials.wood
+            });
+
+            // Apply dramatic falling force
+            const fallForce = 50 + Math.random() * 30; // Random force for natural effect
+            cannonBody.velocity.set(
+                fallDirX * fallForce + (Math.random() - 0.5) * 20, // Random horizontal spread
+                Math.random() * 10, // Slight upward velocity
+                fallDirZ * fallForce + (Math.random() - 0.5) * 20
+            );
+
+            // Add rotational tumbling for realistic tree falling
+            cannonBody.angularVelocity.set(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10
+            );
+
+            // Add to physics world
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(fallingBlock, cannonBody);
+
+            // Mark as falling tree block for special handling
+            fallingBlock.userData = {
+                type: 'fallingTreeBlock',
+                spawnTime: Date.now(),
+                collected: false
+            };
+
+            // Auto-cleanup after 30 seconds to prevent world clutter
+            setTimeout(() => {
+                if (fallingBlock.userData && !fallingBlock.userData.collected) {
+                    this.scene.remove(fallingBlock);
+                    this.physicsWorld.removeBody(cannonBody);
+                    this.physicsObjects.delete(fallingBlock);
+                    console.log(`🗑️ Auto-cleaned up fallen wood block after 30 seconds`);
+                }
+            }, 30000);
+
+            console.log(`🪵 Created falling wood block with physics at (${x}, ${y}, ${z})`);
+        };
+
         this.startWorkbenchPreviewLoop = () => {
             const animate = () => {
                 if (this.workbenchRenderer && this.workbenchScene && this.workbenchCamera) {
@@ -2837,6 +3264,11 @@ class NebulaVoxelApp {
                 // Use enhanced notification system with harvest type
                 const emoji = this.getItemIcon(blockType);
                 this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
+
+                // 🎯 PHASE 3: Revolutionary tree physics - Check if we just chopped a tree base!
+                if (blockType === 'wood') {
+                    this.checkTreeFalling(x, y, z);
+                }
             } else if (!blockData) {
                 console.log(`No block data found at ${key}`);
             } else {
@@ -3198,6 +3630,94 @@ class NebulaVoxelApp {
 
         // Three.js setup
         this.scene = new THREE.Scene();
+
+        // 🎯 PHASE 1.2: Physics World Setup
+        this.physicsWorld = new CANNON.World();
+        this.physicsWorld.gravity.set(0, -9.82, 0); // Earth gravity
+        this.physicsWorld.broadphase = new CANNON.NaiveBroadphase(); // Simple collision detection
+        this.physicsWorld.solver.iterations = 10; // Solver precision
+
+        // 🎯 PHASE 2.3: Enhanced physics materials with realistic properties
+        this.physicsMaterials = {
+            ground: new CANNON.Material('ground'),
+            wood: new CANNON.Material('wood'),
+            stone: new CANNON.Material('stone'),
+            iron: new CANNON.Material('iron'),
+            glass: new CANNON.Material('glass'),
+            brick: new CANNON.Material('brick'),
+            sand: new CANNON.Material('sand'),
+            grass: new CANNON.Material('grass'),
+            glowstone: new CANNON.Material('glowstone'),
+            coal: new CANNON.Material('coal')
+        };
+
+        // 🎯 PHASE 2.3: Enhanced material contact properties for realistic behavior
+        const materialContacts = [
+            // Wood contacts - moderate friction, some bounce
+            { mat1: 'ground', mat2: 'wood', friction: 0.4, restitution: 0.3 },
+            { mat1: 'wood', mat2: 'wood', friction: 0.6, restitution: 0.2 },
+
+            // Stone contacts - high friction, low bounce (heavy/stable)
+            { mat1: 'ground', mat2: 'stone', friction: 0.8, restitution: 0.1 },
+            { mat1: 'stone', mat2: 'stone', friction: 0.9, restitution: 0.05 },
+
+            // Iron contacts - very high friction, almost no bounce (very heavy)
+            { mat1: 'ground', mat2: 'iron', friction: 0.9, restitution: 0.05 },
+            { mat1: 'iron', mat2: 'iron', friction: 0.95, restitution: 0.02 },
+
+            // Glass contacts - low friction, high bounce (slippery, brittle)
+            { mat1: 'ground', mat2: 'glass', friction: 0.2, restitution: 0.7 },
+            { mat1: 'glass', mat2: 'glass', friction: 0.1, restitution: 0.8 },
+
+            // Brick contacts - similar to stone but slightly less friction
+            { mat1: 'ground', mat2: 'brick', friction: 0.7, restitution: 0.15 },
+            { mat1: 'brick', mat2: 'brick', friction: 0.8, restitution: 0.1 },
+
+            // Sand contacts - medium friction, absorbs energy
+            { mat1: 'ground', mat2: 'sand', friction: 0.6, restitution: 0.2 },
+            { mat1: 'sand', mat2: 'sand', friction: 0.7, restitution: 0.1 },
+
+            // Grass contacts - low friction, springy
+            { mat1: 'ground', mat2: 'grass', friction: 0.3, restitution: 0.4 },
+            { mat1: 'grass', mat2: 'grass', friction: 0.4, restitution: 0.5 },
+
+            // Glowstone contacts - magical properties, medium bounce
+            { mat1: 'ground', mat2: 'glowstone', friction: 0.5, restitution: 0.4 },
+            { mat1: 'glowstone', mat2: 'glowstone', friction: 0.6, restitution: 0.3 },
+
+            // Coal contacts - similar to stone but slightly grittier
+            { mat1: 'ground', mat2: 'coal', friction: 0.7, restitution: 0.1 },
+            { mat1: 'coal', mat2: 'coal', friction: 0.8, restitution: 0.05 },
+
+            // Cross-material interactions
+            { mat1: 'wood', mat2: 'stone', friction: 0.6, restitution: 0.2 },
+            { mat1: 'wood', mat2: 'iron', friction: 0.5, restitution: 0.15 },
+            { mat1: 'wood', mat2: 'glass', friction: 0.3, restitution: 0.4 },
+            { mat1: 'stone', mat2: 'iron', friction: 0.8, restitution: 0.08 },
+            { mat1: 'stone', mat2: 'glass', friction: 0.4, restitution: 0.3 },
+            { mat1: 'iron', mat2: 'glass', friction: 0.2, restitution: 0.5 }
+        ];
+
+        // Create and add all contact materials
+        materialContacts.forEach(contact => {
+            const material1 = this.physicsMaterials[contact.mat1];
+            const material2 = this.physicsMaterials[contact.mat2];
+            if (material1 && material2) {
+                const contactMaterial = new CANNON.ContactMaterial(material1, material2, {
+                    friction: contact.friction,
+                    restitution: contact.restitution
+                });
+                this.physicsWorld.addContactMaterial(contactMaterial);
+            }
+        });
+
+        console.log(`✅ Created ${materialContacts.length} material contact interactions`);
+
+        console.log('✅ Physics world initialized with gravity and materials');
+
+        // Physics objects tracking
+        this.physicsObjects = new Map(); // Maps Three.js objects to Cannon.js bodies
+
         const width = window.innerWidth;
         const height = window.innerHeight;
         this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
@@ -3767,6 +4287,12 @@ class NebulaVoxelApp {
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
 
+            // 🎯 PHASE 1.3: Physics Update Loop
+            if (this.physicsWorld) {
+                this.physicsWorld.step(deltaTime);
+                this.updatePhysicsObjects();
+            }
+
             // Animate billboards (even when paused - they should keep floating)
             this.animateBillboards(currentTime);
 
@@ -3915,6 +4441,34 @@ class NebulaVoxelApp {
                         }
                     }
                 }
+
+                // 🎯 PHASE 2.1: Check collision with crafted objects
+                if (this.craftedObjects) {
+                    for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                        const craftedMesh = objectData.mesh;
+                        const dimensions = objectData.dimensions;
+
+                        // Create hitbox for crafted object
+                        const craftedHitbox = {
+                            minX: craftedMesh.position.x - dimensions.length / 2,
+                            maxX: craftedMesh.position.x + dimensions.length / 2,
+                            minY: craftedMesh.position.y - dimensions.height / 2,
+                            maxY: craftedMesh.position.y + dimensions.height / 2,
+                            minZ: craftedMesh.position.z - dimensions.width / 2,
+                            maxZ: craftedMesh.position.z + dimensions.width / 2
+                        };
+
+                        if (hitboxesCollide(playerHitbox, craftedHitbox)) {
+                            return {
+                                collision: true,
+                                craftedObject: true,
+                                objectName: objectData.metadata.name,
+                                objectId: objectData.itemId
+                            };
+                        }
+                    }
+                }
+
                 return { collision: false };
             };
             // ========== END HITBOX UTILITIES ==========

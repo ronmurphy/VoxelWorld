@@ -30,6 +30,7 @@
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
     "@capacitor/ios": "^7.4.3",
+    "cannon-es": "^0.20.0",
     "three": "^0.180.0"
   },
   "build": {
