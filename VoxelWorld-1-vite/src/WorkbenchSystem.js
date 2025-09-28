@@ -1625,6 +1625,11 @@ export class WorkbenchSystem {
         // Event handlers
         const closeModal = () => {
             document.body.removeChild(namingModal);
+            // Re-enable VoxelWorld input controls when modal closes
+            if (this.voxelWorld) {
+                this.voxelWorld.controlsEnabled = true;
+                console.log('✅ Re-enabled VoxelWorld input controls');
+            }
         };
 
         const finalizeCrafting = () => {
@@ -1674,6 +1679,12 @@ export class WorkbenchSystem {
 
         namingModal.appendChild(container);
         document.body.appendChild(namingModal);
+
+        // Disable VoxelWorld input controls while modal is open
+        if (this.voxelWorld) {
+            this.voxelWorld.controlsEnabled = false;
+            console.log('🔒 Disabled VoxelWorld input controls for naming modal');
+        }
     }
 
     /**
