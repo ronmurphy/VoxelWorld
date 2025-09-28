@@ -289,3 +289,179 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Undo System**: Ctrl+Z for recent block changes
 - **Copy/Paste**: Select and duplicate sections of builds
 
+
+-- last ares before he time limit plan hit...
+ok, before i try it, i did forget to mention something, when naming the custom crafted 
+  item, when the name modal shows up, the "E" keyhandler is still enabled, and as such, you 
+  can't use the letter 'e' in your name, same thing for numbers maybe, not sure, so, we need 
+  to temporarily disable the input handlers when the Name modal is up, only let the Enter 
+  keypress register, and then when the modal is done with, re-enable all of the input key 
+  handlers again, can we do that?   and after that, let's go behind and look for any 
+  potential code errors, ok?  for the request i just made and anything in general. becausei 
+  foumd this error ...  Uncaught TypeError: can't access property "wood", this.inventory is 
+  undefined
+      removeBlock VoxelWorld.js:517
+      unloadChunk VoxelWorld.js:3404
+      updateChunks VoxelWorld.js:3440
+      updateChunks VoxelWorld.js:3432
+      animate VoxelWorld.js:4009
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+      animate VoxelWorld.js:3760
+  VoxelWorld.js:517:21
+
+● Excellent catch! Two critical issues to fix:
+
+  1. Modal input conflict - E key handler interfering with typing "e" in names
+  2. Legacy inventory error - this.inventory is undefined in removeBlock
+
+  Let me fix both issues:
+
+  Issue 1: Modal Input Conflict
+
+  First, let me find where the naming modal is created in WorkbenchSystem:
+
+● Search(pattern: "showItemNamingModal", path: "src/WorkbenchSystem.js", output_mode:
+        "content")
+  ⎿  Found 40 lines (ctrl+o to expand)
+
+● Perfect! Now I need to find where the modal is shown and add control disabling. Let me
+  look for the modal event handlers:
+
+● Search(pattern: "closeModal.*addEventListener|finalizeCrafting.*addEventListener", path:
+        "src/WorkbenchSystem.js", output_mode: "content")
+  ⎿  Found 0 lines 
+
+● Let me search for the modal button handlers:
+
+● Search(pattern: "cancelButton.*addEventListener|craftButton.*addEventListener", path:
+        "src/WorkbenchSystem.js", output_mode: "content")
+  ⎿  Found 28 lines (ctrl+o to expand)
+
+● Great! Now I need to find the closeModal function and add control disabling/enabling
+  there. Let me also find where VoxelWorld controls are enabled:
+
+● Search(pattern: "const closeModal.*=", path: "src/WorkbenchSystem.js", output_mode:
+        "content")
+  ⎿  Found 10 lines (ctrl+o to expand)
+
+● Perfect! Now let me check if VoxelWorld has a property to control inputs:
+
+● Search(pattern: "this\.controlsEnabled", path: "src/VoxelWorld.js", output_mode: "content")
+  ⎿  Found 63 lines (ctrl+o to expand)
+
+● Perfect! VoxelWorld already has this.controlsEnabled to disable input. Now I'll fix the
+  modal to disable/enable controls:
+
+● Update(src/WorkbenchSystem.js)
+  ⎿  Updated src/WorkbenchSystem.js with 5 additions                                  
+       1625            // Event handlers
+       1626            const closeModal = () => {
+       1627                document.body.removeChild(namingModal);
+       1628 +              // Re-enable VoxelWorld input controls when modal closes
+       1629 +              if (this.voxelWorld) {
+       1630 +                  this.voxelWorld.controlsEnabled = true;
+       1631 +                  console.log('✅ Re-enabled VoxelWorld input controls');
+       1632 +              }
+       1633            };
+       1634    
+       1635            const finalizeCrafting = () => {
+
+● Now I need to disable controls when the modal opens. Let me find the end of the
+  showItemNamingModal function:
+
+● Search(pattern: "document\.body\.appendChild.*namingModal", path: "src/WorkbenchSystem.js",
+        output_mode: "content")
+  ⎿  Found 5 lines (ctrl+o to expand)
+
+● Perfect! Now I'll add the control disabling when modal opens:
+
+● Update(src/WorkbenchSystem.js)
+  ⎿  Updated src/WorkbenchSystem.js with 6 additions                                    
+       1679    
+       1680            namingModal.appendChild(container);
+       1681            document.body.appendChild(namingModal);
+       1682 +  
+       1683 +          // Disable VoxelWorld input controls while modal is open
+       1684 +          if (this.voxelWorld) {
+       1685 +              this.voxelWorld.controlsEnabled = false;
+       1686 +              console.log('🔒 Disabled VoxelWorld input controls for naming
+            +  modal');
+       1687 +          }
+       1688        }
+       1689    
+       1690        /**
+
+● Great! Now let me fix the second issue - the legacy inventory error. I need to find where
+   removeBlock is trying to access this.inventory:
+
+● Search(pattern: "this\.inventory\[.*\].*shrub|this\.inventory\.wood", path:
+        "src/VoxelWorld.js", output_mode: "content")
+  ⎿  Found 12 lines (ctrl+o to expand)
+
+● Found it! Line 517 in the removeBlock function still uses legacy inventory. I need to
+  convert it to the slot system:
+
+● Update(src/VoxelWorld.js)
+  ⎿  Updated src/VoxelWorld.js with 5 additions and 4 removals                        
+       514    
+       515                    // Check if it's a shrub for harvesting
+       516                    if (blockData.type === 'shrub') {
+       517 -                      this.inventory.wood += 1; // Add 1 wood to inventory
+       518 -                      console.log(`Harvested shrub! Wood: 
+           - ${this.inventory.wood}`);
+       519 -                      this.updateStatus(`Harvested shrub! Wood: ${
+           -  this.inventory.wood}`);
+       520 -                      this.updateHotbarCounts(); // Update hotbar display
+       517 +                      this.addToInventory('wood', 1)
+           +  ; // Add 1 wood to inventory using slot system
+       518 +                      const totalWood = this.countItemInSlots('wood');
+       519 +                      console.log(`Harvested shrub! Wood: ${totalWood}`);
+       520 +                      this.updateStatus(`Harvested shrub! Wood: 
+           + ${totalWood}`);
+       521 +                      // addToInventory already handles UI updates
+       522                    }
+       523                    // Check if it's a backpack for pickup
+       524                    else if (blockData.type === 'backpack' && 
+             !this.hasBackpack) {
+
+● Perfect! Now let me check if there are any other legacy inventory references that could
+  cause issues:
+
+● Search(pattern: "this\.inventory\[|this\.inventory\.", path: "src/VoxelWorld.js",
+        output_mode: "content")
+  ⎿  Found 0 lines 
+  ⎿  Found 8 new diagnostic issues in 1 file (ctrl-o to expand)
+  ⎿  Session limit reached ∙ resets 8pm
+     /upgrade to increase your usage limit.

@@ -283,6 +283,122 @@ class NebulaVoxelApp {
             this.world[`${x},${y},${z}`] = { type, mesh: cube, playerPlaced, billboard };
         };
 
+        // 🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
+        this.placeCraftedObject = (x, y, z, itemId) => {
+            console.log(`🎯 placeCraftedObject called: ${itemId} at (${x},${y},${z})`);
+
+            // Get crafted item metadata
+            const metadata = this.inventoryMetadata[itemId];
+            if (!metadata) {
+                console.error(`❌ No metadata found for crafted item: ${itemId}`);
+                return;
+            }
+
+            console.log('📊 Crafted item metadata:', metadata);
+
+            // Extract shape and dimensions
+            const shapeType = metadata.shape.type;
+            const dimensions = metadata.shape.dimensions;
+            const material = metadata.material.type;
+            const color = metadata.appearance.color;
+
+            console.log(`🔧 Creating ${shapeType} (${dimensions.length}x${dimensions.width}x${dimensions.height}) from ${material}`);
+
+            // Create geometry based on shape type and actual dimensions
+            let geometry;
+            switch (shapeType) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                case 'sphere':
+                    const radius = Math.max(dimensions.length, dimensions.width, dimensions.height) / 2;
+                    geometry = new THREE.SphereGeometry(radius, 16, 16);
+                    break;
+                case 'cylinder':
+                    const cylinderRadius = Math.max(dimensions.length, dimensions.width) / 2;
+                    geometry = new THREE.CylinderGeometry(cylinderRadius, cylinderRadius, dimensions.height, 16);
+                    break;
+                case 'pyramid':
+                    const pyramidRadius = Math.max(dimensions.length, dimensions.width) / 2;
+                    geometry = new THREE.ConeGeometry(pyramidRadius, dimensions.height, 8);
+                    break;
+                case 'stairs':
+                    // For now, create a simple box - can enhance later
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                case 'wall':
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                case 'hollow_cube':
+                    // For now, create a regular box - can enhance with hollow geometry later
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+                    break;
+                default:
+                    console.warn(`⚠️ Unknown shape type: ${shapeType}, defaulting to cube`);
+                    geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
+            }
+
+            // Create material based on crafted item's material and color
+            let craftedMaterial;
+            if (this.blockTypes[material]) {
+                // Use the base material type with custom color
+                craftedMaterial = new THREE.MeshLambertMaterial({
+                    map: this.materials[material].map,
+                    color: new THREE.Color(color)
+                });
+            } else {
+                // Fallback to basic colored material
+                craftedMaterial = new THREE.MeshLambertMaterial({
+                    color: new THREE.Color(color)
+                });
+            }
+
+            // Create the 3D mesh
+            const craftedObject = new THREE.Mesh(geometry, craftedMaterial);
+
+            // PHASE 3: Smart Floor Positioning - treat target as floor surface
+            const floorY = y; // Target position becomes the floor
+            const objectY = floorY + dimensions.height / 2; // Object bottom sits on floor, center vertically
+
+            // Handle objects larger than 1x1 footprint by centering them on target
+            const objectX = x; // Center X on target
+            const objectZ = z; // Center Z on target
+
+            console.log(`📍 Positioning: Floor at Y=${floorY}, Object center at (${objectX}, ${objectY}, ${objectZ})`);
+            console.log(`📏 Object footprint: ${dimensions.length}x${dimensions.width}, Height: ${dimensions.height}`);
+
+            craftedObject.position.set(objectX, objectY, objectZ);
+
+            // Set user data for identification
+            craftedObject.userData = {
+                type: 'craftedObject',
+                itemId: itemId,
+                metadata: metadata,
+                originalName: metadata.name,
+                dimensions: dimensions,
+                isCraftedObject: true
+            };
+
+            // Add to scene
+            this.scene.add(craftedObject);
+
+            // PHASE 4: Track in crafted objects system
+            if (!this.craftedObjects) {
+                this.craftedObjects = {};
+            }
+            const objectKey = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+            this.craftedObjects[objectKey] = {
+                mesh: craftedObject,
+                itemId: itemId,
+                metadata: metadata,
+                position: { x, y, z },
+                dimensions: dimensions
+            };
+
+            console.log(`✅ Created crafted object "${metadata.name}" at (${x},${y},${z})`);
+            this.updateStatus(`🎨 Placed "${metadata.name}"!`, 'craft');
+        };
+
         // Check if block type should use billboard
         this.shouldUseBillboard = (type) => {
             const billboardTypes = ['backpack', 'shrub']; // Can expand: 'flower', 'crystal', etc.
@@ -398,10 +514,11 @@ class NebulaVoxelApp {
 
                 // Check if it's a shrub for harvesting
                 if (blockData.type === 'shrub') {
-                    this.inventory.wood += 1; // Add 1 wood to inventory
-                    console.log(`Harvested shrub! Wood: ${this.inventory.wood}`);
-                    this.updateStatus(`Harvested shrub! Wood: ${this.inventory.wood}`);
-                    this.updateHotbarCounts(); // Update hotbar display
+                    this.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
+                    const totalWood = this.countItemInSlots('wood');
+                    console.log(`Harvested shrub! Wood: ${totalWood}`);
+                    this.updateStatus(`Harvested shrub! Wood: ${totalWood}`);
+                    // addToInventory already handles UI updates
                 }
                 // Check if it's a backpack for pickup
                 else if (blockData.type === 'backpack' && !this.hasBackpack) {
@@ -550,6 +667,8 @@ class NebulaVoxelApp {
             // Helper function for random range
             const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
 
+            // BradCode - needs to not overwrite having workbench
+
             // Guaranteed items (survival essentials)
             const woodCount = randomRange(8, 16);
             this.addToInventory('wood', woodCount);
@@ -557,6 +676,7 @@ class NebulaVoxelApp {
             this.addToInventory('stone', stoneCount);
             this.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
 
+            
             // Common items (high chance)
             if (this.seededRandom() > 0.2) {
                 const sandCount = randomRange(2, 6);
@@ -852,6 +972,59 @@ class NebulaVoxelApp {
             // Notification
             this.updateStatus(`${emoji} Found ${itemType}! (${this.countItemInSlots(itemType)} total)`, 'discovery');
             console.log(`Harvested world item: ${itemType} (${emoji})`);
+        };
+
+        // PHASE 6: Harvest crafted objects and return original items to inventory
+        this.harvestCraftedObject = (craftedMesh) => {
+            console.log(`🎨 Harvesting crafted object...`);
+
+            // Get object data from userData
+            const itemId = craftedMesh.userData.itemId;
+            const originalName = craftedMesh.userData.originalName;
+            const position = craftedMesh.position;
+
+            console.log(`🔧 Harvesting "${originalName}" (${itemId}) at (${position.x},${position.y},${position.z})`);
+
+            // Find and remove from crafted objects tracking
+            let removedKey = null;
+            if (this.craftedObjects) {
+                for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                    if (objectData.mesh === craftedMesh) {
+                        removedKey = key;
+                        break;
+                    }
+                }
+                if (removedKey) {
+                    delete this.craftedObjects[removedKey];
+                    console.log(`🗑️ Removed from crafted objects tracking: ${removedKey}`);
+                }
+            }
+
+            // Remove 3D mesh from scene
+            this.scene.remove(craftedMesh);
+
+            // Clean up mesh resources
+            if (craftedMesh.geometry) {
+                craftedMesh.geometry.dispose();
+            }
+            if (craftedMesh.material) {
+                if (craftedMesh.material.map) {
+                    // Don't dispose shared textures
+                }
+                craftedMesh.material.dispose();
+            }
+
+            // Add original crafted item back to inventory
+            this.addToInventory(itemId, 1);
+
+            // Update UI displays
+            this.updateHotbarCounts();
+            this.updateBackpackInventoryDisplay();
+
+            // Success notification with custom name
+            const icon = this.getItemIcon(itemId);
+            this.updateStatus(`${icon} Harvested "${originalName}"!`, 'harvest');
+            console.log(`✅ Successfully harvested crafted object "${originalName}" → returned ${itemId} to inventory`);
         };
 
         // Show hotbar and tutorial after backpack pickup
@@ -3301,15 +3474,30 @@ class NebulaVoxelApp {
                     }
                 }
 
+                // PHASE 5: Collect crafted objects for saving
+                const craftedObjectsData = [];
+                if (this.craftedObjects) {
+                    for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                        craftedObjectsData.push({
+                            key: key,
+                            itemId: objectData.itemId,
+                            position: objectData.position,
+                            metadata: objectData.metadata
+                        });
+                    }
+                }
+
                 const saveData = {
                     modifiedBlocks: modifiedBlocks,
+                    craftedObjects: craftedObjectsData, // NEW: Save crafted objects
+                    inventoryMetadata: this.inventoryMetadata, // NEW: Save item metadata
                     player: this.player,
                     worldSeed: this.worldSeed,
                     timestamp: Date.now()
                 };
 
                 localStorage.setItem("NebulaWorld", JSON.stringify(saveData));
-                this.updateStatus(`World saved (${modifiedBlocks.length} custom blocks)`);
+                this.updateStatus(`World saved (${modifiedBlocks.length} blocks, ${craftedObjectsData.length} crafted objects)`);
                 return true;
             } catch (error) {
                 console.error("Save failed:", error);
@@ -3342,6 +3530,36 @@ class NebulaVoxelApp {
                     this.addBlock(x, y, z, b.type, true); // Mark as player-placed
                 });
 
+                // PHASE 5: Load crafted objects and inventory metadata
+                if (saveData.inventoryMetadata) {
+                    this.inventoryMetadata = saveData.inventoryMetadata;
+                    console.log(`📦 Restored ${Object.keys(this.inventoryMetadata).length} item metadata entries`);
+                }
+
+                if (saveData.craftedObjects && saveData.craftedObjects.length > 0) {
+                    console.log(`🎨 Loading ${saveData.craftedObjects.length} crafted objects...`);
+                    // Clear existing crafted objects first
+                    if (this.craftedObjects) {
+                        for (const [key, objectData] of Object.entries(this.craftedObjects)) {
+                            if (objectData.mesh) {
+                                this.scene.remove(objectData.mesh);
+                            }
+                        }
+                    }
+                    this.craftedObjects = {};
+
+                    // Recreate each crafted object
+                    saveData.craftedObjects.forEach(objData => {
+                        console.log(`🔧 Recreating crafted object: ${objData.itemId} at ${objData.key}`);
+                        // Restore metadata to inventoryMetadata if missing
+                        if (!this.inventoryMetadata[objData.itemId]) {
+                            this.inventoryMetadata[objData.itemId] = objData.metadata;
+                        }
+                        // Recreate the 3D object at its saved position
+                        this.placeCraftedObject(objData.position.x, objData.position.y, objData.position.z, objData.itemId);
+                    });
+                }
+
                 this.player = saveData.player;
 
                 // Restore seed if available, otherwise generate new one
@@ -3354,7 +3572,8 @@ class NebulaVoxelApp {
                     this.seededRandom = this.createSeededRandom(this.worldSeed);
                 }
 
-                this.updateStatus(`World loaded (${saveData.modifiedBlocks.length} custom blocks)`);
+                const craftedCount = saveData.craftedObjects ? saveData.craftedObjects.length : 0;
+                this.updateStatus(`World loaded (${saveData.modifiedBlocks.length} blocks, ${craftedCount} crafted objects)`);
                 return true;
             } catch (error) {
                 console.error("Load failed:", error);
@@ -3991,8 +4210,15 @@ class NebulaVoxelApp {
                     return;
                 }
                 
-                if (e.button === 0) { // Left click - start harvesting
-                    this.startHarvesting(pos.x, pos.y, pos.z);
+                if (e.button === 0) { // Left click - harvesting (blocks or crafted objects)
+                    // PHASE 6: Check if clicked object is a crafted object
+                    if (hit.object.userData && hit.object.userData.isCraftedObject) {
+                        console.log(`🎨 Harvesting crafted object: ${hit.object.userData.originalName}`);
+                        this.harvestCraftedObject(hit.object);
+                    } else {
+                        // Regular block harvesting
+                        this.startHarvesting(pos.x, pos.y, pos.z);
+                    }
                 } else if (e.button === 2) { // Right click - block placement only
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
@@ -4000,7 +4226,15 @@ class NebulaVoxelApp {
                     const selectedBlock = selectedSlot?.itemType;
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
-                        this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
+                        // 🎯 THE BIG MOMENT: Detect crafted items vs regular blocks
+                        if (selectedBlock.startsWith('crafted_')) {
+                            // Place crafted 3D object with real dimensions!
+                            console.log(`🎨 Placing crafted object: ${selectedBlock}`);
+                            this.placeCraftedObject(placePos.x, placePos.y, placePos.z, selectedBlock);
+                        } else {
+                            // Place regular 1x1x1 block
+                            this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
+                        }
                         selectedSlot.quantity--;
 
                         // Clear slot if empty
