@@ -78,7 +78,12 @@ class NebulaVoxelApp {
 
         this.setBackpackSlot = (index, itemType, quantity) => {
             if (index >= 0 && index < this.backpackSlots.length) {
-                this.backpackSlots[index] = { itemType, quantity: Math.min(quantity, this.STACK_LIMIT) };
+                const existingElement = this.backpackSlots[index].element;
+                this.backpackSlots[index] = {
+                    itemType,
+                    quantity: Math.min(quantity, this.STACK_LIMIT),
+                    element: existingElement
+                };
             }
         };
 
@@ -1301,7 +1306,7 @@ class NebulaVoxelApp {
             const icons = {
                 grass: '🌱',
                 stone: '🪨',
-                wood: '🪵',
+                wood: '🪵',      // Legacy wood
                 workbench: '🔨',
                 sand: '🏖️',
                 glass: '💎',
@@ -1313,7 +1318,20 @@ class NebulaVoxelApp {
                 dirt: '🪨',
                 coal: '⚫',
                 skull: '💀',
-                leaf: '🍃'
+                leaf: '🍃',      // Legacy leaf
+
+                // NEW: Biome-specific wood types
+                oak_wood: '🪵',      // Classic brown oak
+                pine_wood: '🌲',     // Evergreen pine
+                palm_wood: '🥥',     // Tropical palm
+                birch_wood: '🍃',    // Light birch
+
+                // NEW: Biome-specific leaf types
+                forest_leaves: '🌿',   // Bright green forest
+                mountain_leaves: '🌲', // Dark green needles
+                desert_leaves: '🌴',   // Yellow-green fronds
+                plains_leaves: '🌱',   // Light green plains
+                tundra_leaves: '🍂'    // Gray-green hardy
             };
             return icons[itemType] || '❓';
         };
@@ -2421,6 +2439,18 @@ class NebulaVoxelApp {
             console.log(`✅ Created ${cannonBodies.length} physics bodies for hollow ${shapeType}`);
         };
 
+        // 🌳 HELPER: Check if a block type is any kind of wood
+        this.isWoodBlock = (blockType) => {
+            const woodTypes = ['wood', 'oak_wood', 'pine_wood', 'palm_wood', 'birch_wood'];
+            return woodTypes.includes(blockType);
+        };
+
+        // 🌳 HELPER: Check if a block type is any kind of leaf
+        this.isLeafBlock = (blockType) => {
+            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'];
+            return leafTypes.includes(blockType);
+        };
+
         // 🎯 PHASE 3: Revolutionary Tree Physics Implementation
         this.checkTreeFalling = (harvestedX, harvestedY, harvestedZ) => {
             console.log(`🌳 Checking tree falling for harvested wood at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
@@ -2437,6 +2467,9 @@ class NebulaVoxelApp {
 
             // Create dramatic falling tree effect
             this.createFallingTreePhysics(treeBlocks, harvestedX, harvestedY, harvestedZ);
+
+            // 🍃 NEW: Also cascade any leaves that were connected to these wood blocks
+            this.cascadeDisconnectedLeaves(treeBlocks);
         };
 
         // 🎯 PHASE 3: Scan connected wood blocks to find tree structure
@@ -2454,7 +2487,7 @@ class NebulaVoxelApp {
 
                 // Check if there's a wood block at this position
                 const blockData = this.getBlock(x, y, z);
-                if (!blockData || blockData.type !== 'wood') continue;
+                if (!blockData || !this.isWoodBlock(blockData.type)) continue;
 
                 treeBlocks.push({ x, y, z, blockData });
 
@@ -2486,6 +2519,125 @@ class NebulaVoxelApp {
             return treeBlocks;
         };
 
+        // 🍃 NEW: Find and cascade leaves that are no longer connected to wood
+        this.cascadeDisconnectedLeaves = (fallenWoodBlocks) => {
+            console.log(`🍃 Checking for disconnected leaves around ${fallenWoodBlocks.length} fallen wood blocks`);
+
+            const leafBlocks = [];
+            const searchRadius = 3; // Search 3 blocks around each fallen wood block
+
+            // Find all leaf blocks near the fallen wood blocks
+            fallenWoodBlocks.forEach(({ x: woodX, y: woodY, z: woodZ }) => {
+                for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+                    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+                        for (let dz = -searchRadius; dz <= searchRadius; dz++) {
+                            const leafX = woodX + dx;
+                            const leafY = woodY + dy;
+                            const leafZ = woodZ + dz;
+
+                            const blockData = this.getBlock(leafX, leafY, leafZ);
+                            if (blockData && this.isLeafBlock(blockData.type)) {
+                                // Check if this leaf is still connected to standing wood
+                                if (!this.isLeafConnectedToWood(leafX, leafY, leafZ)) {
+                                    leafBlocks.push({ x: leafX, y: leafY, z: leafZ, type: blockData.type });
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (leafBlocks.length > 0) {
+                console.log(`🍃 Found ${leafBlocks.length} disconnected leaf blocks - cascading!`);
+                this.createFallingLeaves(leafBlocks);
+            }
+        };
+
+        // 🍃 Check if a leaf block is connected to standing wood (within 2 blocks)
+        this.isLeafConnectedToWood = (leafX, leafY, leafZ) => {
+            const connectionRadius = 2;
+
+            for (let dx = -connectionRadius; dx <= connectionRadius; dx++) {
+                for (let dy = -connectionRadius; dy <= connectionRadius; dy++) {
+                    for (let dz = -connectionRadius; dz <= connectionRadius; dz++) {
+                        const checkX = leafX + dx;
+                        const checkY = leafY + dy;
+                        const checkZ = leafZ + dz;
+
+                        const blockData = this.getBlock(checkX, checkY, checkZ);
+                        if (blockData && this.isWoodBlock(blockData.type)) {
+                            return true; // Found standing wood nearby
+                        }
+                    }
+                }
+            }
+            return false; // No wood found, leaf is disconnected
+        };
+
+        // 🍃 Create falling leaf blocks with lighter physics
+        this.createFallingLeaves = (leafBlocks) => {
+            leafBlocks.forEach(({ x, y, z, type }, index) => {
+                setTimeout(() => {
+                    // Remove the stationary leaf block
+                    this.removeBlock(x, y, z);
+
+                    // Create falling leaf with appropriate color
+                    const leafColor = this.getLeafColor(type);
+                    this.createFallingLeafBlock(x, y, z, leafColor);
+                }, index * 25); // 25ms delay between leaves for cascade effect
+            });
+
+            this.updateStatus(`🍃 ${leafBlocks.length} leaves cascading from fallen tree!`, 'discovery');
+        };
+
+        // 🍃 Get color for different leaf types
+        this.getLeafColor = (leafType) => {
+            const leafColors = {
+                leaf: 0x228B22,           // Legacy green
+                forest_leaves: 0x228B22,   // Bright green
+                mountain_leaves: 0x006400, // Dark green needles
+                desert_leaves: 0x9ACD32,   // Yellow-green fronds
+                plains_leaves: 0x90EE90,   // Light green
+                tundra_leaves: 0x708090    // Gray-green hardy
+            };
+            return leafColors[leafType] || 0x228B22;
+        };
+
+        // 🍃 Create individual falling leaf block
+        this.createFallingLeafBlock = (x, y, z, color) => {
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color });
+            const fallingLeaf = new THREE.Mesh(geometry, material);
+            fallingLeaf.position.set(x, y, z);
+            this.scene.add(fallingLeaf);
+
+            // Lighter physics for leaves
+            const cannonShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+            const cannonBody = new CANNON.Body({
+                mass: 2, // Much lighter than wood (wood is mass 10)
+                shape: cannonShape,
+                position: new CANNON.Vec3(x, y, z),
+                material: this.physicsMaterials.forest_leaves // Use leaf material
+            });
+
+            // Gentle falling motion for leaves
+            cannonBody.velocity.set(
+                (Math.random() - 0.5) * 5, // Light horizontal drift
+                Math.random() * 2,         // Slight upward velocity
+                (Math.random() - 0.5) * 5
+            );
+
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(fallingLeaf, cannonBody);
+
+            // Auto-cleanup leaves faster (15 seconds vs 30 for wood)
+            setTimeout(() => {
+                this.scene.remove(fallingLeaf);
+                this.physicsWorld.removeBody(cannonBody);
+                this.physicsObjects.delete(fallingLeaf);
+            }, 15000);
+        };
+
         // 🎯 PHASE 3: Create dramatic falling tree physics
         this.createFallingTreePhysics = (treeBlocks, chopX, chopY, chopZ) => {
             console.log(`🎬 Creating dramatic falling tree animation with ${treeBlocks.length} blocks!`);
@@ -2509,7 +2661,8 @@ class NebulaVoxelApp {
                     this.createFallingWoodBlock(
                         block.x, block.y, block.z,
                         normalizedFallX, normalizedFallZ,
-                        index * 0.1 // Staggered falling for dramatic effect
+                        index * 0.1, // Staggered falling for dramatic effect
+                        block.blockData.type // Pass the actual wood type
                     );
                 }, index * 50); // 50ms delay between each block
             });
@@ -2519,11 +2672,24 @@ class NebulaVoxelApp {
             console.log(`🎉 Tree falling sequence initiated - blocks will fall dramatically!`);
         };
 
+        // 🪵 Get color for different wood types
+        this.getWoodColor = (woodType) => {
+            const woodColors = {
+                wood: 0x8B4513,      // Legacy brown
+                oak_wood: 0x8B4513,  // Classic brown oak
+                pine_wood: 0x654321, // Darker brown pine
+                palm_wood: 0xD2B48C, // Light tan palm
+                birch_wood: 0xF5F5DC // Pale birch
+            };
+            return woodColors[woodType] || 0x8B4513;
+        };
+
         // 🎯 PHASE 3: Create individual falling wood block with physics
-        this.createFallingWoodBlock = (x, y, z, fallDirX, fallDirZ, delay) => {
-            // Create Three.js mesh for falling wood block
+        this.createFallingWoodBlock = (x, y, z, fallDirX, fallDirZ, delay, woodType = 'wood') => {
+            // Create Three.js mesh for falling wood block with appropriate color
             const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown wood color
+            const woodColor = this.getWoodColor(woodType);
+            const material = new THREE.MeshLambertMaterial({ color: woodColor });
             const fallingBlock = new THREE.Mesh(geometry, material);
             fallingBlock.position.set(x, y, z);
 
@@ -2779,6 +2945,60 @@ class NebulaVoxelApp {
 
             // Add to DOM
             this.container.appendChild(tutorialOverlay);
+        };
+
+        // 🌍 Update biome indicator in status display
+        this.updateBiomeIndicator = () => {
+            const playerX = Math.floor(this.player.position.x);
+            const playerZ = Math.floor(this.player.position.z);
+            const currentBiome = this.getBiomeAt(playerX, playerZ);
+
+            // Only update if biome changed to avoid spam
+            if (this.lastDisplayedBiome !== currentBiome.name) {
+                this.lastDisplayedBiome = currentBiome.name;
+
+                // Get biome icon and tree chance
+                const biomeInfo = this.getBiomeDisplayInfo(currentBiome);
+
+                // Update status display with biome info
+                const statusText = document.getElementById('status-text');
+                const statusIcon = document.getElementById('status-icon');
+
+                if (statusText && statusIcon) {
+                    statusIcon.textContent = biomeInfo.icon;
+                    statusText.textContent = `${currentBiome.name} Biome - ${biomeInfo.description}`;
+
+                    // Optional: Add tree count for debugging
+                    const treeChance = this.getTreeChanceForBiome(currentBiome.name);
+                    if (treeChance > 0) {
+                        statusText.textContent += ` (${Math.round(treeChance * 100)}% trees)`;
+                    }
+                }
+            }
+        };
+
+        // 🌍 Get display info for biomes
+        this.getBiomeDisplayInfo = (biome) => {
+            const biomeInfo = {
+                Forest: { icon: '🌲', description: 'Dense woodlands with oak trees' },
+                Mountain: { icon: '⛰️', description: 'Rocky peaks with pine forests' },
+                Plains: { icon: '🌾', description: 'Open grasslands with scattered groves' },
+                Desert: { icon: '🏜️', description: 'Arid sands with rare palm oases' },
+                Tundra: { icon: '🌨️', description: 'Frozen wilderness with hardy birch trees' }
+            };
+            return biomeInfo[biome.name] || { icon: '🌍', description: 'Unknown terrain' };
+        };
+
+        // 🌍 Get tree spawn chance for biome
+        this.getTreeChanceForBiome = (biomeName) => {
+            const treeChances = {
+                Forest: 0.30,
+                Mountain: 0.25,
+                Plains: 0.08,
+                Desert: 0.02,
+                Tundra: 0.03
+            };
+            return treeChances[biomeName] || 0;
         };
 
         // Check for nearby workbench and show interaction prompt
@@ -3221,7 +3441,7 @@ class NebulaVoxelApp {
                 this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
 
                 // 🎯 PHASE 3: Revolutionary tree physics - Check if we just chopped a tree base!
-                if (blockType === 'wood') {
+                if (this.isWoodBlock(blockType)) {
                     this.checkTreeFalling(x, y, z);
                 }
             } else if (!blockData) {
@@ -3552,6 +3772,124 @@ class NebulaVoxelApp {
                 ctx.fillRect(54, 4, 6, 6);
                 ctx.fillRect(4, 54, 6, 6);
                 ctx.fillRect(54, 54, 6, 6);
+
+            // NEW: Biome-specific wood textures
+            } else if (blockType.texture === 'oak_wood') {
+                // Oak wood - classic brown with vertical grain
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 10; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 6 + Math.random() * 3, 0);
+                    ctx.lineTo(i * 6 + Math.random() * 3, 64);
+                    ctx.stroke();
+                }
+                // Oak rings
+                ctx.strokeStyle = '#5D4037';
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(32, 32, 10 + i * 8, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'pine_wood') {
+                // Pine wood - darker with tight grain
+                ctx.strokeStyle = '#4A2C17';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 12; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 5 + Math.random() * 2, 0);
+                    ctx.lineTo(i * 5 + Math.random() * 2, 64);
+                    ctx.stroke();
+                }
+                // Resin marks
+                ctx.fillStyle = '#8B4513';
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 4);
+                }
+            } else if (blockType.texture === 'palm_wood') {
+                // Palm wood - light with horizontal rings
+                ctx.strokeStyle = '#BC9A6A';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 8; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 8 + i * 6 + Math.random() * 2);
+                    ctx.lineTo(64, 8 + i * 6 + Math.random() * 2);
+                    ctx.stroke();
+                }
+                // Fiber texture
+                ctx.strokeStyle = '#A0826D';
+                for (let i = 0; i < 6; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 10, 0);
+                    ctx.lineTo(i * 10 + 2, 64);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'birch_wood') {
+                // Birch wood - light with dark horizontal marks
+                ctx.strokeStyle = '#2F4F4F';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 6; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, Math.random() * 64);
+                    ctx.lineTo(64, Math.random() * 64);
+                    ctx.stroke();
+                }
+                // Birch spots
+                ctx.fillStyle = '#696969';
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 3, 2);
+                }
+
+            // NEW: Biome-specific leaf textures
+            } else if (blockType.texture === 'forest_leaves') {
+                // Forest leaves - bright green with leaf patterns
+                ctx.fillStyle = '#32CD32';
+                for (let i = 0; i < 15; i++) {
+                    const x = Math.random() * 64;
+                    const y = Math.random() * 64;
+                    ctx.fillRect(x, y, 3, 2);
+                    ctx.fillRect(x + 1, y - 1, 1, 4);
+                }
+            } else if (blockType.texture === 'mountain_leaves') {
+                // Mountain leaves - dark green needles
+                ctx.strokeStyle = '#228B22';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 25; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(Math.random() * 64, Math.random() * 64);
+                    ctx.lineTo(Math.random() * 64, Math.random() * 64);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'desert_leaves') {
+                // Desert leaves - yellow-green fronds
+                ctx.strokeStyle = '#ADFF2F';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const centerX = 32;
+                    const centerY = 32;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY);
+                    ctx.lineTo(centerX + Math.cos(i * Math.PI / 4) * 20, centerY + Math.sin(i * Math.PI / 4) * 20);
+                    ctx.stroke();
+                }
+            } else if (blockType.texture === 'plains_leaves') {
+                // Plains leaves - light green with soft texture
+                ctx.fillStyle = '#98FB98';
+                for (let i = 0; i < 20; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+                }
+            } else if (blockType.texture === 'tundra_leaves') {
+                // Tundra leaves - gray-green hardy leaves
+                ctx.fillStyle = '#8FBC8F';
+                for (let i = 0; i < 12; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 4, 1);
+                }
+                // Frost effect
+                ctx.fillStyle = '#F0F8FF';
+                ctx.globalAlpha = 0.2;
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+                }
             }
 
             const texture = new THREE.CanvasTexture(canvas);
@@ -3616,7 +3954,20 @@ class NebulaVoxelApp {
             sand: new CANNON.Material('sand'),
             grass: new CANNON.Material('grass'),
             glowstone: new CANNON.Material('glowstone'),
-            coal: new CANNON.Material('coal')
+            coal: new CANNON.Material('coal'),
+
+            // NEW: Biome-specific wood materials (all behave like wood)
+            oak_wood: new CANNON.Material('oak_wood'),
+            pine_wood: new CANNON.Material('pine_wood'),
+            palm_wood: new CANNON.Material('palm_wood'),
+            birch_wood: new CANNON.Material('birch_wood'),
+
+            // NEW: Leaf materials (lighter than wood)
+            forest_leaves: new CANNON.Material('forest_leaves'),
+            mountain_leaves: new CANNON.Material('mountain_leaves'),
+            desert_leaves: new CANNON.Material('desert_leaves'),
+            plains_leaves: new CANNON.Material('plains_leaves'),
+            tundra_leaves: new CANNON.Material('tundra_leaves')
         };
 
         // 🎯 PHASE 2.3: Enhanced material contact properties for realistic behavior
@@ -3867,8 +4218,13 @@ class NebulaVoxelApp {
                     this.addBlock(worldX, height - 2, worldZ, biome.subBlock, false, deepColor);            // More sub-surface
                     this.addBlock(worldX, height - 3, worldZ, "iron");                                     // Iron at bottom (unbreakable)
 
-                    // Generate shrubs on top of surface (if no snow)
-                    if (!hasSnow && biome.shrubChance > 0) {
+                    // 🌳 Generate trees based on biome (before shrubs)
+                    if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome)) {
+                        const treeHeight = height + 1; // Place tree on surface
+                        this.generateTreeForBiome(worldX, treeHeight, worldZ, biome);
+                    }
+                    // Generate shrubs on top of surface (if no snow and no tree)
+                    else if (!hasSnow && biome.shrubChance > 0) {
                         const shrubNoise = this.seededNoise(worldX + 3000, worldZ + 3000, this.worldSeed);
                         if (shrubNoise > (1 - biome.shrubChance * 2)) { // Convert chance to noise threshold
                             this.addBlock(worldX, height + 1, worldZ, 'shrub', false); // Place shrub on top of surface
@@ -3878,6 +4234,216 @@ class NebulaVoxelApp {
             }
 
             this.loadedChunks.add(chunkKey);
+        };
+
+        // 🌳 TREE GENERATION ALGORITHMS
+        // Generate Oak Tree (Forest/Plains biomes)
+        this.generateOakTree = (x, y, z) => {
+            const height = 4 + Math.floor(this.seededNoise(x + 5000, z + 5000, this.worldSeed) * 4); // 4-7 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'oak_wood', false);
+            }
+
+            // Generate canopy (3x3 at top, expanding to 5x5 in middle)
+            const canopyCenter = y + height;
+
+            // Top layer (3x3)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= 2) { // Cross pattern
+                        this.addBlock(x + dx, canopyCenter, z + dz, 'forest_leaves', false);
+                    }
+                }
+            }
+
+            // Middle layer (5x5)
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dz = -2; dz <= 2; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= 3 && !(Math.abs(dx) === 2 && Math.abs(dz) === 2)) {
+                        this.addBlock(x + dx, canopyCenter - 1, z + dz, 'forest_leaves', false);
+                    }
+                }
+            }
+
+            // Bottom layer (3x3)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) <= 2) {
+                        this.addBlock(x + dx, canopyCenter - 2, z + dz, 'forest_leaves', false);
+                    }
+                }
+            }
+        };
+
+        // Generate Pine Tree (Mountain biome)
+        this.generatePineTree = (x, y, z) => {
+            const height = 6 + Math.floor(this.seededNoise(x + 6000, z + 6000, this.worldSeed) * 5); // 6-10 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'pine_wood', false);
+            }
+
+            // Generate conical canopy (starts small at top, gets wider)
+            const canopyStart = y + height - 1;
+            const layers = Math.min(5, height - 2);
+
+            for (let layer = 0; layer < layers; layer++) {
+                const layerY = canopyStart - layer;
+                const radius = Math.min(layer + 1, 3); // Max radius of 3
+
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dz = -radius; dz <= radius; dz++) {
+                        const distance = Math.sqrt(dx * dx + dz * dz);
+                        if (distance <= radius && !(dx === 0 && dz === 0)) {
+                            // Add some randomness to make it less perfect
+                            const leafNoise = this.seededNoise(x + dx + 7000, z + dz + 7000, this.worldSeed);
+                            if (leafNoise > -0.3) { // 80% chance for each leaf
+                                this.addBlock(x + dx, layerY, z + dz, 'mountain_leaves', false);
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        // Generate Palm Tree (Desert biome)
+        this.generatePalmTree = (x, y, z) => {
+            const height = 5 + Math.floor(this.seededNoise(x + 8000, z + 8000, this.worldSeed) * 4); // 5-8 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'palm_wood', false);
+            }
+
+            // Generate fronds at top (8-directional pattern)
+            const topY = y + height;
+            const directions = [
+                [2, 0], [-2, 0], [0, 2], [0, -2],  // Cardinal directions
+                [1, 1], [-1, 1], [1, -1], [-1, -1] // Diagonal directions
+            ];
+
+            // Central fronds cluster
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (Math.abs(dx) + Math.abs(dz) === 1) { // Plus pattern
+                        this.addBlock(x + dx, topY, z + dz, 'desert_leaves', false);
+                    }
+                }
+            }
+
+            // Extending fronds
+            directions.forEach(([dx, dz]) => {
+                this.addBlock(x + dx, topY, z + dz, 'desert_leaves', false);
+                // Sometimes add a second frond block
+                const extendNoise = this.seededNoise(x + dx + 9000, z + dz + 9000, this.worldSeed);
+                if (extendNoise > 0.2) {
+                    this.addBlock(x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'desert_leaves', false);
+                }
+            });
+        };
+
+        // Generate Birch Tree (Tundra biome)
+        this.generateBirchTree = (x, y, z) => {
+            const height = 2 + Math.floor(this.seededNoise(x + 10000, z + 10000, this.worldSeed) * 3); // 2-4 blocks tall
+
+            // Generate trunk
+            for (let h = 0; h < height; h++) {
+                this.addBlock(x, y + h, z, 'birch_wood', false);
+            }
+
+            // Generate sparse, hardy canopy
+            const topY = y + height;
+
+            // Small 3x3 canopy but sparse
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    // Only place leaves in plus pattern and with randomness
+                    if (Math.abs(dx) + Math.abs(dz) === 1) {
+                        const leafNoise = this.seededNoise(x + dx + 11000, z + dz + 11000, this.worldSeed);
+                        if (leafNoise > 0.1) { // 70% chance for sparse look
+                            this.addBlock(x + dx, topY, z + dz, 'tundra_leaves', false);
+                        }
+                    }
+                }
+            }
+
+            // Sometimes add a few leaves below
+            if (height > 2) {
+                const belowNoise = this.seededNoise(x + 12000, z + 12000, this.worldSeed);
+                if (belowNoise > 0.3) {
+                    this.addBlock(x + 1, topY - 1, z, 'tundra_leaves', false);
+                }
+                if (belowNoise > 0.6) {
+                    this.addBlock(x - 1, topY - 1, z, 'tundra_leaves', false);
+                }
+            }
+        };
+
+        // 🌳 TREE GENERATION HELPERS
+        // Determine if a tree should be generated at this location
+        this.shouldGenerateTree = (worldX, worldZ, biome) => {
+            // Define tree spawn rates based on biome (from trees.md design)
+            const treeChances = {
+                Forest: 0.30,    // 30% coverage - dense forest
+                Mountain: 0.25,  // 25% coverage - dense at low elevation
+                Plains: 0.08,    // 8% coverage - scattered groves
+                Desert: 0.02,    // 2% coverage - rare oasis trees
+                Tundra: 0.03     // 3% coverage - hardy survivors
+            };
+
+            const treeChance = treeChances[biome.name] || 0;
+            if (treeChance === 0) return false;
+
+            // Use noise for natural tree distribution
+            const treeNoise = this.seededNoise(worldX + 4000, worldZ + 4000, this.worldSeed);
+
+            // For mountains, reduce tree density at higher elevations
+            if (biome.name === 'Mountain') {
+                const elevationFactor = 1 - ((worldZ * 0.1) % 1); // Simulate elevation
+                return treeNoise > (1 - treeChance * elevationFactor);
+            }
+
+            return treeNoise > (1 - treeChance * 2); // Convert chance to noise threshold
+        };
+
+        // Generate the appropriate tree type for the biome
+        this.generateTreeForBiome = (worldX, treeHeight, worldZ, biome) => {
+            // Only generate trees on appropriate ground blocks
+            const groundBlock = this.getBlock(worldX, treeHeight - 1, worldZ);
+            if (!groundBlock || !['grass', 'dirt', 'sand'].includes(groundBlock.userData?.type)) {
+                return; // Don't generate trees on inappropriate ground
+            }
+
+            // Check for space - don't overlap with existing blocks
+            const existingBlock = this.getBlock(worldX, treeHeight, worldZ);
+            if (existingBlock) {
+                return; // Don't generate if space is occupied
+            }
+
+            // Generate tree based on biome type
+            switch (biome.name) {
+                case 'Forest':
+                    this.generateOakTree(worldX, treeHeight, worldZ);
+                    break;
+                case 'Plains':
+                    this.generateOakTree(worldX, treeHeight, worldZ); // Oak trees in plains too
+                    break;
+                case 'Mountain':
+                    this.generatePineTree(worldX, treeHeight, worldZ);
+                    break;
+                case 'Desert':
+                    this.generatePalmTree(worldX, treeHeight, worldZ);
+                    break;
+                case 'Tundra':
+                    this.generateBirchTree(worldX, treeHeight, worldZ);
+                    break;
+                default:
+                    // Fallback to oak tree for unknown biomes
+                    this.generateOakTree(worldX, treeHeight, worldZ);
+            }
         };
 
         const unloadChunk = (chunkX, chunkZ) => {
@@ -4326,6 +4892,9 @@ class NebulaVoxelApp {
 
             // Check for nearby workbench (even when paused)
             this.checkWorkbenchProximity();
+
+            // 🌍 Update biome indicator based on player position
+            this.updateBiomeIndicator();
 
             // Always continue animation loop, but skip input processing if paused or controls disabled
             if (this.isPaused || !this.controlsEnabled) {
