@@ -1221,7 +1221,7 @@ class NebulaVoxelApp {
         // Material Design icon system for crafted items
         this.getMaterialColor = (material) => {
             const materialColors = {
-                wood: '#8B4513',      // Brown
+                wood: '#8B4513',      // Brown (legacy)
                 stone: '#708090',     // Slate gray
                 iron: '#C0C0C0',      // Silver
                 glass: '#87CEEB',     // Sky blue
@@ -1230,7 +1230,20 @@ class NebulaVoxelApp {
                 brick: '#B22222',     // Fire brick
                 glowstone: '#FFD700', // Gold
                 coal: '#2F4F4F',      // Dark slate gray
-                dirt: '#8B7355'       // Burlywood
+                dirt: '#8B7355',      // Burlywood
+
+                // NEW: Biome-specific wood colors
+                oak_wood: '#8B4513',      // Classic brown oak
+                pine_wood: '#654321',     // Darker brown pine
+                palm_wood: '#D2B48C',     // Light tan palm
+                birch_wood: '#F5F5DC',    // Pale birch
+
+                // NEW: Biome-specific leaf colors
+                forest_leaves: '#228B22',   // Bright green
+                mountain_leaves: '#006400', // Dark green needles
+                desert_leaves: '#9ACD32',   // Yellow-green fronds
+                plains_leaves: '#90EE90',   // Light green
+                tundra_leaves: '#708090'    // Gray-green hardy
             };
             return materialColors[material] || '#666666';
         };
@@ -3331,7 +3344,7 @@ class NebulaVoxelApp {
             dirt: { color: 0x8B4513, texture: 'dirt' },      // Brown dirt texture
             stone: { color: 0x696969, texture: 'stone' },    // Dim gray with stone pattern
             coal: { color: 0x2F2F2F, texture: 'coal' },      // Dark gray/black coal texture
-            wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain
+            wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain (legacy)
             sand: { color: 0xF4A460, texture: 'sand' },      // Sandy brown with grain texture
             glass: { color: 0x87CEEB, texture: 'glass' },    // Sky blue, translucent
             brick: { color: 0xB22222, texture: 'brick' },    // Fire brick with mortar lines
@@ -3341,6 +3354,19 @@ class NebulaVoxelApp {
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
             backpack: { color: 0x8B4513, texture: 'transparent' }, // Transparent for billboard
+
+            // NEW: Biome-specific wood types
+            oak_wood: { color: 0x8B4513, texture: 'oak_wood' },      // Classic brown oak
+            pine_wood: { color: 0x654321, texture: 'pine_wood' },    // Darker brown pine
+            palm_wood: { color: 0xD2B48C, texture: 'palm_wood' },    // Light tan palm
+            birch_wood: { color: 0xF5F5DC, texture: 'birch_wood' },  // Pale birch
+
+            // NEW: Biome-specific leaf types
+            forest_leaves: { color: 0x228B22, texture: 'forest_leaves' },   // Bright green
+            mountain_leaves: { color: 0x006400, texture: 'mountain_leaves' }, // Dark green needles
+            desert_leaves: { color: 0x9ACD32, texture: 'desert_leaves' },   // Yellow-green fronds
+            plains_leaves: { color: 0x90EE90, texture: 'plains_leaves' },   // Light green
+            tundra_leaves: { color: 0x708090, texture: 'tundra_leaves' },   // Gray-green hardy
             workbench: { color: 0x8B7355, texture: 'workbench' } // Tan brown workbench
         };
 
