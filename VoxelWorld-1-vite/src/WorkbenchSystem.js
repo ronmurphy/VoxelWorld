@@ -159,6 +159,12 @@ export class WorkbenchSystem {
             document.exitPointerLock();
         }
 
+        // Disable VoxelWorld input controls while workbench is open
+        if (this.voxelWorld) {
+            this.voxelWorld.controlsEnabled = false;
+            console.log('🔒 Disabled VoxelWorld input controls for workbench');
+        }
+
         // Always recreate UI to get fresh inventory data
         if (this.modal) {
             this.modal.remove();
@@ -186,6 +192,12 @@ export class WorkbenchSystem {
             this.modal.style.display = 'none';
         }
         this.isOpen = false;
+
+        // Re-enable VoxelWorld input controls when workbench closes
+        if (this.voxelWorld) {
+            this.voxelWorld.controlsEnabled = true;
+            console.log('✅ Re-enabled VoxelWorld input controls');
+        }
 
         // Re-acquire pointer lock for game
         if (this.voxelWorld.renderer && this.voxelWorld.renderer.domElement) {
