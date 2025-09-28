@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
+import { BiomeWorldGen } from './BiomeWorldGen.js';
+import { InventorySystem } from './InventorySystem.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -31,208 +33,32 @@ class NebulaVoxelApp {
         this.harvestingTarget = null;
         this.harvestingStartTime = 0;
         this.harvestingDuration = 0;
-        // Legacy inventory removed - using pure slot-based system
-        // NEW: Slot-based inventory system (5 pure item slots)
-        this.hotbarSlots = [
-            { itemType: null, quantity: 0 }, // Slot 1: Empty initially
-            { itemType: null, quantity: 0 }, // Slot 2: Empty initially
-            { itemType: null, quantity: 0 }, // Slot 3: Empty initially
-            { itemType: null, quantity: 0 }, // Slot 4: Empty initially
-            { itemType: null, quantity: 0 }  // Slot 5: Empty initially
-        ];
+        // 🎒 Inventory system now handled by InventorySystem module
+        // All inventory management moved to InventorySystem.js
 
-        // All items now use the slot-based system exclusively
+        // 🔄 DELEGATE FUNCTIONS TO NEW INVENTORY SYSTEM
+        // These functions maintain API compatibility while delegating to InventorySystem
+        this.getHotbarSlot = (index) => this.inventory.getHotbarSlot(index);
 
-        // NEW: Backpack slots (25 slots total)
-        this.backpackSlots = [];
-        for (let i = 0; i < 25; i++) {
-            this.backpackSlots.push({ itemType: null, quantity: 0 });
-        }
+        this.setHotbarSlot = (index, itemType, quantity) => this.inventory.setHotbarSlot(index, itemType, quantity);
 
-        // Stack limit for items per slot
-        this.STACK_LIMIT = 8;
+        this.findEmptyHotbarSlot = () => this.inventory.findEmptyHotbarSlot();
 
-        // Slot helper functions
-        this.getHotbarSlot = (index) => {
-            return this.hotbarSlots[index] || null;
-        };
+        this.getBackpackSlot = (index) => this.inventory.getBackpackSlot(index);
 
-        this.setHotbarSlot = (index, itemType, quantity) => {
-            if (index >= 0 && index < this.hotbarSlots.length) {
-                this.hotbarSlots[index] = { itemType, quantity: Math.min(quantity, this.STACK_LIMIT) };
-            }
-        };
+        this.setBackpackSlot = (index, itemType, quantity) => this.inventory.setBackpackSlot(index, itemType, quantity);
 
-        this.findEmptyHotbarSlot = () => {
-            for (let i = 0; i < this.hotbarSlots.length; i++) { // All 5 slots are item slots
-                if (!this.hotbarSlots[i].itemType || this.hotbarSlots[i].quantity === 0) {
-                    return i;
-                }
-            }
-            return -1;
-        };
+        this.findEmptyBackpackSlot = () => this.inventory.findEmptyBackpackSlot();
 
-        this.getBackpackSlot = (index) => {
-            return this.backpackSlots[index] || null;
-        };
+        this.findItemInSlots = (itemType) => this.inventory.findItemInSlots(itemType);
 
-        this.setBackpackSlot = (index, itemType, quantity) => {
-            if (index >= 0 && index < this.backpackSlots.length) {
-                const existingElement = this.backpackSlots[index].element;
-                this.backpackSlots[index] = {
-                    itemType,
-                    quantity: Math.min(quantity, this.STACK_LIMIT),
-                    element: existingElement
-                };
-            }
-        };
+        this.countItemInSlots = (itemType) => this.inventory.countItemInSlots(itemType);
 
-        this.findEmptyBackpackSlot = () => {
-            for (let i = 0; i < this.backpackSlots.length; i++) {
-                if (!this.backpackSlots[i].itemType || this.backpackSlots[i].quantity === 0) {
-                    return i;
-                }
-            }
-            return -1;
-        };
+        this.getAllMaterialsFromSlots = () => this.inventory.getAllMaterialsFromSlots();
 
-        this.findItemInSlots = (itemType) => {
-            // Check hotbar first (all 5 slots are item slots)
-            for (let i = 0; i < this.hotbarSlots.length; i++) {
-                if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity < this.STACK_LIMIT) {
-                    return { location: 'hotbar', index: i };
-                }
-            }
-            // Then check backpack
-            for (let i = 0; i < this.backpackSlots.length; i++) {
-                if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity < this.STACK_LIMIT) {
-                    return { location: 'backpack', index: i };
-                }
-            }
-            return null; // Item not found or all stacks are full
-        };
+        this.removeFromInventory = (itemType, quantity) => this.inventory.removeFromInventory(itemType, quantity);
 
-        this.countItemInSlots = (itemType) => {
-            let total = 0;
-            // Count in hotbar (all 5 slots are item slots)
-            for (let i = 0; i < this.hotbarSlots.length; i++) {
-                if (this.hotbarSlots[i].itemType === itemType) {
-                    total += this.hotbarSlots[i].quantity;
-                }
-            }
-            // Count in backpack
-            for (let i = 0; i < this.backpackSlots.length; i++) {
-                if (this.backpackSlots[i].itemType === itemType) {
-                    total += this.backpackSlots[i].quantity;
-                }
-            }
-            return total;
-        };
-
-        this.getAllMaterialsFromSlots = () => {
-            const materials = {};
-            // Check hotbar (all 5 slots are item slots)
-            for (let i = 0; i < this.hotbarSlots.length; i++) {
-                const slot = this.hotbarSlots[i];
-                if (slot.itemType && slot.quantity > 0) {
-                    materials[slot.itemType] = (materials[slot.itemType] || 0) + slot.quantity;
-                }
-            }
-            // Check backpack
-            for (let i = 0; i < this.backpackSlots.length; i++) {
-                const slot = this.backpackSlots[i];
-                if (slot.itemType && slot.quantity > 0) {
-                    materials[slot.itemType] = (materials[slot.itemType] || 0) + slot.quantity;
-                }
-            }
-            return materials;
-        };
-
-        this.removeFromInventory = (itemType, quantity = 1) => {
-            let remaining = quantity;
-
-            // First check hotbar (all 5 slots are item slots)
-            for (let i = 0; i < this.hotbarSlots.length && remaining > 0; i++) {
-                const slot = this.hotbarSlots[i];
-                if (slot.itemType === itemType && slot.quantity > 0) {
-                    const removeAmount = Math.min(slot.quantity, remaining);
-                    slot.quantity -= removeAmount;
-                    remaining -= removeAmount;
-
-                    // Clear slot if empty
-                    if (slot.quantity === 0) {
-                        slot.itemType = '';
-                    }
-                }
-            }
-
-            // Then check backpack
-            for (let i = 0; i < this.backpackSlots.length && remaining > 0; i++) {
-                const slot = this.backpackSlots[i];
-                if (slot.itemType === itemType && slot.quantity > 0) {
-                    const removeAmount = Math.min(slot.quantity, remaining);
-                    slot.quantity -= removeAmount;
-                    remaining -= removeAmount;
-
-                    // Clear slot if empty
-                    if (slot.quantity === 0) {
-                        slot.itemType = '';
-                    }
-                }
-            }
-
-            // Update UI
-            this.updateHotbarCounts();
-            this.updateBackpackInventoryDisplay();
-
-            return quantity - remaining; // Return how many were actually removed
-        };
-
-        // Smart inventory addition that respects stacking
-        this.addToInventory = (itemType, quantity = 1) => {
-            let remaining = quantity;
-
-            // First, try to add to existing stacks
-            while (remaining > 0) {
-                const existingSlot = this.findItemInSlots(itemType);
-                if (existingSlot) {
-                    const slot = existingSlot.location === 'hotbar'
-                        ? this.hotbarSlots[existingSlot.index]
-                        : this.backpackSlots[existingSlot.index];
-
-                    const canAdd = Math.min(remaining, this.STACK_LIMIT - slot.quantity);
-                    slot.quantity += canAdd;
-                    remaining -= canAdd;
-                } else {
-                    // No existing stack with space, find empty slot
-                    const emptyHotbar = this.findEmptyHotbarSlot();
-                    if (emptyHotbar !== -1) {
-                        const canAdd = Math.min(remaining, this.STACK_LIMIT);
-                        this.setHotbarSlot(emptyHotbar, itemType, canAdd);
-                        remaining -= canAdd;
-                    } else {
-                        const emptyBackpack = this.findEmptyBackpackSlot();
-                        if (emptyBackpack !== -1) {
-                            const canAdd = Math.min(remaining, this.STACK_LIMIT);
-                            this.setBackpackSlot(emptyBackpack, itemType, canAdd);
-                            remaining -= canAdd;
-                        } else {
-                            // No space left
-                            console.warn(`No space for ${remaining} ${itemType} items`);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Pure slot-based system - no legacy inventory needed
-
-            // Update UI
-            this.updateHotbarCounts();
-            this.updateBackpackInventoryDisplay();
-
-            return quantity - remaining; // Return how many were actually added
-        };
+        this.addToInventory = (itemType, quantity) => this.inventory.addToInventory(itemType, quantity);
 
         this.container = container;
         this.controlsEnabled = true;
@@ -255,6 +81,27 @@ class NebulaVoxelApp {
 
         // Initialize new WorkbenchSystem
         this.workbenchSystem = new WorkbenchSystem(this);
+
+        // 🌍 Initialize Advanced BiomeWorldGen System
+        this.biomeWorldGen = new BiomeWorldGen(this);
+
+        // 🎒 Initialize Advanced InventorySystem
+        this.inventory = new InventorySystem(this);
+
+        // 🔄 COMPATIBILITY: Provide access to inventory arrays for legacy code
+        // These properties delegate to InventorySystem for backward compatibility
+        Object.defineProperty(this, 'hotbarSlots', {
+            get: () => this.inventory.hotbarSlots,
+            set: (value) => { this.inventory.hotbarSlots = value; }
+        });
+
+        Object.defineProperty(this, 'backpackSlots', {
+            get: () => this.inventory.backpackSlots,
+            set: (value) => { this.inventory.backpackSlots = value; }
+        });
+
+        // Provide access to STACK_LIMIT for legacy code
+        this.STACK_LIMIT = this.inventory.STACK_LIMIT;
 
         this.addBlock = (x, y, z, type, playerPlaced = false, customColor = null) => {
             const geo = new THREE.BoxGeometry(1, 1, 1);
@@ -515,6 +362,12 @@ class NebulaVoxelApp {
             }
         };
 
+        // Get block data at world coordinates
+        this.getBlock = (x, y, z) => {
+            const key = `${x},${y},${z}`;
+            return this.world[key] || null;
+        };
+
         this.removeBlock = (x, y, z) => {
             const key = `${x},${y},${z}`;
             if (this.world[key]) {
@@ -522,8 +375,8 @@ class NebulaVoxelApp {
 
                 // Check if it's a shrub for harvesting
                 if (blockData.type === 'shrub') {
-                    this.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
-                    const totalWood = this.countItemInSlots('wood');
+                    this.inventory.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
+                    const totalWood = this.inventory.countItemInSlots('wood');
                     console.log(`Harvested shrub! Wood: ${totalWood}`);
                     this.updateStatus(`Harvested shrub! Wood: ${totalWood}`);
                     // addToInventory already handles UI updates
@@ -542,14 +395,14 @@ class NebulaVoxelApp {
                 else if (blockData.type === 'grass') {
                     // 10% chance to get dirt when harvesting grass
                     if (Math.random() < 0.1) {
-                        this.addToInventory('dirt', 1);
+                        this.inventory.addToInventory('dirt', 1);
                         this.updateStatus(`🪨 Found dirt!`, 'discovery');
                     }
                 }
                 else if (blockData.type === 'stone') {
                     // 5% chance to get coal when harvesting stone
                     if (Math.random() < 0.05) {
-                        this.addToInventory('coal', 1);
+                        this.inventory.addToInventory('coal', 1);
                         this.updateStatus(`⚫ Found coal!`, 'discovery');
                     }
                 }
@@ -630,6 +483,7 @@ class NebulaVoxelApp {
 
             // Create new seeded random generator
             this.seededRandom = this.createSeededRandom(this.worldSeed);
+            this.biomeWorldGen.setWorldSeed(this.worldSeed);
 
             // Reset player position
             this.player.position = { x: 0, y: 10, z: 0 };
@@ -680,75 +534,57 @@ class NebulaVoxelApp {
 
             // CRITICAL: Add workbench FIRST to guarantee it gets a hotbar slot
             console.log('🔧 Adding essential workbench first...');
-            this.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
+            this.inventory.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
 
             // Guaranteed starter materials (but smaller amounts to fit in hotbar + backpack)
             const woodCount = randomRange(4, 8);  // Reduced from 8-16
             console.log(`🪵 Adding ${woodCount} wood...`);
-            this.addToInventory('wood', woodCount);
+            this.inventory.addToInventory('wood', woodCount);
 
             const stoneCount = randomRange(2, 6);  // Reduced from 4-10
             console.log(`🪨 Adding ${stoneCount} stone...`);
-            this.addToInventory('stone', stoneCount);
+            this.inventory.addToInventory('stone', stoneCount);
 
             
             // Common items (high chance)
             if (this.seededRandom() > 0.2) {
                 const sandCount = randomRange(2, 6);
-                this.addToInventory('sand', sandCount);
+                this.inventory.addToInventory('sand', sandCount);
             }
             if (this.seededRandom() > 0.3) {
                 const grassCount = randomRange(3, 8);
-                this.addToInventory('grass', grassCount);
+                this.inventory.addToInventory('grass', grassCount);
             }
 
             // Uncommon items (medium chance)
             if (this.seededRandom() > 0.5) {
                 const glassCount = randomRange(1, 3);
-                this.addToInventory('glass', glassCount);
+                this.inventory.addToInventory('glass', glassCount);
             }
             if (this.seededRandom() > 0.6) {
                 const brickCount = randomRange(1, 2);
-                this.addToInventory('brick', brickCount);
+                this.inventory.addToInventory('brick', brickCount);
             }
             if (this.seededRandom() > 0.7) {
                 const flowersCount = randomRange(1, 3);
-                this.addToInventory('flowers', flowersCount);
+                this.inventory.addToInventory('flowers', flowersCount);
             }
 
             // Rare items (low chance but exciting!)
             if (this.seededRandom() > 0.8) {
-                this.addToInventory('glowstone', 1);  // 20% chance - lucky!
+                this.inventory.addToInventory('glowstone', 1);  // 20% chance - lucky!
             }
             if (this.seededRandom() > 0.9) {
-                this.addToInventory('iron', 1);  // 10% chance - jackpot!
+                this.inventory.addToInventory('iron', 1);  // 10% chance - jackpot!
             }
 
             // Log what we found for excitement
             // Items automatically added to slots via addToInventory()
             console.log(`Backpack loot generated and added to slots!`);
 
-            // Debug: Check what ended up where
-            console.log('🔍 HOTBAR CONTENTS:');
-            this.hotbarSlots.forEach((slot, index) => {
-                if (slot.itemType) {
-                    console.log(`  Slot ${index}: ${slot.itemType} x${slot.quantity}`);
-                } else {
-                    console.log(`  Slot ${index}: EMPTY`);
-                }
-            });
-
-            console.log('🔍 BACKPACK CONTENTS:');
-            let backpackHasItems = false;
-            this.backpackSlots.forEach((slot, index) => {
-                if (slot.itemType && slot.quantity > 0) {
-                    console.log(`  Backpack slot ${index}: ${slot.itemType} x${slot.quantity}`);
-                    backpackHasItems = true;
-                }
-            });
-            if (!backpackHasItems) {
-                console.log('  Backpack is EMPTY');
-            }
+            // Debug: Check what ended up where using InventorySystem
+            console.log('🔍 INVENTORY CONTENTS:');
+            this.inventory.debugInventory();
 
             // Note: addToInventory() already handles UI updates
         };
@@ -810,7 +646,7 @@ class NebulaVoxelApp {
             // Get biome at chunk center
             const centerX = chunkX * this.chunkSize + this.chunkSize / 2;
             const centerZ = chunkZ * this.chunkSize + this.chunkSize / 2;
-            const biome = this.getBiomeAt(centerX, centerZ);
+            const biome = this.biomeWorldGen.getBiomeAt(centerX, centerZ, this.worldSeed);
             
             let itemType = null;
             let emoji = null;
@@ -988,7 +824,7 @@ class NebulaVoxelApp {
             }
             
             // Add to inventory
-            this.addToInventory(itemType, 1);
+            this.inventory.addToInventory(itemType, 1);
 
             // Remove from scene and world
             this.scene.remove(sprite);
@@ -1008,7 +844,7 @@ class NebulaVoxelApp {
             this.updateBackpackInventoryDisplay();
             
             // Notification
-            this.updateStatus(`${emoji} Found ${itemType}! (${this.countItemInSlots(itemType)} total)`, 'discovery');
+            this.updateStatus(`${emoji} Found ${itemType}! (${this.inventory.countItemInSlots(itemType)} total)`, 'discovery');
             console.log(`Harvested world item: ${itemType} (${emoji})`);
         };
 
@@ -1069,7 +905,7 @@ class NebulaVoxelApp {
             }
 
             // Add original crafted item back to inventory
-            this.addToInventory(itemId, 1);
+            this.inventory.addToInventory(itemId, 1);
 
             // Update UI displays
             this.updateHotbarCounts();
@@ -1086,6 +922,8 @@ class NebulaVoxelApp {
             // Create hotbar if it doesn't exist
             if (!this.hotbarElement) {
                 this.createHotbar();
+                // Connect UI elements to InventorySystem
+                this.inventory.setUIElements(this.hotbarElement, this.backpackInventoryElement);
             }
 
             // Show the hotbar
@@ -1109,7 +947,7 @@ class NebulaVoxelApp {
             }
 
             // Check if player has workbench in inventory and show workbench tool
-            const workbenchCount = this.countItemInSlots('workbench');
+            const workbenchCount = this.inventory.countItemInSlots('workbench');
             if (workbenchCount > 0 && this.workbenchTool) {
                 this.workbenchTool.style.display = 'block';
                 console.log('🔨 Workbench tool button enabled');
@@ -1175,7 +1013,7 @@ class NebulaVoxelApp {
                 slot.appendChild(slotNumber);
 
                 // All slots are now pure item slots
-                const slotData = this.hotbarSlots[i];
+                const slotData = this.getHotbarSlot(i);
                 const itemName = slotData ? slotData.itemType : null;
                 const itemCount = slotData ? slotData.quantity : 0;
 
@@ -1349,39 +1187,8 @@ class NebulaVoxelApp {
 
         // Update hotbar item counts and icons
         this.updateHotbarCounts = () => {
-            if (!this.hotbarElement) return;
-
-            for (let i = 0; i < 4; i++) {
-                // NEW: Use slot-based system
-                const slot = this.hotbarSlots[i];
-                const itemCount = slot ? slot.quantity : 0;
-                const itemType = slot ? slot.itemType : null;
-
-                // Update count
-                const countElement = this.hotbarElement.querySelector(`.item-count-${i}`);
-                if (countElement) {
-                    countElement.textContent = itemCount > 0 ? itemCount : '';
-                }
-
-                // Update icon
-                const slotElement = this.hotbarElement.querySelector(`.slot-${i}`);
-                if (slotElement) {
-                    const iconElement = slotElement.querySelector('.item-icon');
-                    if (iconElement) {
-                        if (itemType && itemCount > 0) {
-                            const iconContent = this.getItemIcon(itemType);
-                            if (iconContent.includes('<span')) {
-                                iconElement.innerHTML = iconContent;
-                            } else {
-                                iconElement.textContent = iconContent;
-                            }
-                        } else {
-                            iconElement.textContent = '';
-                            iconElement.innerHTML = '';
-                        }
-                    }
-                }
-            }
+            // Delegate to InventorySystem
+            this.inventory.updateHotbarCounts();
         };
 
         // Toggle backpack inventory slide-down
@@ -1416,8 +1223,12 @@ class NebulaVoxelApp {
             }
         };
 
-        // Create backpack inventory UI
+        // 🗑️ REMOVED: Backpack UI creation now handled by InventorySystem.js
         this.createBackpackInventory = () => {
+            // Delegate to InventorySystem
+            this.inventory.createBackpackInventory();
+            this.backpackInventoryElement = this.inventory.backpackInventoryElement;
+            return;
             this.backpackInventoryElement = document.createElement('div');
             this.backpackInventoryElement.style.cssText = `
                 position: fixed;
@@ -1699,7 +1510,7 @@ class NebulaVoxelApp {
             `;
 
             // Show available materials from slots
-            const availableMaterials = this.getAllMaterialsFromSlots();
+            const availableMaterials = this.inventory.getAllMaterialsFromSlots();
             Object.keys(availableMaterials).forEach(materialType => {
                 const count = availableMaterials[materialType];
                 if (count > 0 && materialType !== 'workbench') { // Don't show workbench as material
@@ -2184,7 +1995,7 @@ class NebulaVoxelApp {
             }
 
             // Check if player has enough materials (for now, require 1 of selected material)
-            const availableCount = this.countItemInSlots(this.selectedMaterial);
+            const availableCount = this.inventory.countItemInSlots(this.selectedMaterial);
             if (availableCount < 1) {
                 this.updateStatus(`⚠️ Not enough ${this.selectedMaterial}! Need 1, have ${availableCount}`, 'error');
                 return;
@@ -2198,13 +2009,13 @@ class NebulaVoxelApp {
             });
 
             // Use material
-            this.removeFromInventory(this.selectedMaterial, 1);
+            this.inventory.removeFromInventory(this.selectedMaterial, 1);
 
             // Create the object (placeholder for now)
             const objectName = `${this.selectedMaterial}_${this.selectedShape}`;
 
             // Add crafted object to inventory
-            this.addToInventory(objectName, 1);
+            this.inventory.addToInventory(objectName, 1);
 
             // Update all displays
             this.updateHotbarCounts();
@@ -2951,7 +2762,7 @@ class NebulaVoxelApp {
         this.updateBiomeIndicator = () => {
             const playerX = Math.floor(this.player.position.x);
             const playerZ = Math.floor(this.player.position.z);
-            const currentBiome = this.getBiomeAt(playerX, playerZ);
+            const currentBiome = this.biomeWorldGen.getBiomeAt(playerX, playerZ, this.worldSeed);
 
             // Only update if biome changed to avoid spam
             if (this.lastDisplayedBiome !== currentBiome.name) {
@@ -3107,7 +2918,9 @@ class NebulaVoxelApp {
 
         // Update backpack inventory display
         this.updateBackpackInventoryDisplay = () => {
-            if (!this.backpackSlots) return;
+            // Delegate to InventorySystem
+            this.inventory.updateBackpackInventoryDisplay();
+            return;
 
             // Ensure backpack UI is created before updating
             if (!this.backpackInventoryElement) {
@@ -3315,7 +3128,7 @@ class NebulaVoxelApp {
 
         // Get harvesting time for block type with current tool
         this.getHarvestTime = (blockType) => {
-            const currentTool = this.hotbarSlots[this.selectedSlot];
+            const currentTool = this.getHotbarSlot(this.selectedSlot);
 
             // Base harvest times (in milliseconds)
             const baseTimes = {
@@ -3431,7 +3244,7 @@ class NebulaVoxelApp {
                     blockData: blockData
                 });
 
-                this.addToInventory(blockType, 1);
+                this.inventory.addToInventory(blockType, 1);
                 console.log(`Harvested ${blockType}!`);
 
                 // addToInventory() already handles UI updates
@@ -4091,149 +3904,55 @@ class NebulaVoxelApp {
         };
 
         // Biome definitions
-        this.biomes = {
-            forest: {
-                name: 'Forest',
-                color: 0x228B22, // Forest green
-                minHeight: -2,
-                maxHeight: 4,
-                surfaceBlock: 'grass',
-                subBlock: 'stone',
-                mapColor: '#228B22',
-                heightColorRange: { min: 0.6, max: 1.2 }, // Brightness multiplier range
-                shrubChance: 0.35 // High density - 35% chance per surface block
-            },
-            desert: {
-                name: 'Desert',
-                color: 0xDEB887, // Burlywood/sand
-                minHeight: -1,
-                maxHeight: 2,
-                surfaceBlock: 'sand',
-                subBlock: 'sand',
-                mapColor: '#DEB887',
-                heightColorRange: { min: 0.7, max: 1.1 },
-                shrubChance: 0.03 // Very rare - 3% chance (desert brush)
-            },
-            mountain: {
-                name: 'Mountain',
-                color: 0x696969, // Dim gray
-                minHeight: 2,
-                maxHeight: 8,
-                surfaceBlock: 'stone',
-                subBlock: 'iron',
-                mapColor: '#696969',
-                heightColorRange: { min: 0.8, max: 1.4 },
-                shrubChance: 0.08 // Low density - 8% chance (hardy mountain shrubs)
-            },
-            plains: {
-                name: 'Plains',
-                color: 0x90EE90, // Light green
-                minHeight: -1,
-                maxHeight: 1,
-                surfaceBlock: 'grass',
-                subBlock: 'stone',
-                mapColor: '#90EE90',
-                heightColorRange: { min: 0.65, max: 1.15 },
-                shrubChance: 0.20 // Medium density - 20% chance
-            },
-            tundra: {
-                name: 'Tundra',
-                color: 0xF0F8FF, // Alice blue
-                minHeight: -3,
-                maxHeight: 0,
-                surfaceBlock: 'stone',
-                subBlock: 'iron',
-                mapColor: '#F0F8FF',
-                heightColorRange: { min: 0.5, max: 1.0 },
-                shrubChance: 0.01 // Extremely rare - 1% chance (hardy tundra plants)
-            }
-        };
+        // 🌍 Biome system now handled by BiomeWorldGen module
+        // All biome definitions, noise generation, and world generation moved to BiomeWorldGen.js
 
-        // Simple biome selection based on position (can be improved with noise)
-        this.getBiomeAt = (x, z) => {
-            const biomeSeed = this.seededNoise(x, z, this.worldSeed) * 2 - 1; // Convert to -1 to 1 range
-            const distanceFromCenter = Math.sqrt(x * x + z * z);
-
-            if (distanceFromCenter > 40) return this.biomes.tundra;
-            if (biomeSeed > 0.3) return this.biomes.mountain;
-            if (biomeSeed < -0.3) return this.biomes.desert;
-            if (Math.abs(biomeSeed) < 0.1) return this.biomes.plains;
-            return this.biomes.forest;
-        };
-
-        // Calculate height-based color for terrain blocks
+        // Delegate function for height-based coloring (used by some legacy code)
         this.getHeightBasedColor = (biome, height) => {
-            // Normalize height within biome's range
-            const heightRange = biome.maxHeight - biome.minHeight;
-            const normalizedHeight = heightRange > 0 ?
-                (height - biome.minHeight) / heightRange : 0.5;
-
-            // Calculate brightness multiplier
-            const brightnessRange = biome.heightColorRange.max - biome.heightColorRange.min;
-            const brightness = biome.heightColorRange.min + (normalizedHeight * brightnessRange);
-
-            // Apply brightness to base biome color
-            const baseColor = new THREE.Color(biome.color);
-            return baseColor.multiplyScalar(brightness);
+            return this.biomeWorldGen.getHeightBasedColor(biome, height);
         };
 
         // Chunk-based terrain generation functions
         const getChunkKey = (chunkX, chunkZ) => `${chunkX},${chunkZ}`;
 
         const generateChunk = (chunkX, chunkZ) => {
-            const chunkKey = getChunkKey(chunkX, chunkZ);
-            if (this.loadedChunks.has(chunkKey)) return;
+            // 🌍 Use new advanced BiomeWorldGen system for chunk generation
+            this.biomeWorldGen.generateChunk(
+                chunkX,
+                chunkZ,
+                this.worldSeed,
+                this.addBlock.bind(this),
+                this.loadedChunks,
+                this.chunkSize
+            );
 
-            console.log(`Generating chunk ${chunkKey}`);
+            // 🌳 Generate trees for this chunk using existing tree system
+            // Bind 'this' context properly by storing reference
+            const voxelWorld = this;
+            for (let x = 0; x < voxelWorld.chunkSize; x++) {
+                for (let z = 0; z < voxelWorld.chunkSize; z++) {
+                    const worldX = chunkX * voxelWorld.chunkSize + x;
+                    const worldZ = chunkZ * voxelWorld.chunkSize + z;
 
-            for (let x = 0; x < this.chunkSize; x++) {
-                for (let z = 0; z < this.chunkSize; z++) {
-                    const worldX = chunkX * this.chunkSize + x;
-                    const worldZ = chunkZ * this.chunkSize + z;
+                    const biome = voxelWorld.biomeWorldGen.getBiomeAt(worldX, worldZ, voxelWorld.worldSeed);
 
-                    // Get biome for this position
-                    const biome = this.getBiomeAt(worldX, worldZ);
+                    // Check if we should generate a tree at this position
+                    if (voxelWorld.biomeWorldGen.shouldGenerateTree(worldX, worldZ, biome, voxelWorld.worldSeed)) {
+                        // Find the surface height at this position
+                        let surfaceY = -10;
+                        for (let y = 10; y >= -10; y--) {
+                            if (voxelWorld.getBlock(worldX, y, worldZ)) {
+                                surfaceY = y + 1;
+                                break;
+                            }
+                        }
 
-                    // Generate height with biome-specific noise
-                    const baseHeight = Math.floor(this.seededNoise(worldX, worldZ, this.worldSeed) * 2);
-                    const biomeHeight = Math.floor((biome.maxHeight + biome.minHeight) / 2) + Math.floor(this.seededNoise(worldX + 1000, worldZ + 1000, this.worldSeed) * (biome.maxHeight - biome.minHeight) / 2);
-                    const height = Math.max(biome.minHeight, Math.min(biome.maxHeight, baseHeight + biomeHeight));
-
-                    // Create layers based on biome with height-based coloring
-                    const surfaceColor = this.getHeightBasedColor(biome, height);
-                    const subSurfaceColor = this.getHeightBasedColor(biome, height - 1);
-                    const deepColor = this.getHeightBasedColor(biome, height - 2);
-
-                    // Check for snow on high elevations in cold biomes
-                    const snowNoise = this.seededNoise(worldX + 2000, worldZ + 2000, this.worldSeed);
-                    const hasSnow = (biome.name === 'mountain' || biome.name === 'tundra' || biome.name === 'forest') &&
-                                   height >= biome.maxHeight - 1 &&
-                                   snowNoise > -0.3; // 70% chance for snow based on noise
-
-                    const surfaceBlock = hasSnow ? 'snow' : biome.surfaceBlock;
-                    const surfaceBlockColor = hasSnow ? new THREE.Color(0xFFFFFF) : surfaceColor;
-
-                    this.addBlock(worldX, height, worldZ, surfaceBlock, false, surfaceBlockColor);           // Surface
-                    this.addBlock(worldX, height - 1, worldZ, biome.subBlock, false, subSurfaceColor);      // Sub-surface
-                    this.addBlock(worldX, height - 2, worldZ, biome.subBlock, false, deepColor);            // More sub-surface
-                    this.addBlock(worldX, height - 3, worldZ, "iron");                                     // Iron at bottom (unbreakable)
-
-                    // 🌳 Generate trees based on biome (before shrubs)
-                    if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome)) {
-                        const treeHeight = height + 1; // Place tree on surface
-                        this.generateTreeForBiome(worldX, treeHeight, worldZ, biome);
-                    }
-                    // Generate shrubs on top of surface (if no snow and no tree)
-                    else if (!hasSnow && biome.shrubChance > 0) {
-                        const shrubNoise = this.seededNoise(worldX + 3000, worldZ + 3000, this.worldSeed);
-                        if (shrubNoise > (1 - biome.shrubChance * 2)) { // Convert chance to noise threshold
-                            this.addBlock(worldX, height + 1, worldZ, 'shrub', false); // Place shrub on top of surface
+                        if (surfaceY > -10) {
+                            voxelWorld.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
                         }
                     }
                 }
             }
-
-            this.loadedChunks.add(chunkKey);
         };
 
         // 🌳 TREE GENERATION ALGORITHMS
@@ -4650,10 +4369,12 @@ class NebulaVoxelApp {
                 if (saveData.worldSeed) {
                     this.worldSeed = saveData.worldSeed;
                     this.seededRandom = this.createSeededRandom(this.worldSeed);
+            this.biomeWorldGen.setWorldSeed(this.worldSeed);
                 } else {
                     // For backwards compatibility with old saves
                     this.worldSeed = this.generateInitialSeed();
                     this.seededRandom = this.createSeededRandom(this.worldSeed);
+            this.biomeWorldGen.setWorldSeed(this.worldSeed);
                 }
 
                 const craftedCount = saveData.craftedObjects ? saveData.craftedObjects.length : 0;
@@ -4820,7 +4541,7 @@ class NebulaVoxelApp {
                     const worldX = Math.floor(this.player.position.x + x);
                     const worldZ = Math.floor(this.player.position.z + z);
 
-                    const biome = this.getBiomeAt(worldX, worldZ);
+                    const biome = this.biomeWorldGen.getBiomeAt(worldX, worldZ, this.worldSeed);
 
                     // Convert world coordinates to mini-map coordinates
                     const mapX = size/2 + x / scale;
@@ -5257,14 +4978,14 @@ class NebulaVoxelApp {
             if (key === 'q') {
                 this.selectedSlot = (this.selectedSlot - 1 + this.hotbarSlots.length) % this.hotbarSlots.length;
                 this.updateHotbarSelection();
-                const slotData = this.hotbarSlots[this.selectedSlot];
+                const slotData = this.getHotbarSlot(this.selectedSlot);
                 const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
                 console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
                 e.preventDefault();
             }
             if (key === 'e') {
                 // Check if player has workbench in inventory for direct access
-                const workbenchCount = this.countItemInSlots('workbench');
+                const workbenchCount = this.inventory.countItemInSlots('workbench');
                 if (workbenchCount > 0) {
                     // Direct workbench access from inventory
                     this.workbenchSystem.open(0, 0, 0); // Use dummy coordinates for direct access
@@ -5281,7 +5002,7 @@ class NebulaVoxelApp {
                     // Fallback to hotbar navigation
                     this.selectedSlot = (this.selectedSlot + 1) % this.hotbarSlots.length;
                     this.updateHotbarSelection();
-                    const slotData = this.hotbarSlots[this.selectedSlot];
+                    const slotData = this.getHotbarSlot(this.selectedSlot);
                 const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
                 console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
                     e.preventDefault();
@@ -5381,7 +5102,7 @@ class NebulaVoxelApp {
                 } else if (e.button === 2) { // Right click - block placement only
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
-                    const selectedSlot = this.hotbarSlots[this.selectedSlot];
+                    const selectedSlot = this.getHotbarSlot(this.selectedSlot);
                     const selectedBlock = selectedSlot?.itemType;
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
@@ -5607,7 +5328,7 @@ class NebulaVoxelApp {
 
         this.workbenchTool.addEventListener('click', () => {
             // Direct workbench access from inventory
-            const workbenchCount = this.countItemInSlots('workbench');
+            const workbenchCount = this.inventory.countItemInSlots('workbench');
             if (workbenchCount > 0) {
                 this.workbenchSystem.open(0, 0, 0); // Direct access
             } else {
