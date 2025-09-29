@@ -1014,6 +1014,40 @@ class NebulaVoxelApp {
             console.log('🔄 Refreshed all billboards for enhanced graphics');
         };
 
+        // Refresh all block textures after enhanced graphics initialization
+        this.refreshAllBlockTextures = () => {
+            let refreshedCount = 0;
+            let multiFaceCount = 0;
+            const startTime = performance.now();
+
+            Object.values(this.world).forEach(block => {
+                if (block.mesh && block.type) {
+                    // Get the current material (could be default or enhanced)
+                    const currentMaterial = block.mesh.material;
+
+                    // Try to get enhanced material
+                    const enhancedMaterial = this.enhancedGraphics.getEnhancedBlockMaterial(
+                        block.type,
+                        currentMaterial
+                    );
+
+                    // Only update if we got a different (enhanced) material
+                    if (enhancedMaterial !== currentMaterial) {
+                        block.mesh.material = enhancedMaterial;
+                        refreshedCount++;
+
+                        // If it's an array of materials (multi-face), count it
+                        if (Array.isArray(enhancedMaterial)) {
+                            multiFaceCount++;
+                        }
+                    }
+                }
+            });
+
+            const endTime = performance.now();
+            console.log(`🔄 Refreshed ${refreshedCount} blocks (${multiFaceCount} multi-face) with enhanced textures in ${(endTime - startTime).toFixed(1)}ms`);
+        };
+
         // Update tool button icon with enhanced graphics if available
         this.updateToolButtonIcon = (buttonElement, toolType, defaultEmoji) => {
             console.log(`🔧 Updating tool button for ${toolType}, enhanced graphics ready: ${this.enhancedGraphics.isReady()}`);
@@ -2651,7 +2685,7 @@ class NebulaVoxelApp {
             const allTreeBlocks = [...treeMetadata.trunkBlocks, ...treeMetadata.leafBlocks];
 
             // Create falling animation for all tree blocks
-            this.createFallingTreePhysics(allTreeBlocks, harvestedX, harvestedY, harvestedZ);
+            this.createFallingTreePhysics(allTreeBlocks, harvestedX, harvestedY, harvestedZ, treeMetadata.treeType);
 
             // Remove all blocks from world
             allTreeBlocks.forEach(block => {
@@ -2939,7 +2973,7 @@ class NebulaVoxelApp {
         };
 
         // 🎯 PHASE 3: Create dramatic falling tree physics
-        this.createFallingTreePhysics = (treeBlocks, chopX, chopY, chopZ) => {
+        this.createFallingTreePhysics = (treeBlocks, chopX, chopY, chopZ, treeType = 'unknown') => {
             console.log(`🎬 Creating dramatic falling tree animation with ${treeBlocks.length} blocks!`);
 
             // Separate blocks into wood and leaves for different physics
@@ -2981,8 +3015,9 @@ class NebulaVoxelApp {
                 }, index * 20 + woodBlocks.length * 30); // Start after wood blocks
             });
 
-            // Add satisfying tree fall sound effect notification
-            this.updateStatus(`🌳 TIMBER! Tree crashed down with ${woodBlocks.length} wood and ${leafBlocks.length} leaf blocks!`, 'discovery');
+            // Add satisfying tree fall sound effect notification with tree type
+            const treeDisplayName = treeType.replace('_wood', '').replace('_', ' ');
+            this.updateStatus(`🌳 TIMBER! ${treeDisplayName} tree crashed down with ${woodBlocks.length} wood and ${leafBlocks.length} leaf blocks!`, 'discovery');
             console.log(`🎉 Tree falling sequence initiated - wood and leaves will fall realistically!`);
         };
 
@@ -6216,6 +6251,16 @@ class NebulaVoxelApp {
                 this.updateBackpackInventoryDisplay();
             }
 
+            // Refresh all block textures (including trees) when Enhanced Graphics is toggled
+            if (newState && this.refreshAllBlockTextures) {
+                this.refreshAllBlockTextures();
+            }
+
+            // Refresh all billboards when Enhanced Graphics is toggled
+            if (this.refreshAllBillboards) {
+                this.refreshAllBillboards();
+            }
+
             // Refresh tool button icons
             if (this.backpackTool) {
                 this.updateToolButtonIcon(this.backpackTool, 'backpack', '🎒');
@@ -6563,7 +6608,7 @@ class NebulaVoxelApp {
 
 export async function initVoxelWorld(container) {
     console.log('🔧 initVoxelWorld called with container:', container);
-    
+
     try {
         const app = new NebulaVoxelApp(container);
         console.log('📱 NebulaVoxelApp created');
@@ -6590,6 +6635,10 @@ export async function initVoxelWorld(container) {
         // Refresh all billboards now that enhanced graphics are loaded
         app.refreshAllBillboards();
         console.log('🔄 All billboards refreshed after Enhanced Graphics initialization');
+
+        // Refresh all existing blocks with enhanced graphics
+        app.refreshAllBlockTextures();
+        console.log('🔄 All block textures refreshed after Enhanced Graphics initialization');
 
         console.log('✅ VoxelWorld initialization completed');
 

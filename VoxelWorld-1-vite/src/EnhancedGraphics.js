@@ -15,7 +15,7 @@ export class EnhancedGraphics {
         this.loadingPromise = null;
 
         // Asset caches
-        this.blockTextures = new Map(); // Map<blockType, THREE.Texture>
+        this.blockTextures = new Map(); // Map<blockType, THREE.Texture or Array<THREE.Texture>>
         this.toolImages = new Map();    // Map<toolType, HTMLImageElement>
         this.timeImages = new Map();    // Map<timePeriod, HTMLImageElement>
 
@@ -31,6 +31,14 @@ export class EnhancedGraphics {
             blocks: [],
             tools: [],
             time: []
+        };
+
+        // Texture aliases - map block types to texture names
+        this.textureAliases = {
+            'oak_wood': 'oak',
+            'pine_wood': 'pine',
+            'birch_wood': 'birch',
+            'palm_wood': 'palm'
         };
 
         // UI element size configurations
@@ -108,7 +116,7 @@ export class EnhancedGraphics {
 
         // Asset types and their expected file extensions
         const assetConfig = {
-            blocks: { extensions: ['.jpeg', '.jpg', '.png'], commonNames: ['bedrock', 'dirt', 'sand', 'snow', 'stone', 'wood', 'iron', 'coal', 'diamond', 'emerald', 'gold', 'obsidian', 'glass', 'brick', 'cobblestone', 'gravel', 'clay', 'moss', 'grass', 'water', 'lava'] },
+            blocks: { extensions: ['.jpeg', '.jpg', '.png'], commonNames: ['bedrock', 'dirt', 'sand', 'snow', 'stone', 'wood', 'oak', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'iron', 'coal', 'diamond', 'emerald', 'gold', 'obsidian', 'glass', 'brick', 'cobblestone', 'gravel', 'clay', 'moss', 'grass', 'water', 'lava'] },
             tools: { extensions: ['.png', '.jpg', '.jpeg'], commonNames: ['backpack', 'machete', 'workbench', 'pickaxe', 'axe', 'shovel', 'sword', 'bow', 'hammer', 'hoe'] },
             time: { extensions: ['.png', '.jpg', '.jpeg'], commonNames: ['dawn', 'dusk', 'moon', 'night', 'sun', 'morning', 'afternoon', 'evening', 'midnight'] }
         };
@@ -118,6 +126,16 @@ export class EnhancedGraphics {
 
             // Try common asset names with different extensions
             for (const name of config.commonNames) {
+                let foundMainTexture = false;
+
+                // Skip if this is an aliased name that maps to another texture
+                if (category === 'blocks' && this.textureAliases[name]) {
+                    const aliasTarget = this.textureAliases[name];
+                    console.log(`🔗 Skipping ${name} - aliased to ${aliasTarget}`);
+                    continue;
+                }
+
+                // Check for main texture first
                 for (const ext of config.extensions) {
                     const assetPath = `${this.assetPaths[category]}/${name}${ext}`;
 
@@ -127,10 +145,31 @@ export class EnhancedGraphics {
                         if (response.ok) {
                             discovered.push(name);
                             console.log(`✅ Found ${category} asset: ${name}${ext}`);
+                            foundMainTexture = true;
                             break; // Found this asset, try next name
                         }
                     } catch (error) {
                         // Asset doesn't exist, continue to next extension/name
+                    }
+                }
+
+                // For blocks category, also check for face-specific textures
+                if (category === 'blocks' && foundMainTexture) {
+                    const faceVariants = ['-sides', '-top', '-bottom', '-top-bottom'];
+
+                    for (const variant of faceVariants) {
+                        for (const ext of config.extensions) {
+                            const facePath = `${this.assetPaths[category]}/${name}${variant}${ext}`;
+
+                            try {
+                                const response = await fetch(facePath, { method: 'HEAD' });
+                                if (response.ok) {
+                                    console.log(`✅ Found face texture: ${name}${variant}${ext}`);
+                                }
+                            } catch (error) {
+                                // Face texture doesn't exist, that's okay
+                            }
+                        }
                     }
                 }
             }
@@ -171,14 +210,13 @@ export class EnhancedGraphics {
     }
 
     /**
-     * Load block texture assets and create THREE.js textures
+     * Load block texture assets and create THREE.js textures (with multi-face support)
      */
     async _loadBlockTextures() {
         const promises = this.availableAssets.blocks.map(async (blockType) => {
             try {
-                const imagePath = `${this.assetPaths.blocks}/${blockType}.jpeg`;
-                const texture = await this._loadThreeTexture(imagePath);
-                this.blockTextures.set(blockType, texture);
+                const textures = await this._loadMultiFaceTextures(blockType);
+                this.blockTextures.set(blockType, textures);
                 return { blockType, success: true };
             } catch (error) {
                 console.warn(`⚠️ Failed to load block texture: ${blockType}`, error);
@@ -190,6 +228,95 @@ export class EnhancedGraphics {
         const loaded = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
         return { loaded, total: this.availableAssets.blocks.length };
+    }
+
+    /**
+     * Load multi-face textures for a block with fallback hierarchy
+     * Returns either a single texture or an array of 6 textures for cube faces
+     */
+    async _loadMultiFaceTextures(blockType) {
+        const extensions = ['.jpeg', '.jpg', '.png'];
+        const basePath = this.assetPaths.blocks;
+
+        // Try to find face-specific textures
+        const faceTextures = {
+            top: null,
+            bottom: null,
+            sides: null,
+            topBottom: null,
+            main: null
+        };
+
+        // Search for all texture variants
+        for (const ext of extensions) {
+            const paths = {
+                top: `${basePath}/${blockType}-top${ext}`,
+                bottom: `${basePath}/${blockType}-bottom${ext}`,
+                sides: `${basePath}/${blockType}-sides${ext}`,
+                topBottom: `${basePath}/${blockType}-top-bottom${ext}`,
+                main: `${basePath}/${blockType}${ext}`
+            };
+
+            for (const [type, path] of Object.entries(paths)) {
+                if (!faceTextures[type]) {
+                    try {
+                        const texture = await this._loadThreeTexture(path);
+                        faceTextures[type] = texture;
+                        console.log(`🎨 Loaded ${blockType} ${type} texture`);
+                    } catch (error) {
+                        // Texture doesn't exist, continue
+                    }
+                }
+            }
+        }
+
+        // Build final texture mapping with fallback hierarchy
+        const finalTextures = this._buildFaceTextureMapping(faceTextures, blockType);
+
+        return finalTextures;
+    }
+
+    /**
+     * Build the final texture mapping using fallback hierarchy
+     */
+    _buildFaceTextureMapping(faceTextures, blockType) {
+        // If we have face-specific textures, create array for cube faces
+        const hasSpecificTextures = faceTextures.top || faceTextures.bottom || faceTextures.sides || faceTextures.topBottom;
+
+        if (hasSpecificTextures) {
+            // THREE.js cube face order: [+X, -X, +Y, -Y, +Z, -Z] = [right, left, top, bottom, front, back]
+
+            // Determine top texture
+            const topTexture = faceTextures.top || faceTextures.topBottom || faceTextures.main;
+
+            // Determine bottom texture
+            const bottomTexture = faceTextures.bottom || faceTextures.topBottom || faceTextures.main;
+
+            // Determine side texture
+            const sideTexture = faceTextures.sides || faceTextures.main;
+
+            if (topTexture || bottomTexture || sideTexture) {
+                const cubeTextures = [
+                    sideTexture,   // +X (right)
+                    sideTexture,   // -X (left)
+                    topTexture,    // +Y (top)
+                    bottomTexture, // -Y (bottom)
+                    sideTexture,   // +Z (front)
+                    sideTexture    // -Z (back)
+                ];
+
+                console.log(`🎯 Created multi-face texture for ${blockType}: top=${!!topTexture}, bottom=${!!bottomTexture}, sides=${!!sideTexture}`);
+                return cubeTextures;
+            }
+        }
+
+        // Fallback to single main texture
+        if (faceTextures.main) {
+            console.log(`📦 Using single texture for ${blockType}`);
+            return faceTextures.main;
+        }
+
+        throw new Error(`No textures found for ${blockType}`);
     }
 
     /**
@@ -282,20 +409,30 @@ export class EnhancedGraphics {
 
     /**
      * Get enhanced block material or fall back to default
+     * Now supports both single textures and multi-face texture arrays
      */
     getEnhancedBlockMaterial(blockType, defaultMaterial) {
         if (!this.isEnabled || !this.assetsLoaded) {
             return defaultMaterial;
         }
 
-        const texture = this.blockTextures.get(blockType);
-        if (texture) {
-            // Create new material with the texture applied
-            return new THREE.MeshLambertMaterial({
-                map: texture,
-                // Keep some of the original color as tint if desired
-                // color: defaultMaterial.color
-            });
+        // Check for texture alias (e.g., oak_wood -> oak)
+        const textureKey = this.textureAliases[blockType] || blockType;
+        const textures = this.blockTextures.get(textureKey);
+
+        if (textures) {
+            // Check if it's a multi-face texture array
+            if (Array.isArray(textures)) {
+                // Create material array for cube faces
+                return textures.map(texture => new THREE.MeshLambertMaterial({
+                    map: texture
+                }));
+            } else {
+                // Single texture - create single material
+                return new THREE.MeshLambertMaterial({
+                    map: textures
+                });
+            }
         }
 
         return defaultMaterial;
