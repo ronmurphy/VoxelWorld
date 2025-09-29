@@ -368,42 +368,45 @@ class NebulaVoxelApp {
             return this.world[key] || null;
         };
 
-        this.removeBlock = (x, y, z) => {
+        this.removeBlock = (x, y, z, giveItems = true) => {
             const key = `${x},${y},${z}`;
             if (this.world[key]) {
                 const blockData = this.world[key];
 
-                // Check if it's a shrub for harvesting
-                if (blockData.type === 'shrub') {
-                    this.inventory.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
-                    const totalWood = this.inventory.countItemInSlots('wood');
-                    console.log(`Harvested shrub! Wood: ${totalWood}`);
-                    this.updateStatus(`Harvested shrub! Wood: ${totalWood}`);
-                    // addToInventory already handles UI updates
-                }
-                // Check if it's a backpack for pickup
-                else if (blockData.type === 'backpack' && !this.hasBackpack) {
-                    this.hasBackpack = true; // Mark backpack as found
-                    this.backpackPosition = null; // Remove from minimap
-                    this.generateBackpackLoot(); // Add random starting items
-                    this.showHotbarTutorial(); // Show hotbar and tutorial
-                    this.showToolButtons(); // Show tool menu buttons
-                    console.log(`Found backpack! Hotbar unlocked!`);
-                    this.updateStatus(`🎒 Found backpack! Inventory system unlocked!`, 'discovery');
-                }
-                // Random drop system for regular blocks
-                else if (blockData.type === 'grass') {
-                    // 10% chance to get dirt when harvesting grass
-                    if (Math.random() < 0.1) {
-                        this.inventory.addToInventory('dirt', 1);
-                        this.updateStatus(`🪨 Found dirt!`, 'discovery');
+                // 🎯 Only give items if this is actual player harvesting (not chunk cleanup)
+                if (giveItems) {
+                    // Check if it's a shrub for harvesting
+                    if (blockData.type === 'shrub') {
+                        this.inventory.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
+                        const totalWood = this.inventory.countItemInSlots('wood');
+                        console.log(`Harvested shrub! Wood: ${totalWood}`);
+                        this.updateStatus(`Harvested shrub! Wood: ${totalWood}`);
+                        // addToInventory already handles UI updates
                     }
-                }
-                else if (blockData.type === 'stone') {
-                    // 5% chance to get coal when harvesting stone
-                    if (Math.random() < 0.05) {
-                        this.inventory.addToInventory('coal', 1);
-                        this.updateStatus(`⚫ Found coal!`, 'discovery');
+                    // Check if it's a backpack for pickup
+                    else if (blockData.type === 'backpack' && !this.hasBackpack) {
+                        this.hasBackpack = true; // Mark backpack as found
+                        this.backpackPosition = null; // Remove from minimap
+                        this.generateBackpackLoot(); // Add random starting items
+                        this.showHotbarTutorial(); // Show hotbar and tutorial
+                        this.showToolButtons(); // Show tool menu buttons
+                        console.log(`Found backpack! Hotbar unlocked!`);
+                        this.updateStatus(`🎒 Found backpack! Inventory system unlocked!`, 'discovery');
+                    }
+                    // Random drop system for regular blocks
+                    else if (blockData.type === 'grass') {
+                        // 10% chance to get dirt when harvesting grass
+                        if (Math.random() < 0.1) {
+                            this.inventory.addToInventory('dirt', 1);
+                            this.updateStatus(`🪨 Found dirt!`, 'discovery');
+                        }
+                    }
+                    else if (blockData.type === 'stone') {
+                        // 5% chance to get coal when harvesting stone
+                        if (Math.random() < 0.05) {
+                            this.inventory.addToInventory('coal', 1);
+                            this.updateStatus(`⚫ Found coal!`, 'discovery');
+                        }
                     }
                 }
 
@@ -469,7 +472,7 @@ class NebulaVoxelApp {
             // Clear current world
             for (let key in this.world) {
                 const [x, y, z] = key.split(',').map(Number);
-                this.removeBlock(x, y, z);
+                this.removeBlock(x, y, z, false); // Don't give items when clearing world
             }
             this.loadedChunks.clear();
             this.world = {};
@@ -2404,8 +2407,8 @@ class NebulaVoxelApp {
         this.createFallingLeaves = (leafBlocks) => {
             leafBlocks.forEach(({ x, y, z, type }, index) => {
                 setTimeout(() => {
-                    // Remove the stationary leaf block
-                    this.removeBlock(x, y, z);
+                    // Remove the stationary leaf block (no items for falling leaves)
+                    this.removeBlock(x, y, z, false);
 
                     // Create falling leaf with appropriate color
                     const leafColor = this.getLeafColor(type);
@@ -2479,8 +2482,8 @@ class NebulaVoxelApp {
 
             // Create falling tree as single physics object
             treeBlocks.forEach((block, index) => {
-                // Remove original block from world
-                this.removeBlock(block.x, block.y, block.z);
+                // Remove original block from world (no items for falling tree parts)
+                this.removeBlock(block.x, block.y, block.z, false);
 
                 // Create falling physics block with delay for dramatic effect
                 setTimeout(() => {
@@ -4090,16 +4093,16 @@ class NebulaVoxelApp {
             const chunkKey = getChunkKey(chunkX, chunkZ);
             if (!this.loadedChunks.has(chunkKey)) return;
 
-            console.log(`Unloading chunk ${chunkKey}`);
+            // console.log(`Unloading chunk ${chunkKey}`); // Removed for performance
 
             for (let x = 0; x < this.chunkSize; x++) {
                 for (let z = 0; z < this.chunkSize; z++) {
                     const worldX = chunkX * this.chunkSize + x;
                     const worldZ = chunkZ * this.chunkSize + z;
 
-                    // Only remove the 3 layers we actually create
+                    // Only remove the 3 layers we actually create (don't give items for despawned blocks)
                     for (let y = -5; y <= 5; y++) { // Small range around ground level
-                        this.removeBlock(worldX, y, worldZ);
+                        this.removeBlock(worldX, y, worldZ, false); // 🎯 false = don't give items for despawned blocks
                     }
                 }
             }
@@ -4222,7 +4225,7 @@ class NebulaVoxelApp {
                 for (let key in this.world) {
                     if (this.world[key].playerPlaced) {
                         const [x, y, z] = key.split(",").map(Number);
-                        this.removeBlock(x, y, z);
+                        this.removeBlock(x, y, z, false); // Don't give items when clearing saved blocks
                     }
                 }
 
