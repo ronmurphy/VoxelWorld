@@ -26,11 +26,11 @@ export class EnhancedGraphics {
             time: 'assets/art/time'
         };
 
-        // Available assets (what we actually have files for)
+        // Available assets - will be discovered dynamically
         this.availableAssets = {
-            blocks: ['bedrock', 'dirt', 'sand', 'snow', 'stone'],
-            tools: ['backpack', 'machete', 'workbench'],
-            time: ['dawn', 'dusk', 'moon', 'night', 'sun']
+            blocks: [],
+            tools: [],
+            time: []
         };
 
         // UI element size configurations
@@ -88,13 +88,56 @@ export class EnhancedGraphics {
             return await this.loadingPromise;
         }
 
-        console.log('🎨 Loading enhanced graphics assets...');
+        console.log('🎨 Discovering and loading enhanced graphics assets...');
+
+        // First discover what assets are available
+        await this._discoverAvailableAssets();
 
         this.loadingPromise = this._loadAllAssets();
         const result = await this.loadingPromise;
 
         this.assetsLoaded = result.success;
         return result;
+    }
+
+    /**
+     * Dynamically discover available assets by attempting to load them
+     */
+    async _discoverAvailableAssets() {
+        console.log('🔍 Discovering available assets...');
+
+        // Asset types and their expected file extensions
+        const assetConfig = {
+            blocks: { extensions: ['.jpeg', '.jpg', '.png'], commonNames: ['bedrock', 'dirt', 'sand', 'snow', 'stone', 'wood', 'iron', 'coal', 'diamond', 'emerald', 'gold', 'obsidian', 'glass', 'brick', 'cobblestone', 'gravel', 'clay', 'moss', 'grass', 'water', 'lava'] },
+            tools: { extensions: ['.png', '.jpg', '.jpeg'], commonNames: ['backpack', 'machete', 'workbench', 'pickaxe', 'axe', 'shovel', 'sword', 'bow', 'hammer', 'hoe'] },
+            time: { extensions: ['.png', '.jpg', '.jpeg'], commonNames: ['dawn', 'dusk', 'moon', 'night', 'sun', 'morning', 'afternoon', 'evening', 'midnight'] }
+        };
+
+        for (const [category, config] of Object.entries(assetConfig)) {
+            const discovered = [];
+
+            // Try common asset names with different extensions
+            for (const name of config.commonNames) {
+                for (const ext of config.extensions) {
+                    const assetPath = `${this.assetPaths[category]}/${name}${ext}`;
+
+                    try {
+                        // Attempt to fetch the asset to see if it exists
+                        const response = await fetch(assetPath, { method: 'HEAD' });
+                        if (response.ok) {
+                            discovered.push(name);
+                            console.log(`✅ Found ${category} asset: ${name}${ext}`);
+                            break; // Found this asset, try next name
+                        }
+                    } catch (error) {
+                        // Asset doesn't exist, continue to next extension/name
+                    }
+                }
+            }
+
+            this.availableAssets[category] = discovered;
+            console.log(`🎨 ${category}: ${discovered.length} assets discovered -`, discovered);
+        }
     }
 
     /**

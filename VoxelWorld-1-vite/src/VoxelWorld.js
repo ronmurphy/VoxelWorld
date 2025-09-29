@@ -333,6 +333,7 @@ class NebulaVoxelApp {
             let texture;
 
             // Use EnhancedGraphics API to get enhanced asset if available
+            console.log(`🔍 Billboard debug for ${type}: isReady=${this.enhancedGraphics.isReady()}, hasImage=${this.enhancedGraphics.toolImages.has(type)}`);
             if (this.enhancedGraphics.isReady() && this.enhancedGraphics.toolImages.has(type)) {
                 // Use enhanced PNG image through proper API with relative path
                 const enhancedImageData = this.enhancedGraphics.toolImages.get(type);
@@ -1015,37 +1016,51 @@ class NebulaVoxelApp {
 
         // Update tool button icon with enhanced graphics if available
         this.updateToolButtonIcon = (buttonElement, toolType, defaultEmoji) => {
-            console.log(`🔧 Updating tool button for ${toolType}, enhanced graphics enabled: ${this.enhancedGraphics.isEnabled}`);
+            console.log(`🔧 Updating tool button for ${toolType}, enhanced graphics ready: ${this.enhancedGraphics.isReady()}`);
 
-            const enhancedIcon = this.enhancedGraphics.getEnhancedToolIcon(toolType, defaultEmoji, 28);
-            console.log(`🎨 Enhanced icon result: ${enhancedIcon}`);
-
-            // Preserve existing hotkey label
+            // Preserve existing hotkey label before clearing content
             const existingLabel = buttonElement.querySelector('div');
+            let labelHTML = '';
+            if (existingLabel) {
+                labelHTML = existingLabel.outerHTML;
+            }
 
-            if (enhancedIcon.includes('<img')) {
-                console.log(`✅ Using enhanced image for ${toolType}`);
-                // Use enhanced image, but need to handle the styling properly
-                buttonElement.innerHTML = enhancedIcon;
-                // Reset text-based styling that doesn't work with images
-                buttonElement.style.fontSize = '';
-                buttonElement.style.lineHeight = '32px'; // Keep vertical centering
+            if (this.enhancedGraphics.isReady()) {
+                const enhancedIcon = this.enhancedGraphics.getEnhancedToolIcon(toolType, defaultEmoji, 28);
+                console.log(`🎨 Enhanced icon result for ${toolType}: ${enhancedIcon.substring(0, 50)}...`);
 
-                // Re-add the hotkey label if it existed
-                if (existingLabel) {
-                    buttonElement.appendChild(existingLabel);
+                if (enhancedIcon.includes('<img')) {
+                    console.log(`✅ Using enhanced image for ${toolType}`);
+                    // Use enhanced image with proper styling - preserve display state
+                    buttonElement.innerHTML = enhancedIcon + labelHTML;
+                    buttonElement.style.fontSize = '';
+                    buttonElement.style.lineHeight = '32px';
+                    // Only change display if currently visible (don't override 'none')
+                    if (buttonElement.style.display !== 'none') {
+                        buttonElement.style.display = 'flex';
+                        buttonElement.style.alignItems = 'center';
+                        buttonElement.style.justifyContent = 'center';
+                    }
+                } else {
+                    console.log(`📱 Enhanced graphics returned emoji for ${toolType}: ${enhancedIcon}`);
+                    // Enhanced graphics returned emoji fallback - preserve display state
+                    buttonElement.innerHTML = enhancedIcon + labelHTML;
+                    buttonElement.style.fontSize = '28px';
+                    buttonElement.style.lineHeight = '32px';
+                    // Only change display if currently visible (don't override 'none')
+                    if (buttonElement.style.display !== 'none') {
+                        buttonElement.style.display = 'block';
+                    }
                 }
             } else {
-                console.log(`📱 Using emoji fallback for ${toolType}: ${enhancedIcon}`);
-                // Use emoji fallback
-                buttonElement.innerHTML = '';
-                buttonElement.textContent = enhancedIcon;
+                console.log(`📱 Using emoji fallback for ${toolType}: ${defaultEmoji}`);
+                // Enhanced graphics not ready, use default emoji - preserve display state
+                buttonElement.innerHTML = defaultEmoji + labelHTML;
                 buttonElement.style.fontSize = '28px';
                 buttonElement.style.lineHeight = '32px';
-
-                // Re-add the hotkey label if it existed
-                if (existingLabel) {
-                    buttonElement.appendChild(existingLabel);
+                // Only change display if currently visible (don't override 'none')
+                if (buttonElement.style.display !== 'none') {
+                    buttonElement.style.display = 'block';
                 }
             }
         };
@@ -1054,12 +1069,16 @@ class NebulaVoxelApp {
         this.showToolButtons = () => {
             if (this.backpackTool) {
                 this.backpackTool.style.display = 'block';
+                // Refresh icon to use enhanced graphics if available
+                this.updateToolButtonIcon(this.backpackTool, 'backpack', '🎒');
                 console.log('🎒 Backpack tool button enabled');
             }
 
             // Always show workbench tool when player has backpack (UI-only tool)
             if (this.hasBackpack && this.workbenchTool) {
                 this.workbenchTool.style.display = 'block';
+                // Refresh icon to use enhanced graphics if available
+                this.updateToolButtonIcon(this.workbenchTool, 'workbench', '🔨');
                 console.log('🔨 Workbench tool button enabled (UI-only tool)');
             }
 
@@ -6556,6 +6575,21 @@ export async function initVoxelWorld(container) {
         // Initialize enhanced graphics system
         const graphicsResult = await app.enhancedGraphics.initialize();
         console.log('🎨 EnhancedGraphics initialized:', graphicsResult);
+
+        // Refresh tool button icons now that enhanced graphics are loaded (only if backpack found)
+        if (app.hasBackpack) {
+            if (app.backpackTool) {
+                app.updateToolButtonIcon(app.backpackTool, 'backpack', '🎒');
+            }
+            if (app.workbenchTool) {
+                app.updateToolButtonIcon(app.workbenchTool, 'workbench', '🔨');
+            }
+            console.log('🔄 Tool button icons refreshed after Enhanced Graphics initialization');
+        }
+
+        // Refresh all billboards now that enhanced graphics are loaded
+        app.refreshAllBillboards();
+        console.log('🔄 All billboards refreshed after Enhanced Graphics initialization');
 
         console.log('✅ VoxelWorld initialization completed');
 
