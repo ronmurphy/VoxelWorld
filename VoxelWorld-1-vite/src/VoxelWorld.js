@@ -105,6 +105,25 @@ class NebulaVoxelApp {
         this.STACK_LIMIT = this.inventory.STACK_LIMIT;
 
         this.addBlock = (x, y, z, type, playerPlaced = false, customColor = null) => {
+            const key = `${x},${y},${z}`;
+
+            // 🍃 OVERLAP PREVENTION: Check for existing blocks at this position
+            const existingBlock = this.world[key];
+            if (existingBlock) {
+                // If it's a leaf block overlapping with another leaf block, skip to prevent duplicates
+                if (this.isLeafBlock(type) && this.isLeafBlock(existingBlock.type)) {
+                    console.log(`🍃 Prevented leaf overlap at (${x},${y},${z}): ${type} would overlap ${existingBlock.type}`);
+                    return;
+                }
+                // For other block types, allow overwriting (existing behavior)
+                if (existingBlock.mesh) {
+                    this.scene.remove(existingBlock.mesh);
+                }
+                if (existingBlock.billboard) {
+                    this.scene.remove(existingBlock.billboard);
+                }
+            }
+
             const geo = new THREE.BoxGeometry(1, 1, 1);
 
             let mat;
@@ -133,7 +152,7 @@ class NebulaVoxelApp {
                 }
             }
 
-            this.world[`${x},${y},${z}`] = { type, mesh: cube, playerPlaced, billboard };
+            this.world[key] = { type, mesh: cube, playerPlaced, billboard };
         };
 
         // 🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
@@ -2281,11 +2300,189 @@ class NebulaVoxelApp {
             return leafTypes.includes(blockType);
         };
 
+        // 🌳 ENHANCED: Scan entire tree structure and separate grounded vs floating blocks
+        this.scanEntireTreeStructure = (startX, startY, startZ) => {
+            const visited = new Set();
+            const allWoodBlocks = [];
+            const toCheck = [{x: startX, y: startY, z: startZ}];
+
+            // First, find ALL connected wood blocks using broader search pattern
+            while (toCheck.length > 0) {
+                const {x, y, z} = toCheck.pop();
+                const key = `${x},${y},${z}`;
+
+                // Skip if already visited
+                if (visited.has(key)) continue;
+                visited.add(key);
+
+                const blockData = this.world[key];
+                if (!blockData || !this.isWoodBlock(blockData.type)) continue;
+
+                // Found a wood block - add to collection
+                allWoodBlocks.push({x, y, z, blockData});
+
+                // Search for connected wood blocks (including diagonals like old method)
+                const searchOffsets = [
+                    { dx: 0, dy: 1, dz: 0 },   // Directly above
+                    { dx: 0, dy: -1, dz: 0 },  // Directly below
+                    { dx: 1, dy: 1, dz: 0 },   // Diagonal up-north
+                    { dx: -1, dy: 1, dz: 0 },  // Diagonal up-south
+                    { dx: 0, dy: 1, dz: 1 },   // Diagonal up-east
+                    { dx: 0, dy: 1, dz: -1 },  // Diagonal up-west
+                    { dx: 1, dy: 0, dz: 0 },   // Adjacent north
+                    { dx: -1, dy: 0, dz: 0 },  // Adjacent south
+                    { dx: 0, dy: 0, dz: 1 },   // Adjacent east
+                    { dx: 0, dy: 0, dz: -1 },  // Adjacent west
+                ];
+
+                for (const offset of searchOffsets) {
+                    const nextX = x + offset.dx;
+                    const nextY = y + offset.dy;
+                    const nextZ = z + offset.dz;
+                    const nextKey = `${nextX},${nextY},${nextZ}`;
+
+                    if (!visited.has(nextKey)) {
+                        toCheck.push({x: nextX, y: nextY, z: nextZ});
+                    }
+                }
+            }
+
+            // Now determine which blocks are still grounded vs floating
+            const groundedBlocks = new Set();
+            const floatingBlocks = [];
+
+            // Find blocks connected to ground (check each block for ground support)
+            for (const block of allWoodBlocks) {
+                if (this.isWoodBlockGrounded(block.x, block.y, block.z, allWoodBlocks)) {
+                    groundedBlocks.add(`${block.x},${block.y},${block.z}`);
+                }
+            }
+
+            // Separate floating blocks from grounded ones
+            for (const block of allWoodBlocks) {
+                const key = `${block.x},${block.y},${block.z}`;
+                if (!groundedBlocks.has(key)) {
+                    floatingBlocks.push(block);
+                }
+            }
+
+            console.log(`🌳 Tree analysis: ${allWoodBlocks.length} total, ${groundedBlocks.size} grounded, ${floatingBlocks.length} floating`);
+            return floatingBlocks; // Only return blocks that should fall
+        };
+
+        // 🌳 Check if a wood block is supported by ground (either directly or through other grounded wood)
+        this.isWoodBlockGrounded = (x, y, z, allWoodBlocks) => {
+            // Check if block is directly on ground
+            const groundBlock = this.getBlock(x, y - 1, z);
+            if (groundBlock && !this.isWoodBlock(groundBlock.type)) {
+                return true; // Resting on solid ground
+            }
+
+            // Check if supported by other grounded wood blocks below
+            for (const otherBlock of allWoodBlocks) {
+                if (otherBlock.x === x && otherBlock.z === z && otherBlock.y < y) {
+                    // There's a wood block below this one - check if that one reaches ground
+                    let checkY = otherBlock.y;
+                    let foundGround = false;
+
+                    while (checkY >= y - 10) { // Don't search too far down
+                        const supportBlock = this.getBlock(x, checkY - 1, z);
+                        if (supportBlock && !this.isWoodBlock(supportBlock.type)) {
+                            foundGround = true;
+                            break;
+                        }
+                        checkY--;
+                    }
+
+                    if (foundGround) return true;
+                }
+            }
+
+            return false; // Not grounded
+        };
+
+        // 🌳 Get all connected wood blocks without filtering
+        this.getAllConnectedWoodBlocks = (startX, startY, startZ) => {
+            const visited = new Set();
+            const allWoodBlocks = [];
+            const toCheck = [{x: startX, y: startY, z: startZ}];
+
+            while (toCheck.length > 0) {
+                const {x, y, z} = toCheck.pop();
+                const key = `${x},${y},${z}`;
+
+                if (visited.has(key)) continue;
+                visited.add(key);
+
+                const blockData = this.world[key];
+                if (!blockData || !this.isWoodBlock(blockData.type)) continue;
+
+                allWoodBlocks.push({x, y, z, blockData});
+
+                // Search all directions including diagonals
+                const searchOffsets = [
+                    { dx: 0, dy: 1, dz: 0 }, { dx: 0, dy: -1, dz: 0 },
+                    { dx: 1, dy: 0, dz: 0 }, { dx: -1, dy: 0, dz: 0 },
+                    { dx: 0, dy: 0, dz: 1 }, { dx: 0, dy: 0, dz: -1 },
+                    { dx: 1, dy: 1, dz: 0 }, { dx: -1, dy: 1, dz: 0 },
+                    { dx: 0, dy: 1, dz: 1 }, { dx: 0, dy: 1, dz: -1 },
+                ];
+
+                for (const offset of searchOffsets) {
+                    const nextX = x + offset.dx;
+                    const nextY = y + offset.dy;
+                    const nextZ = z + offset.dz;
+                    const nextKey = `${nextX},${nextY},${nextZ}`;
+
+                    if (!visited.has(nextKey)) {
+                        toCheck.push({x: nextX, y: nextY, z: nextZ});
+                    }
+                }
+            }
+
+            return allWoodBlocks;
+        };
+
+        // 🌳 Check if a block is at the base of the tree (on ground level)
+        this.isTreeBaseBlock = (x, y, z, allTreeBlocks) => {
+            // Find the lowest Y coordinate in the tree
+            const minY = Math.min(...allTreeBlocks.map(block => block.y));
+
+            // Check if this block is at or near the base level
+            return y <= minY + 1; // Base or just above base
+        };
+
+        // 🌳 Get blocks that would be floating after removing the harvested block
+        this.getFloatingBlocks = (allTreeBlocks, harvestedX, harvestedY, harvestedZ) => {
+            // Remove the harvested block from consideration
+            const remainingBlocks = allTreeBlocks.filter(block =>
+                !(block.x === harvestedX && block.y === harvestedY && block.z === harvestedZ)
+            );
+
+            const floatingBlocks = [];
+
+            for (const block of remainingBlocks) {
+                if (!this.isWoodBlockGrounded(block.x, block.y, block.z, remainingBlocks)) {
+                    floatingBlocks.push(block);
+                }
+            }
+
+            return floatingBlocks;
+        };
+
         // 🎯 PHASE 3: Revolutionary Tree Physics Implementation
         this.checkTreeFalling = (harvestedX, harvestedY, harvestedZ) => {
             console.log(`🌳 Checking tree falling for harvested wood at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
 
-            // Find all connected wood blocks above the harvested position
+            // 🌳 ENHANCED: Find ALL connected wood blocks in entire tree structure, then find what's above harvested block
+            const allConnectedBlocks = this.getAllConnectedWoodBlocks(harvestedX, harvestedY, harvestedZ);
+
+            if (allConnectedBlocks.length === 0) {
+                console.log(`🌳 No connected tree structure found`);
+                return;
+            }
+
+            // Find all blocks that should fall (everything above and connected to harvested position)
             const treeBlocks = this.scanTreeStructure(harvestedX, harvestedY + 1, harvestedZ);
 
             if (treeBlocks.length === 0) {
@@ -3116,6 +3313,14 @@ class NebulaVoxelApp {
                 wood: { wood: 0.6, grass: 0.8, stone: 2.0 }, // Wood tools best for wood
                 workbench: { wood: 0.8, stone: 1.5 }, // Workbench is a tool itself
                 iron: { stone: 0.5, iron: 0.3, wood: 0.4 }, // Iron tools are best
+                // 🔪 MACHETE: Excellent for vegetation and wood harvesting
+                machete: {
+                    wood: 0.3, oak_wood: 0.3, pine_wood: 0.3, palm_wood: 0.3, birch_wood: 0.3, // All wood types
+                    shrub: 0.2, grass: 0.4, // Vegetation
+                    // Leaf harvesting (if directly targeting leaves)
+                    leaf: 0.2, forest_leaves: 0.2, mountain_leaves: 0.2,
+                    desert_leaves: 0.2, plains_leaves: 0.2, tundra_leaves: 0.2
+                },
                 // Other materials default to 1.5x (inefficient as tools)
             };
 
@@ -4118,10 +4323,29 @@ class NebulaVoxelApp {
                 return; // Don't generate trees on inappropriate ground
             }
 
-            // Check for space - don't overlap with existing blocks
+            // 🌿 ENHANCED: Check for vegetation and other obstacles at tree position
             const existingBlock = this.getBlock(worldX, treeHeight, worldZ);
             if (existingBlock) {
+                // Don't place trees on shrubs, other trees, or any existing blocks
+                console.log(`🚫 Tree blocked at (${worldX},${treeHeight},${worldZ}) by existing ${existingBlock.type}`);
                 return; // Don't generate if space is occupied
+            }
+
+            // 🌿 CRITICAL: Check for shrubs specifically - they're often placed before trees
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dz = -2; dz <= 2; dz++) {
+                    const checkBlock = this.getBlock(worldX + dx, treeHeight, worldZ + dz);
+                    if (checkBlock) {
+                        if (checkBlock.type === 'shrub') {
+                            console.log(`🚫 Tree blocked at (${worldX},${treeHeight},${worldZ}) by shrub at (${worldX + dx},${treeHeight},${worldZ + dz})`);
+                            return; // Don't generate if shrub nearby
+                        }
+                        if (this.isWoodBlock(checkBlock.type)) {
+                            console.log(`🚫 Tree blocked at (${worldX},${treeHeight},${worldZ}) by ${checkBlock.type} at (${worldX + dx},${treeHeight},${worldZ + dz})`);
+                            return; // Don't generate if another tree nearby
+                        }
+                    }
+                }
             }
 
             // Generate tree based on biome type
