@@ -19,7 +19,7 @@ class NebulaVoxelApp {
         this.chunkSpawnTimes = new Map(); // Track last spawn time for chunks
         this.gameStartTime = Date.now(); // Track game start for time-based respawns
         this.player = {
-            position: { x: 0, y: 10, z: 0 },
+            position: { x: 0, y: 40, z: 0 }, // Start high, will adjust after world generation
             rotation: { x: 0, y: 0 }
         };
         this.isOnGround = false;
@@ -82,7 +82,7 @@ class NebulaVoxelApp {
         // Initialize new WorkbenchSystem
         this.workbenchSystem = new WorkbenchSystem(this);
 
-        // 🌍 Initialize Advanced BiomeWorldGen System
+        // 🌍 Initialize Advanced BiomeWorldGen System (reverted for performance)
         this.biomeWorldGen = new BiomeWorldGen(this);
 
         // 🎒 Initialize Advanced InventorySystem
@@ -734,7 +734,7 @@ class NebulaVoxelApp {
                         break;
                     }
                 }
-                
+
                 // Create the world item
                 this.createWorldItem(worldX, groundY, worldZ, itemType, emoji);
                 console.log(`Spawned ${itemType} at ${worldX}, ${groundY}, ${worldZ} in ${biome.name} biome`);
@@ -3845,8 +3845,8 @@ class NebulaVoxelApp {
 
                     const biome = voxelWorld.biomeWorldGen.getBiomeAt(worldX, worldZ, voxelWorld.worldSeed);
 
-                    // Check if we should generate a tree at this position
-                    if (voxelWorld.biomeWorldGen.shouldGenerateTree(worldX, worldZ, biome, voxelWorld.worldSeed)) {
+                    // Check if we should generate a tree at this position using VoxelWorld's method
+                    if (voxelWorld.shouldGenerateTree(worldX, worldZ, biome)) {
                         // Find the surface height at this position
                         let surfaceY = -10;
                         for (let y = 10; y >= -10; y--) {
@@ -4013,13 +4013,25 @@ class NebulaVoxelApp {
         // 🌳 TREE GENERATION HELPERS
         // Determine if a tree should be generated at this location
         this.shouldGenerateTree = (worldX, worldZ, biome) => {
-            // Define tree spawn rates based on biome (from trees.md design)
+            // Use new biome system's treeChance property if available
+            if (biome.treeChance !== undefined) {
+                const treeNoise = this.seededNoise(worldX + 4000, worldZ + 4000, this.worldSeed);
+                return treeNoise > (1 - biome.treeChance);
+            }
+
+            // Fallback: Define tree spawn rates based on biome name
             const treeChances = {
-                Forest: 0.30,    // 30% coverage - dense forest
-                Mountain: 0.25,  // 25% coverage - dense at low elevation
-                Plains: 0.08,    // 8% coverage - scattered groves
-                Desert: 0.02,    // 2% coverage - rare oasis trees
-                Tundra: 0.03     // 3% coverage - hardy survivors
+                'Forest': 0.30,
+                'Seasonal Forest': 0.35,
+                'Rain Forest': 0.50,
+                'Mountain': 0.15,
+                'Plains': 0.08,
+                'Desert': 0.01,
+                'Tundra': 0.02,
+                'Taiga': 0.25,
+                'Shrubland': 0.05,
+                'Savanna': 0.12,
+                'Swamp': 0.30
             };
 
             const treeChance = treeChances[biome.name] || 0;
@@ -4127,6 +4139,9 @@ class NebulaVoxelApp {
                 }
             });
         };
+
+        // Make updateChunks available as instance method
+        this.updateChunks = updateChunks;
 
         // Initial chunk loading around spawn
         console.log('Loading initial chunks...');
