@@ -4240,6 +4240,9 @@ class NebulaVoxelApp {
 
             const texture = new THREE.CanvasTexture(canvas);
             texture.magFilter = THREE.NearestFilter; // Pixelated look
+            texture.generateMipmaps = true;
+            texture.minFilter = THREE.LinearMipmapLinearFilter;
+            texture.anisotropy = 4;
 
             // Create material based on block type
             if (blockType.texture === 'glass') {
