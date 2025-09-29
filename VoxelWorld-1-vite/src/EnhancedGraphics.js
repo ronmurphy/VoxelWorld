@@ -19,11 +19,11 @@ export class EnhancedGraphics {
         this.toolImages = new Map();    // Map<toolType, HTMLImageElement>
         this.timeImages = new Map();    // Map<timePeriod, HTMLImageElement>
 
-        // Asset paths (relative to public folder)
+        // Asset paths (relative to document root)
         this.assetPaths = {
-            blocks: '/assets/art/blocks',
-            tools: '/assets/art/tools',
-            time: '/assets/art/time'
+            blocks: 'assets/art/blocks',
+            tools: 'assets/art/tools',
+            time: 'assets/art/time'
         };
 
         // Available assets (what we actually have files for)
@@ -157,7 +157,11 @@ export class EnhancedGraphics {
             try {
                 const imagePath = `${this.assetPaths.tools}/${toolType}.png`;
                 const image = await this._loadImage(imagePath);
-                this.toolImages.set(toolType, image);
+                // Store both the image and the relative path
+                this.toolImages.set(toolType, {
+                    image: image,
+                    path: imagePath
+                });
                 return { toolType, success: true };
             } catch (error) {
                 console.warn(`⚠️ Failed to load tool image: ${toolType}`, error);
@@ -179,7 +183,11 @@ export class EnhancedGraphics {
             try {
                 const imagePath = `${this.assetPaths.time}/${timePeriod}.png`;
                 const image = await this._loadImage(imagePath);
-                this.timeImages.set(timePeriod, image);
+                // Store both the image and the relative path
+                this.timeImages.set(timePeriod, {
+                    image: image,
+                    path: imagePath
+                });
                 return { timePeriod, success: true };
             } catch (error) {
                 console.warn(`⚠️ Failed to load time image: ${timePeriod}`, error);
@@ -261,10 +269,31 @@ export class EnhancedGraphics {
             return defaultEmoji;
         }
 
-        const image = this.toolImages.get(toolType);
-        if (image) {
+        const imageData = this.toolImages.get(toolType);
+        if (imageData && imageData.path) {
+            // Return HTML img element with proper scaling using relative path
+            return `<img src="${imageData.path}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle;" alt="${toolType}">`;
+        }
+
+        return defaultEmoji;
+    }
+
+    /**
+     * Get enhanced material icon or fall back to emoji
+     * @param {string} materialType - Type of material (stone, dirt, sand, etc.)
+     * @param {string} defaultEmoji - Fallback emoji
+     * @param {number} size - Size in pixels (default: 20)
+     */
+    getEnhancedMaterialIcon(materialType, defaultEmoji, size = 20) {
+        if (!this.isEnabled || !this.assetsLoaded) {
+            return defaultEmoji;
+        }
+
+        // Check if we have a block texture for this material
+        const image = this.blockTextures.get(materialType);
+        if (image && image.image && image.image.src) {
             // Return HTML img element with proper scaling
-            return `<img src="${image.src}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle;" alt="${toolType}">`;
+            return `<img src="${image.image.src}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle; border-radius: 2px;" alt="${materialType}">`;
         }
 
         return defaultEmoji;
@@ -281,12 +310,12 @@ export class EnhancedGraphics {
             return { type: 'material', content: defaultMaterialIcon };
         }
 
-        const image = this.timeImages.get(timePeriod);
-        if (image) {
-            // Return image data with sizing for UI to render
+        const imageData = this.timeImages.get(timePeriod);
+        if (imageData && imageData.path) {
+            // Return image data with sizing for UI to render using relative path
             return {
                 type: 'image',
-                content: image.src,
+                content: imageData.path,
                 alt: timePeriod,
                 style: `width: ${size}px; height: ${size}px; object-fit: contain;`
             };
@@ -343,6 +372,27 @@ export class EnhancedGraphics {
      */
     getWorkbenchToolIcon(toolType, defaultEmoji) {
         return this.getEnhancedToolIcon(toolType, defaultEmoji, this.uiSizes.workbenchIcon);
+    }
+
+    /**
+     * Get material icon for hotbar (16px)
+     */
+    getHotbarMaterialIcon(materialType, defaultEmoji) {
+        return this.getEnhancedMaterialIcon(materialType, defaultEmoji, this.uiSizes.hotbarIcon);
+    }
+
+    /**
+     * Get material icon for inventory (20px)
+     */
+    getInventoryMaterialIcon(materialType, defaultEmoji) {
+        return this.getEnhancedMaterialIcon(materialType, defaultEmoji, this.uiSizes.inventoryIcon);
+    }
+
+    /**
+     * Get material icon for status messages (24px)
+     */
+    getStatusMaterialIcon(materialType, defaultEmoji) {
+        return this.getEnhancedMaterialIcon(materialType, defaultEmoji, this.uiSizes.statusIcon);
     }
 
     /**
