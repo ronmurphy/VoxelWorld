@@ -331,13 +331,15 @@ class NebulaVoxelApp {
 
             // Try to use enhanced graphics first, fall back to emoji
             let texture;
-            const enhancedImage = this.enhancedGraphics.toolImages.get(type);
 
-            if (enhancedImage && this.enhancedGraphics.isEnabled) {
-                // Use enhanced PNG image
-                texture = new THREE.TextureLoader().load(enhancedImage.src);
+            // Use EnhancedGraphics API to get enhanced asset if available
+            if (this.enhancedGraphics.isReady() && this.enhancedGraphics.toolImages.has(type)) {
+                // Use enhanced PNG image through proper API with relative path
+                const enhancedImageData = this.enhancedGraphics.toolImages.get(type);
+                texture = new THREE.TextureLoader().load(enhancedImageData.path);
                 texture.magFilter = THREE.LinearFilter;
                 texture.minFilter = THREE.LinearFilter;
+                console.log(`🎨 Using enhanced billboard texture for ${type}: ${enhancedImageData.path}`);
             } else {
                 // Fall back to emoji canvas
                 const canvas = document.createElement('canvas');
@@ -357,6 +359,7 @@ class NebulaVoxelApp {
                 texture = new THREE.CanvasTexture(canvas);
                 texture.magFilter = THREE.LinearFilter;
                 texture.minFilter = THREE.LinearFilter;
+                console.log(`📱 Using emoji fallback for ${type} billboard: ${config.emoji}`);
             }
 
             const material = new THREE.SpriteMaterial({
@@ -1292,6 +1295,12 @@ class NebulaVoxelApp {
             // Try to get enhanced icon for tools
             if (['machete', 'workbench', 'backpack'].includes(itemType)) {
                 return this.enhancedGraphics.getInventoryToolIcon(itemType, defaultIcon);
+            }
+
+            // Try to get enhanced icon for materials that have block textures
+            const materialsWithAssets = ['bedrock', 'dirt', 'sand', 'snow', 'stone'];
+            if (materialsWithAssets.includes(itemType)) {
+                return this.enhancedGraphics.getInventoryMaterialIcon(itemType, defaultIcon);
             }
 
             return defaultIcon;
@@ -6183,6 +6192,11 @@ class NebulaVoxelApp {
                 this.updateHotbarCounts();
             }
 
+            // Refresh backpack inventory display
+            if (this.updateBackpackInventoryDisplay) {
+                this.updateBackpackInventoryDisplay();
+            }
+
             // Refresh tool button icons
             if (this.backpackTool) {
                 this.updateToolButtonIcon(this.backpackTool, 'backpack', '🎒');
@@ -6193,6 +6207,8 @@ class NebulaVoxelApp {
 
             // Refresh existing billboards in the world
             this.refreshAllBillboards();
+
+            console.log(`🔄 Enhanced Graphics UI refresh complete - state: ${newState ? 'ON' : 'OFF'}`);
 
             modal.style.display = 'none';
         };
@@ -6220,21 +6236,35 @@ class NebulaVoxelApp {
 
             // Define notification types with icons and colors
             const notificationTypes = {
-                info: { icon: 'ℹ️', color: '#2196F3', borderColor: '#2196F3' },
-                success: { icon: '✅', color: '#4CAF50', borderColor: '#4CAF50' },
-                warning: { icon: '⚠️', color: '#FF9800', borderColor: '#FF9800' },
-                error: { icon: '❌', color: '#F44336', borderColor: '#F44336' },
-                harvest: { icon: '⛏️', color: '#8BC34A', borderColor: '#8BC34A' },
-                craft: { icon: '🔨', color: '#9C27B0', borderColor: '#9C27B0' },
-                discovery: { icon: '🎒', color: '#FF5722', borderColor: '#FF5722' },
-                progress: { icon: '⏳', color: '#FFC107', borderColor: '#FFC107' },
-                magic: { icon: '✨', color: '#E91E63', borderColor: '#E91E63' }
+                info: { icon: 'ℹ️', toolType: null, color: '#2196F3', borderColor: '#2196F3' },
+                success: { icon: '✅', toolType: null, color: '#4CAF50', borderColor: '#4CAF50' },
+                warning: { icon: '⚠️', toolType: null, color: '#FF9800', borderColor: '#FF9800' },
+                error: { icon: '❌', toolType: null, color: '#F44336', borderColor: '#F44336' },
+                harvest: { icon: '⛏️', toolType: 'machete', color: '#8BC34A', borderColor: '#8BC34A' },
+                craft: { icon: '🔨', toolType: 'workbench', color: '#9C27B0', borderColor: '#9C27B0' },
+                discovery: { icon: '🎒', toolType: 'backpack', color: '#FF5722', borderColor: '#FF5722' },
+                progress: { icon: '⏳', toolType: null, color: '#FFC107', borderColor: '#FFC107' },
+                magic: { icon: '✨', toolType: null, color: '#E91E63', borderColor: '#E91E63' }
             };
 
             const notification = notificationTypes[type] || notificationTypes.info;
 
-            // Update icon and text
-            this.statusIcon.textContent = notification.icon;
+            // Update icon - use enhanced graphics if available for tool-related notifications
+            if (notification.toolType && this.enhancedGraphics.isReady()) {
+                const enhancedIcon = this.enhancedGraphics.getStatusToolIcon(notification.toolType, notification.icon);
+                if (enhancedIcon.includes('<img')) {
+                    // Enhanced icon is HTML, use innerHTML
+                    this.statusIcon.innerHTML = enhancedIcon;
+                    console.log(`🎨 Using enhanced status icon for ${notification.toolType}`);
+                } else {
+                    // Fall back to emoji
+                    this.statusIcon.textContent = enhancedIcon;
+                }
+            } else {
+                // Use default emoji icon
+                this.statusIcon.textContent = notification.icon;
+            }
+
             this.statusText.textContent = message;
 
             // Update styling
