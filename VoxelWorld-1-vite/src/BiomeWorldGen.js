@@ -16,14 +16,18 @@ export class BiomeWorldGen {
         this.worldSeed = 0;
         this.chunkCache = new Map(); // Cache biome data for performance
 
-        // 🐛 Debug mode - enabled to diagnose chunk holes
-        this.DEBUG_MODE = true; // Toggle for detailed logging
+        // 🐛 Debug mode - temporarily enabled to see tree generation
+        this.DEBUG_MODE = false; // Toggle for detailed logging
         this.STATS = {
             chunksGenerated: 0,
             lowHeights: 0,
             emergencyFills: 0,
             treesPlaced: 0
         };
+
+        // 🌲 TREE SPACING SYSTEM - Track tree positions to prevent chunks
+        this.treePositions = new Set(); // Store "x,z" keys for quick lookup
+        this.MIN_TREE_DISTANCE = 3; // Minimum blocks between trees
 
         this.initializeBiomes();
         this.initializeNoiseGenerators();
@@ -47,7 +51,8 @@ export class BiomeWorldGen {
                 variants: ['dense_forest', 'sparse_forest', 'old_growth'],
                 transitionZone: 'forest_edge',
                 specialFeatures: ['clearings', 'streams'],
-                treeDistribution: { min: 0.25, max: 0.40, clusters: true }
+                treeDistribution: { min: 0.25, max: 0.40, clusters: true },
+                treeChance: 0.32 // Average of treeDistribution range
             },
 
             desert: {
@@ -64,7 +69,8 @@ export class BiomeWorldGen {
                 variants: ['sandy_desert', 'rocky_desert', 'oasis'],
                 transitionZone: 'desert_edge',
                 specialFeatures: ['dunes', 'oases', 'mesas'],
-                treeDistribution: { min: 0.01, max: 0.03, clusters: false }
+                treeDistribution: { min: 0.01, max: 0.03, clusters: false },
+                treeChance: 0.02 // Average of treeDistribution range
             },
 
             mountain: {
@@ -81,7 +87,8 @@ export class BiomeWorldGen {
                 variants: ['rocky_peaks', 'alpine_meadows', 'mountain_forest'],
                 transitionZone: 'foothills',
                 specialFeatures: ['peaks', 'valleys', 'caves'],
-                treeDistribution: { min: 0.15, max: 0.30, clusters: true }
+                treeDistribution: { min: 0.15, max: 0.30, clusters: true },
+                treeChance: 0.22 // Average of treeDistribution range
             },
 
             plains: {
@@ -98,7 +105,8 @@ export class BiomeWorldGen {
                 variants: ['grasslands', 'meadows', 'prairie'],
                 transitionZone: 'plains_edge',
                 specialFeatures: ['rivers', 'hills', 'groves'],
-                treeDistribution: { min: 0.05, max: 0.12, clusters: true }
+                treeDistribution: { min: 0.05, max: 0.12, clusters: true },
+                treeChance: 0.08 // Average of treeDistribution range
             },
 
             tundra: {
@@ -115,9 +123,24 @@ export class BiomeWorldGen {
                 variants: ['frozen_tundra', 'taiga_edge', 'permafrost'],
                 transitionZone: 'tundra_border',
                 specialFeatures: ['ice_formations', 'frozen_lakes'],
-                treeDistribution: { min: 0.02, max: 0.05, clusters: false }
+                treeDistribution: { min: 0.02, max: 0.05, clusters: false },
+                treeChance: 0.035 // Average of treeDistribution range
             }
         };
+    }
+
+    // 🌊 Wave Noise (Sinusoidal patterns)
+    waveNoise(x, z, seed = 0) {
+        // Create wave patterns using sine functions
+        const freq1 = 0.1;
+        const freq2 = 0.15;
+        const seedOffset = seed * 0.0001;
+
+        const wave1 = Math.sin((x + seedOffset) * freq1) * Math.cos((z + seedOffset) * freq1);
+        const wave2 = Math.sin((x + seedOffset) * freq2) * Math.sin((z + seedOffset) * freq2);
+
+        // Combine waves for more interesting patterns
+        return (wave1 + wave2 * 0.5) / 1.5; // Normalize to roughly -1 to 1
     }
 
     // 🎛️ Multi-Layer Noise System Initialization
@@ -450,7 +473,7 @@ export class BiomeWorldGen {
             },
             wave: {
                 name: 'Wave',
-                noiseFunction: this.multiOctaveNoise.bind(this),
+                noiseFunction: this.waveNoise.bind(this),
                 characteristics: 'Wave patterns, regular undulation',
                 biomePreference: ['mountain', 'tundra'], // Mathematical biomes
                 heightMultiplier: 1.1,
@@ -757,6 +780,14 @@ export class BiomeWorldGen {
             },
             shrubChance: this.lerp(primaryBiome.shrubChance, secondaryBiome.shrubChance, transitionProgress),
 
+            // 🌳 Tree properties for transition biomes
+            treeDistribution: {
+                min: this.lerp(primaryBiome.treeDistribution?.min || 0, secondaryBiome.treeDistribution?.min || 0, transitionProgress),
+                max: this.lerp(primaryBiome.treeDistribution?.max || 0, secondaryBiome.treeDistribution?.max || 0, transitionProgress),
+                clusters: primaryBiome.treeDistribution?.clusters || secondaryBiome.treeDistribution?.clusters || false
+            },
+            treeChance: this.lerp(primaryBiome.treeChance || 0, secondaryBiome.treeChance || 0, transitionProgress),
+
             // Special transition properties
             isTransition: true,
             transitionProgress,
@@ -786,11 +817,13 @@ export class BiomeWorldGen {
                 variantBiome.shrubChance *= 1.5;
                 variantBiome.treeDistribution.min *= 1.3;
                 variantBiome.treeDistribution.max *= 1.2;
+                variantBiome.treeChance *= 1.25; // Increase tree spawn rate
                 break;
             case 'sparse_forest':
                 variantBiome.shrubChance *= 0.6;
                 variantBiome.treeDistribution.min *= 0.7;
                 variantBiome.treeDistribution.max *= 0.8;
+                variantBiome.treeChance *= 0.75; // Decrease tree spawn rate
                 break;
             case 'rocky_desert':
                 variantBiome.surfaceBlock = 'stone';
@@ -803,6 +836,7 @@ export class BiomeWorldGen {
                 variantBiome.shrubChance = 0.8;
                 variantBiome.treeDistribution.min = 0.3;
                 variantBiome.treeDistribution.max = 0.5;
+                variantBiome.treeChance = 0.4; // High tree density in oasis
                 break;
         }
 
@@ -1007,20 +1041,66 @@ export class BiomeWorldGen {
                     console.log(`✅ Placed terrain at (${worldX}, ${finalHeight}, ${worldZ}) | ${biome.name} | height: ${height} -> ${finalHeight}`);
                 }
 
-                // Enhanced tree generation (will be integrated with tree system)
-                if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome, worldSeed)) {
-                    const treeHeight = height + 1;
+                // 🌳 FIXED: Tree generation with accurate ground detection and spacing
+                if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome, this.worldSeed)) {
+                    // 🌲 TREE SPACING SYSTEM - Prevent massive tree chunks
+                    if (this.hasNearbyTree(worldX, worldZ)) {
+                        // Skip this tree if too close to another
+                        continue;
+                    }
+
+                    // 🌱 SMART GROUND DETECTION - Use ground scan or terrain height
+                    let actualGroundHeight = this.findGroundHeight(worldX, worldZ);
+                    if (actualGroundHeight === null) {
+                        // No surface found or invalid surface, use calculated terrain height
+                        actualGroundHeight = height + 1;
+                        if (this.DEBUG_MODE) {
+                            console.log(`🌱 Using calculated terrain height at (${worldX}, ${worldZ}): ${actualGroundHeight}`);
+                        }
+                    } else {
+                        if (this.DEBUG_MODE) {
+                            console.log(`🌱 Using detected ground height at (${worldX}, ${worldZ}): ${actualGroundHeight}`);
+                        }
+                    }
+
                     this.STATS.treesPlaced++;
-                    // Tree generation will be handled by the tree generation module
+
+                    // 🌳 ACTUALLY GENERATE THE TREE based on biome type
+                    if (biome.name === 'Mountain' || biome.name === 'Tundra') {
+                        this.voxelWorld.generatePineTree(worldX, actualGroundHeight, worldZ);
+                    } else {
+                        this.voxelWorld.generateOakTree(worldX, actualGroundHeight, worldZ);
+                    }
+
+                    // 🗺️ Track tree position for spacing calculations
+                    this.trackTreePosition(worldX, worldZ);
+
                     if (this.DEBUG_MODE && this.STATS.treesPlaced % 10 === 0) {
-                        console.log(`🌳 Placed ${this.STATS.treesPlaced} trees - Latest at (${worldX}, ${treeHeight}, ${worldZ}) in ${biome.name}`);
+                        console.log(`🌳 Generated ${this.STATS.treesPlaced} trees - Latest ${biome.name === 'Mountain' ? 'Pine' : 'Oak'} at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}`);
                     }
                 }
 
-                // Enhanced shrub generation with biome variants
+                // Enhanced shrub generation with biome-specific density
                 if (!hasSnow && biome.shrubChance > 0) {
+                    // 🌿 BIOME-SPECIFIC SHRUB DENSITY
+                    const shrubDensityMultipliers = {
+                        'Tundra': 8,        // High shrub density in tundra
+                        'Plains': 4,        // Moderate shrubs in plains
+                        'Desert': 2,        // Sparse shrubs in desert
+                        'Forest': 3,        // Some undergrowth
+                        'Mountain': 3       // Mountain vegetation
+                    };
+
+                    let shrubMultiplier = 2; // Default
+                    for (const [biomeName, mult] of Object.entries(shrubDensityMultipliers)) {
+                        if (biome.name.includes(biomeName)) {
+                            shrubMultiplier = mult;
+                            break;
+                        }
+                    }
+
                     const shrubNoise = this.multiOctaveNoise(worldX + 3000, worldZ + 3000, this.noiseParams.microDetail, worldSeed + 3000);
-                    if (shrubNoise > (1 - biome.shrubChance * 2)) {
+                    if (shrubNoise > (1 - biome.shrubChance * shrubMultiplier)) {
                         addBlockFn(worldX, height + 1, worldZ, 'shrub', false);
                     }
                 }
@@ -1036,9 +1116,38 @@ export class BiomeWorldGen {
         }
     }
 
-    // 🌳 Enhanced Tree Generation Check
+    // 🌳 Enhanced Tree Generation Check with Biome-Specific Density
     shouldGenerateTree(worldX, worldZ, biome, worldSeed) {
-        if (!biome.treeDistribution) return false;
+        if (!biome.treeDistribution) {
+            console.log(`🚫 No treeDistribution for biome: ${biome.name}`);
+            return false;
+        }
+
+        // 🌲 BIOME-SPECIFIC TREE DENSITY SYSTEM
+        const biomeDensityMultipliers = {
+            'Forest': 8,            // Moderate tree density (scaled back from 15)
+            'dense_forest': 12,     // Dense but not overwhelming
+            'sparse_forest': 6,     // Light forest areas
+            'Plains': 10,           // Scattered but visible trees (increased from 6)
+            'Mountain': 10,         // Moderate density
+            'mountain_forest': 12,  // Forested mountains
+            'Desert': 2,            // Very rare
+            'oasis': 8,             // More trees in oasis
+            'Tundra': 3             // Sparse, hardy trees
+        };
+
+        // Check for transition biomes (e.g., "Mountain-Plains Transition")
+        let multiplier = 4; // Default multiplier
+        for (const [biomeName, mult] of Object.entries(biomeDensityMultipliers)) {
+            if (biome.name.includes(biomeName)) {
+                multiplier = mult;
+                break;
+            }
+        }
+
+        if (this.DEBUG_MODE && Math.random() < 0.001) {
+            console.log(`🌳 Checking tree at (${worldX}, ${worldZ}) in ${biome.name}, multiplier: ${multiplier}`);
+        }
 
         const treeNoise = this.multiOctaveNoise(worldX + 4000, worldZ + 4000, this.noiseParams.microDetail, worldSeed + 4000);
         const baseChance = (biome.treeDistribution.min + biome.treeDistribution.max) / 2;
@@ -1046,22 +1155,86 @@ export class BiomeWorldGen {
         // Add clustering for forest biomes
         if (biome.treeDistribution.clusters) {
             const clusterNoise = this.multiOctaveNoise(worldX + 5000, worldZ + 5000, { scale: 0.02, octaves: 2, persistence: 0.5 }, worldSeed + 5000);
-            if (clusterNoise > 0.3) {
-                // In a cluster - higher tree chance
-                return treeNoise > (1 - baseChance * 1.5);
+            if (clusterNoise > 0.2) { // Easier to trigger clusters
+                // In a cluster - much higher tree chance
+                return treeNoise > (1 - baseChance * multiplier * 1.5);
             } else {
-                // Outside cluster - lower tree chance
-                return treeNoise > (1 - baseChance * 0.3);
+                // Outside cluster - reduced but still decent chance
+                return treeNoise > (1 - baseChance * multiplier * 0.4);
             }
         }
 
-        return treeNoise > (1 - baseChance * 2);
+        const result = treeNoise > (1 - baseChance * multiplier);
+
+        if (this.DEBUG_MODE && Math.random() < 0.01) {
+            console.log(`🌳 Tree result: ${result} (noise: ${treeNoise.toFixed(3)}, threshold: ${(1 - baseChance * multiplier).toFixed(3)}, baseChance: ${baseChance.toFixed(3)}) for ${biome.name}`);
+        }
+
+        return result;
+    }
+
+    // 🌱 GROUND HEIGHT DETECTION - Find actual surface for tree placement
+    findGroundHeight(worldX, worldZ) {
+        // Scan from high to low to find the true ground surface
+        const searchRange = { min: -5, max: 15 }; // Reduced range for better surface detection
+
+        for (let y = searchRange.max; y >= searchRange.min; y--) {
+            const blockAt = this.voxelWorld.getBlock(worldX, y, worldZ);
+            const blockAbove = this.voxelWorld.getBlock(worldX, y + 1, worldZ);
+
+            // Found ground surface: solid block with air/empty above
+            if (blockAt && blockAt.type && blockAt.type !== 'air' && (!blockAbove || blockAbove.type === 'air' || !blockAbove.type)) {
+                // Don't place trees on certain block types
+                const invalidSurfaces = ['water', 'lava', 'snow'];
+                if (invalidSurfaces.includes(blockAt.type)) {
+                    return null; // Invalid surface for tree placement
+                }
+
+                return y + 1; // Return height ON TOP of the surface block
+            }
+        }
+
+        // Fallback: if no surface found, return null to use terrain calculation
+        if (this.DEBUG_MODE) {
+            console.warn(`⚠️ Could not find ground surface at (${worldX}, ${worldZ}), using terrain height`);
+        }
+        return null; // Signal to use terrain height instead
+    }
+
+    // 🌲 TREE SPACING METHODS - Prevent massive tree chunks
+    hasNearbyTree(x, z) {
+        // Check in a MIN_TREE_DISTANCE radius around this position
+        for (let dx = -this.MIN_TREE_DISTANCE; dx <= this.MIN_TREE_DISTANCE; dx++) {
+            for (let dz = -this.MIN_TREE_DISTANCE; dz <= this.MIN_TREE_DISTANCE; dz++) {
+                const checkX = x + dx;
+                const checkZ = z + dz;
+                const key = `${checkX},${checkZ}`;
+                if (this.treePositions.has(key)) {
+                    return true; // Found nearby tree
+                }
+            }
+        }
+        return false; // No nearby trees
+    }
+
+    trackTreePosition(x, z) {
+        const key = `${x},${z}`;
+        this.treePositions.add(key);
+
+        // Memory management: Remove old tree positions to prevent memory leak
+        if (this.treePositions.size > 10000) {
+            // Keep only recent 5000 positions (arbitrary cleanup)
+            const positions = Array.from(this.treePositions);
+            this.treePositions.clear();
+            positions.slice(-5000).forEach(pos => this.treePositions.add(pos));
+        }
     }
 
     // 🎲 Seed Management
     setWorldSeed(seed) {
         this.worldSeed = seed;
         this.chunkCache.clear(); // Clear cache when seed changes
+        this.treePositions.clear(); // Clear tree positions for new seed
     }
 
     // 🧹 Cache Management

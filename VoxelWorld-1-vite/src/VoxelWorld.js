@@ -27,6 +27,7 @@ class NebulaVoxelApp {
         this.selectedSlot = 0;
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
+        this.treePositions = []; // Track tree locations for minimap debugging
 
         // Punch-to-harvest system
         this.isHarvesting = false;
@@ -535,9 +536,10 @@ class NebulaVoxelApp {
             // Helper function for random range
             const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
 
-            // CRITICAL: Add workbench FIRST to guarantee it gets a hotbar slot
-            console.log('🔧 Adding essential workbench first...');
-            this.inventory.addToInventory('workbench', 1);  // ESSENTIAL - needed for crafting system!
+            // CRITICAL: Add essential tools FIRST to guarantee hotbar slots
+            console.log('🔧 Adding essential tools first...');
+            // NOTE: Workbench is now UI-only tool, not in inventory
+            this.inventory.addToInventory('machete', 1);    // ESSENTIAL - needed for leaf harvesting!
 
             // Guaranteed starter materials (but smaller amounts to fit in hotbar + backpack)
             const woodCount = randomRange(4, 8);  // Reduced from 8-16
@@ -949,17 +951,10 @@ class NebulaVoxelApp {
                 console.log('🎒 Backpack tool button enabled');
             }
 
-            // Check if player has workbench in inventory and show workbench tool
-            const workbenchCount = this.inventory.countItemInSlots('workbench');
-            console.log(`🔨 Checking workbench: count=${workbenchCount}, hasBackpack=${this.hasBackpack}`);
-
-            if (workbenchCount > 0 && this.workbenchTool) {
+            // Always show workbench tool when player has backpack (UI-only tool)
+            if (this.hasBackpack && this.workbenchTool) {
                 this.workbenchTool.style.display = 'block';
-                console.log('🔨 Workbench tool button enabled');
-            } else if (this.hasBackpack && this.workbenchTool) {
-                // Fallback: If player has backpack, always show workbench (user requested behavior)
-                this.workbenchTool.style.display = 'block';
-                console.log('🔨 Workbench tool button enabled (backpack found)');
+                console.log('🔨 Workbench tool button enabled (UI-only tool)');
             }
 
             // Initialize hotkey label colors based on current time
@@ -1095,7 +1090,10 @@ class NebulaVoxelApp {
                 mountain_leaves: '#006400', // Dark green needles
                 desert_leaves: '#9ACD32',   // Yellow-green fronds
                 plains_leaves: '#90EE90',   // Light green
-                tundra_leaves: '#708090'    // Gray-green hardy
+                tundra_leaves: '#708090',   // Gray-green hardy
+
+                // NEW: Tools
+                machete: '#C0C0C0'          // Silver blade
             };
             return materialColors[material] || '#666666';
         };
@@ -1178,7 +1176,10 @@ class NebulaVoxelApp {
                 mountain_leaves: '🌲', // Dark green needles
                 desert_leaves: '🌴',   // Yellow-green fronds
                 plains_leaves: '🌱',   // Light green plains
-                tundra_leaves: '🍂'    // Gray-green hardy
+                tundra_leaves: '🍂',   // Gray-green hardy
+
+                // NEW: Tools
+                machete: '🔪'         // For harvesting leaves and vegetation
             };
             return icons[itemType] || '❓';
         };
@@ -2294,6 +2295,21 @@ class NebulaVoxelApp {
 
             console.log(`🌳 Found tree structure with ${treeBlocks.length} wood blocks - TIMBER!`);
 
+            // 🪵 RESOURCE COLLECTION: Give player wood for all trunk blocks
+            if (treeBlocks.length > 0) {
+                // Determine wood type based on the first block (they should all be the same tree type)
+                const woodType = treeBlocks[0].blockData.type; // e.g., 'oak_wood', 'pine_wood'
+                const woodCount = treeBlocks.length;
+
+                // Add wood to player inventory
+                this.inventory.addToInventory(woodType, woodCount);
+
+                // Show notification
+                const woodIcon = this.getItemIcon(woodType);
+                this.updateStatus(`🌳 TIMBER! Collected ${woodCount}x ${woodType.replace('_', ' ')} ${woodIcon}`, 'discovery');
+                console.log(`🪵 Gave player ${woodCount}x ${woodType} from fallen tree`);
+            }
+
             // Create dramatic falling tree effect
             this.createFallingTreePhysics(treeBlocks, harvestedX, harvestedY, harvestedZ);
 
@@ -2403,20 +2419,54 @@ class NebulaVoxelApp {
             return false; // No wood found, leaf is disconnected
         };
 
-        // 🍃 Create falling leaf blocks with lighter physics
+        // 🍃 Create falling leaf blocks with machete-based leaf collection
         this.createFallingLeaves = (leafBlocks) => {
+            // 🔪 Check if player has machete equipped for leaf collection
+            const selectedSlot = this.getHotbarSlot(this.selectedSlot);
+            const hasMachete = selectedSlot && selectedSlot.itemType === 'machete';
+
+            // Count leaves for machete collection
+            let collectedLeaves = 0;
+            const leafTypes = {};
+
             leafBlocks.forEach(({ x, y, z, type }, index) => {
                 setTimeout(() => {
-                    // Remove the stationary leaf block (no items for falling leaves)
+                    // Remove the stationary leaf block
                     this.removeBlock(x, y, z, false);
 
-                    // Create falling leaf with appropriate color
+                    // 🔪 MACHETE LEAF COLLECTION: Give leaves to player if machete equipped
+                    if (hasMachete) {
+                        // Count leaf types for inventory addition
+                        leafTypes[type] = (leafTypes[type] || 0) + 1;
+                        collectedLeaves++;
+                    }
+
+                    // Create falling leaf with appropriate color (visual effect)
                     const leafColor = this.getLeafColor(type);
                     this.createFallingLeafBlock(x, y, z, leafColor);
                 }, index * 25); // 25ms delay between leaves for cascade effect
             });
 
-            this.updateStatus(`🍃 ${leafBlocks.length} leaves cascading from fallen tree!`, 'discovery');
+            // 🔪 Add collected leaves to inventory after all timeouts
+            if (hasMachete && collectedLeaves > 0) {
+                setTimeout(() => {
+                    // Add each leaf type to inventory
+                    Object.entries(leafTypes).forEach(([leafType, count]) => {
+                        this.inventory.addToInventory(leafType, count);
+                    });
+
+                    // Show collection notification
+                    const macheteIcon = this.getItemIcon('machete');
+                    this.updateStatus(`${macheteIcon} Machete collected ${collectedLeaves} leaves from fallen tree!`, 'discovery');
+                    console.log(`🔪 Machete collected ${collectedLeaves} leaves:`, leafTypes);
+                }, leafBlocks.length * 25 + 100); // After all leaves have been processed
+            }
+
+            // Show cascade notification
+            const message = hasMachete
+                ? `🍃 ${leafBlocks.length} leaves cascading - collected with machete!`
+                : `🍃 ${leafBlocks.length} leaves cascading (need machete to collect)`;
+            this.updateStatus(message, 'discovery');
         };
 
         // 🍃 Get color for different leaf types
@@ -2560,15 +2610,15 @@ class NebulaVoxelApp {
                 collected: false
             };
 
-            // Auto-cleanup after 30 seconds to prevent world clutter
+            // Auto-cleanup after 3 seconds to prevent world clutter
             setTimeout(() => {
                 if (fallingBlock.userData && !fallingBlock.userData.collected) {
                     this.scene.remove(fallingBlock);
                     this.physicsWorld.removeBody(cannonBody);
                     this.physicsObjects.delete(fallingBlock);
-                    console.log(`🗑️ Auto-cleaned up fallen wood block after 30 seconds`);
+                    console.log(`🗑️ Auto-cleaned up fallen wood block after 3 seconds`);
                 }
-            }, 30000);
+            }, 3000);
 
             console.log(`🪵 Created falling wood block with physics at (${x}, ${y}, ${z})`);
         };
@@ -3870,6 +3920,10 @@ class NebulaVoxelApp {
         // 🌳 TREE GENERATION ALGORITHMS
         // Generate Oak Tree (Forest/Plains biomes)
         this.generateOakTree = (x, y, z) => {
+            // 🗺️ Track tree position for minimap
+            this.treePositions.push({ x, z, type: 'oak' });
+            console.log(`🌳 Generated Oak tree at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+
             const height = 4 + Math.floor(this.seededNoise(x + 5000, z + 5000, this.worldSeed) * 4); // 4-7 blocks tall
 
             // Generate trunk
@@ -3910,6 +3964,10 @@ class NebulaVoxelApp {
 
         // Generate Pine Tree (Mountain biome)
         this.generatePineTree = (x, y, z) => {
+            // 🗺️ Track tree position for minimap
+            this.treePositions.push({ x, z, type: 'pine' });
+            console.log(`🌲 Generated Pine tree at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+
             const height = 6 + Math.floor(this.seededNoise(x + 6000, z + 6000, this.worldSeed) * 5); // 6-10 blocks tall
 
             // Generate trunk
@@ -4500,6 +4558,25 @@ class NebulaVoxelApp {
                     ctx.fillRect(backpackMapX - 3, backpackMapZ - 3, 6, 6); // Outer glow
                 }
             }
+
+            // 🌳 Draw tree positions (green dots) for debugging
+            this.treePositions.forEach(tree => {
+                const relX = tree.x - this.player.position.x;
+                const relZ = tree.z - this.player.position.z;
+
+                // Convert to minimap coordinates
+                const treeMapX = size/2 + relX / scale;
+                const treeMapZ = size/2 + relZ / scale;
+
+                // Only draw if within minimap bounds
+                if (treeMapX >= 0 && treeMapX < size && treeMapZ >= 0 && treeMapZ < size) {
+                    // Different colors for different tree types
+                    ctx.fillStyle = tree.type === 'oak' ? '#00ff00' : '#228B22'; // Bright green for oak, dark green for pine
+                    ctx.beginPath();
+                    ctx.arc(treeMapX, treeMapZ, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
 
             // Draw player position (white dot)
             ctx.fillStyle = '#ffffff'; // Changed to white so backpack red stands out
@@ -5250,12 +5327,11 @@ class NebulaVoxelApp {
         this.workbenchHotkeyLabel = workbenchLabel; // Store reference for day/night updates
 
         this.workbenchTool.addEventListener('click', () => {
-            // Direct workbench access from inventory
-            const workbenchCount = this.inventory.countItemInSlots('workbench');
-            if (workbenchCount > 0) {
+            // Direct workbench access (UI-only tool - no inventory requirement)
+            if (this.hasBackpack) {
                 this.workbenchSystem.open(0, 0, 0); // Direct access
             } else {
-                this.updateStatus('⚠️ No workbench in inventory! Find a workbench to craft items.', 'warning');
+                this.updateStatus('⚠️ Find a backpack first to unlock the workbench!', 'warning');
             }
         });
         this.toolMenu.appendChild(this.workbenchTool);
