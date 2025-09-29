@@ -1080,30 +1080,30 @@ export class BiomeWorldGen {
                     }
                 }
 
-                // Enhanced shrub generation with biome-specific density
-                if (!hasSnow && biome.shrubChance > 0) {
-                    // 🌿 BIOME-SPECIFIC SHRUB DENSITY
-                    const shrubDensityMultipliers = {
-                        'Tundra': 8,        // High shrub density in tundra
-                        'Plains': 4,        // Moderate shrubs in plains
-                        'Desert': 2,        // Sparse shrubs in desert
-                        'Forest': 3,        // Some undergrowth
-                        'Mountain': 3       // Mountain vegetation
-                    };
+                // 🚫 DISABLED: Enhanced shrub generation with biome-specific density
+                // if (!hasSnow && biome.shrubChance > 0) {
+                //     // 🌿 BIOME-SPECIFIC SHRUB DENSITY
+                //     const shrubDensityMultipliers = {
+                //         'Tundra': 8,        // High shrub density in tundra
+                //         'Plains': 4,        // Moderate shrubs in plains
+                //         'Desert': 2,        // Sparse shrubs in desert
+                //         'Forest': 3,        // Some undergrowth
+                //         'Mountain': 3       // Mountain vegetation
+                //     };
 
-                    let shrubMultiplier = 2; // Default
-                    for (const [biomeName, mult] of Object.entries(shrubDensityMultipliers)) {
-                        if (biome.name.includes(biomeName)) {
-                            shrubMultiplier = mult;
-                            break;
-                        }
-                    }
+                //     let shrubMultiplier = 2; // Default
+                //     for (const [biomeName, mult] of Object.entries(shrubDensityMultipliers)) {
+                //         if (biome.name.includes(biomeName)) {
+                //             shrubMultiplier = mult;
+                //             break;
+                //         }
+                //     }
 
-                    const shrubNoise = this.multiOctaveNoise(worldX + 3000, worldZ + 3000, this.noiseParams.microDetail, worldSeed + 3000);
-                    if (shrubNoise > (1 - biome.shrubChance * shrubMultiplier)) {
-                        addBlockFn(worldX, height + 1, worldZ, 'shrub', false);
-                    }
-                }
+                //     const shrubNoise = this.multiOctaveNoise(worldX + 3000, worldZ + 3000, this.noiseParams.microDetail, worldSeed + 3000);
+                //     if (shrubNoise > (1 - biome.shrubChance * shrubMultiplier)) {
+                //         addBlockFn(worldX, height + 1, worldZ, 'shrub', false);
+                //     }
+                // }
             }
         }
 

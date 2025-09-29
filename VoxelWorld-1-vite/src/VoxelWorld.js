@@ -29,6 +29,11 @@ class NebulaVoxelApp {
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
 
+        // 🌳 TREE ID SYSTEM: Advanced tree tracking with unique identifiers
+        this.nextTreeId = 1; // Incremental unique tree ID generator
+        this.treeRegistry = new Map(); // Map<treeId, treeMetadata>
+        this.blockToTreeMap = new Map(); // Map<blockKey, treeId> for fast lookups
+
         // Punch-to-harvest system
         this.isHarvesting = false;
         this.harvestingTarget = null;
@@ -2470,56 +2475,76 @@ class NebulaVoxelApp {
             return floatingBlocks;
         };
 
-        // 🎯 PHASE 3: Revolutionary Tree Physics Implementation - FIXED for all tree types
+        // 🌳 TREE ID SYSTEM: ID-based tree harvesting (replaces spatial analysis)
         this.checkTreeFalling = (harvestedX, harvestedY, harvestedZ) => {
-            console.log(`🌳 Checking tree falling for harvested wood at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
+            console.log(`🌳 Tree ID harvesting: checking block at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
 
-            // 🌳 STEP 1: Find ALL connected wood blocks in the ENTIRE tree structure
-            const allConnectedBlocks = this.getAllConnectedWoodBlocks(harvestedX, harvestedY, harvestedZ);
+            // 🌳 STEP 1: Get tree ID from harvested block
+            const treeId = this.getTreeIdFromBlock(harvestedX, harvestedY, harvestedZ);
 
-            if (allConnectedBlocks.length === 0) {
-                console.log(`🌳 No connected tree structure found`);
+            if (!treeId) {
+                console.log(`🌳 No tree ID found for block - not part of registered tree`);
                 return;
             }
 
-            console.log(`🌳 Found complete tree with ${allConnectedBlocks.length} total wood blocks`);
+            // 🌳 STEP 2: Get complete tree metadata
+            const treeMetadata = this.getTreeMetadata(treeId);
 
-            // 🌳 STEP 2: Determine which blocks are now disconnected from ground
-            // Find what should remain connected to ground (everything reachable from base without going through harvested block)
-            const remainingBlocks = this.getGroundConnectedBlocks(allConnectedBlocks, harvestedX, harvestedY, harvestedZ);
-            const fallenBlocks = allConnectedBlocks.filter(block =>
-                !remainingBlocks.some(remaining =>
-                    remaining.x === block.x && remaining.y === block.y && remaining.z === block.z
-                )
-            );
-
-            console.log(`🌳 Tree analysis: ${remainingBlocks.length} blocks remain standing, ${fallenBlocks.length} blocks will fall`);
-
-            if (fallenBlocks.length === 0) {
-                console.log(`🌳 No blocks will fall - tree structure remains stable`);
+            if (!treeMetadata) {
+                console.error(`🚨 Tree metadata not found for ID ${treeId}`);
                 return;
             }
 
-            // 🪵 RESOURCE COLLECTION: Give player wood for all fallen trunk blocks
-            if (fallenBlocks.length > 0) {
-                // Determine wood type based on the first block (they should all be the same tree type)
-                const woodType = fallenBlocks[0].blockData.type; // e.g., 'oak_wood', 'pine_wood'
-                const woodCount = fallenBlocks.length;
+            console.log(`🌳 Found tree ID ${treeId}: ${treeMetadata.treeType} with ${treeMetadata.trunkBlocks.length} trunk blocks and ${treeMetadata.leafBlocks.length} leaf blocks`);
 
-                // Add wood to player inventory
+            // 🪵 RESOURCE COLLECTION: Give player ALL trunk blocks from this tree
+            const woodType = treeMetadata.treeType; // e.g., 'oak_wood', 'pine_wood'
+            const woodCount = treeMetadata.trunkBlocks.length;
+
+            if (woodCount > 0) {
                 this.inventory.addToInventory(woodType, woodCount);
 
-                // Show notification
                 const woodIcon = this.getItemIcon(woodType);
                 this.updateStatus(`🌳 TIMBER! Collected ${woodCount}x ${woodType.replace('_', ' ')} ${woodIcon}`, 'discovery');
-                console.log(`🪵 Gave player ${woodCount}x ${woodType} from fallen tree`);
+                console.log(`🪵 Gave player ${woodCount}x ${woodType} from tree ID ${treeId}`);
             }
 
-            // Create dramatic falling tree effect
-            this.createFallingTreePhysics(fallenBlocks, harvestedX, harvestedY, harvestedZ);
+            // 🍃 MACHETE LEAF COLLECTION: Check if player has machete for leaf harvesting
+            const selectedSlot = this.getHotbarSlot(this.selectedSlot);
+            const hasMachete = selectedSlot && selectedSlot.itemType === 'machete';
 
-            // 🍃 ENHANCED: Find and remove ALL leaves connected to fallen blocks (not just above!)
-            this.cascadeDisconnectedLeaves(fallenBlocks, remainingBlocks);
+            if (hasMachete && treeMetadata.leafBlocks.length > 0) {
+                // Collect all leaf types from this tree
+                const leafTypes = {};
+                treeMetadata.leafBlocks.forEach(leafBlock => {
+                    leafTypes[leafBlock.blockType] = (leafTypes[leafBlock.blockType] || 0) + 1;
+                });
+
+                // Add all collected leaves to inventory
+                Object.entries(leafTypes).forEach(([leafType, count]) => {
+                    this.inventory.addToInventory(leafType, count);
+                });
+
+                const totalLeaves = treeMetadata.leafBlocks.length;
+                this.updateStatus(`🔪🍃 Machete collected ${totalLeaves} leaves from tree!`, 'discovery');
+                console.log(`🔪 Machete collected ${totalLeaves} leaves from tree ID ${treeId}`);
+            }
+
+            // 🌳 STEP 3: Remove ALL blocks belonging to this tree (no spatial guessing!)
+            const allTreeBlocks = [...treeMetadata.trunkBlocks, ...treeMetadata.leafBlocks];
+
+            // Create falling animation for all tree blocks
+            this.createFallingTreePhysics(allTreeBlocks, harvestedX, harvestedY, harvestedZ);
+
+            // Remove all blocks from world
+            allTreeBlocks.forEach(block => {
+                this.removeBlock(block.x, block.y, block.z, false); // false = don't give items (already handled above)
+            });
+
+            // 🗑️ STEP 4: Clean up tree from registry (garbage collection)
+            this.removeTreeFromRegistry(treeId);
+
+            console.log(`🌳 Tree ID ${treeId} completely harvested and removed from world`);
         };
 
         // 🌳 NEW: Find blocks that remain connected to ground after harvesting (excluding harvested block)
@@ -2800,7 +2825,13 @@ class NebulaVoxelApp {
         this.createFallingTreePhysics = (treeBlocks, chopX, chopY, chopZ) => {
             console.log(`🎬 Creating dramatic falling tree animation with ${treeBlocks.length} blocks!`);
 
-            // Calculate fall direction (away from player)
+            // Separate blocks into wood and leaves for different physics
+            const woodBlocks = treeBlocks.filter(block => !this.isLeafBlock(block.blockType));
+            const leafBlocks = treeBlocks.filter(block => this.isLeafBlock(block.blockType));
+
+            console.log(`🌳 Tree contains ${woodBlocks.length} wood blocks and ${leafBlocks.length} leaf blocks`);
+
+            // Calculate fall direction (away from player) but moderate the force
             const playerX = this.player.position.x;
             const playerZ = this.player.position.z;
             const fallDirectionX = chopX - playerX;
@@ -2809,25 +2840,108 @@ class NebulaVoxelApp {
             const normalizedFallX = fallLength > 0 ? fallDirectionX / fallLength : 1;
             const normalizedFallZ = fallLength > 0 ? fallDirectionZ / fallLength : 0;
 
-            // Create falling tree as single physics object
-            treeBlocks.forEach((block, index) => {
-                // Remove original block from world (no items for falling tree parts)
+            // Create falling wood blocks with moderate physics
+            woodBlocks.forEach((block, index) => {
                 this.removeBlock(block.x, block.y, block.z, false);
-
-                // Create falling physics block with delay for dramatic effect
                 setTimeout(() => {
                     this.createFallingWoodBlock(
                         block.x, block.y, block.z,
                         normalizedFallX, normalizedFallZ,
-                        index * 0.1, // Staggered falling for dramatic effect
-                        block.blockData.type // Pass the actual wood type
+                        index * 0.05, // Less staggering for wood
+                        block.blockType
                     );
-                }, index * 50); // 50ms delay between each block
+                }, index * 30); // Faster falling for wood blocks
+            });
+
+            // Create falling leaf blocks with gentle physics
+            leafBlocks.forEach((block, index) => {
+                this.removeBlock(block.x, block.y, block.z, false);
+                setTimeout(() => {
+                    this.createFallingLeafBlock(
+                        block.x, block.y, block.z,
+                        block.blockType
+                    );
+                }, index * 20 + woodBlocks.length * 30); // Start after wood blocks
             });
 
             // Add satisfying tree fall sound effect notification
-            this.updateStatus(`🌳 TIMBER! Tree crashed down with ${treeBlocks.length} wood blocks!`, 'discovery');
-            console.log(`🎉 Tree falling sequence initiated - blocks will fall dramatically!`);
+            this.updateStatus(`🌳 TIMBER! Tree crashed down with ${woodBlocks.length} wood and ${leafBlocks.length} leaf blocks!`, 'discovery');
+            console.log(`🎉 Tree falling sequence initiated - wood and leaves will fall realistically!`);
+        };
+
+        // 🍃 Create falling leaf block with gentle physics
+        this.createFallingLeafBlock = (x, y, z, leafType = 'leaf') => {
+            // Create Three.js mesh for falling leaf block
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const leafColor = this.getLeafColor(leafType);
+            const material = new THREE.MeshLambertMaterial({
+                color: leafColor,
+                transparent: true,
+                opacity: 0.8 // Slightly transparent for leaves
+            });
+            const fallingLeaf = new THREE.Mesh(geometry, material);
+            fallingLeaf.position.set(x, y, z);
+
+            // Add to scene
+            this.scene.add(fallingLeaf);
+
+            // Create physics body with very light leaf properties
+            const cannonShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+            const cannonBody = new CANNON.Body({
+                mass: 0.5, // Very light like real leaves
+                shape: cannonShape,
+                position: new CANNON.Vec3(x, y, z),
+                material: this.physicsMaterials.wood // Use wood material for now
+            });
+
+            // Apply gentle falling motion - leaves just fall down with slight drift
+            cannonBody.velocity.set(
+                (Math.random() - 0.5) * 2, // Very small horizontal drift
+                -2 + Math.random() * 1,    // Gentle downward velocity
+                (Math.random() - 0.5) * 2  // Very small horizontal drift
+            );
+
+            // Add gentle leaf tumbling
+            cannonBody.angularVelocity.set(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            );
+
+            // Add to physics world
+            this.physicsWorld.addBody(cannonBody);
+            this.physicsObjects.set(fallingLeaf, cannonBody);
+
+            // Mark as falling leaf block
+            fallingLeaf.userData = {
+                type: 'falling_leaf',
+                blockType: leafType,
+                lifetime: 0
+            };
+
+            // Remove after falling for a while (leaves disappear)
+            setTimeout(() => {
+                if (this.physicsObjects.has(fallingLeaf)) {
+                    const body = this.physicsObjects.get(fallingLeaf);
+                    this.physicsWorld.removeBody(body);
+                    this.physicsObjects.delete(fallingLeaf);
+                    this.scene.remove(fallingLeaf);
+                    console.log(`🍃 Leaf block cleaned up after falling`);
+                }
+            }, 8000); // 8 seconds to fall and disappear
+        };
+
+        // 🍃 Get color for different leaf types
+        this.getLeafColor = (leafType) => {
+            const leafColors = {
+                leaf: 0x228B22,           // Forest green
+                forest_leaves: 0x228B22,  // Forest green
+                mountain_leaves: 0x2F4F2F, // Dark green
+                desert_leaves: 0x8B7D6B,  // Brownish for desert
+                plains_leaves: 0x32CD32,  // Lime green
+                tundra_leaves: 0x556B2F   // Dark olive green
+            };
+            return leafColors[leafType] || leafColors.leaf;
         };
 
         // 🪵 Get color for different wood types
@@ -2863,12 +2977,12 @@ class NebulaVoxelApp {
                 material: this.physicsMaterials.wood
             });
 
-            // Apply dramatic falling force
-            const fallForce = 50 + Math.random() * 30; // Random force for natural effect
+            // Apply moderate falling force (reduced from excessive 50-80 to realistic 5-10)
+            const fallForce = 5 + Math.random() * 5; // Moderate force for natural effect
             cannonBody.velocity.set(
-                fallDirX * fallForce + (Math.random() - 0.5) * 20, // Random horizontal spread
-                Math.random() * 10, // Slight upward velocity
-                fallDirZ * fallForce + (Math.random() - 0.5) * 20
+                fallDirX * fallForce + (Math.random() - 0.5) * 4, // Reduced horizontal spread
+                Math.random() * 3, // Gentle upward velocity
+                fallDirZ * fallForce + (Math.random() - 0.5) * 4
             );
 
             // Add rotational tumbling for realistic tree falling
@@ -4271,24 +4385,105 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Only log if there's something noteworthy
-            if (treesPlaced > 0 || (Math.abs(chunkX) <= 1 && Math.abs(chunkZ) <= 1)) {
-                console.log(`🌳 Chunk (${chunkX}, ${chunkZ}): ${treesPlaced} trees placed`);
+            // 🚫 DISABLED: Tree placement logging
+            // if (treesPlaced > 0 || (Math.abs(chunkX) <= 1 && Math.abs(chunkZ) <= 1)) {
+            //     console.log(`🌳 Chunk (${chunkX}, ${chunkZ}): ${treesPlaced} trees placed`);
+            // }
+        };
+
+        // 🌳 TREE ID SYSTEM: Registry management methods
+        this.createTreeRegistry = (treeType, x, y, z) => {
+            const treeId = this.nextTreeId++;
+            const treeMetadata = {
+                treeId: treeId,
+                treeType: treeType, // 'oak_wood', 'pine_wood', etc.
+                basePosition: { x, y, z },
+                trunkBlocks: [],
+                leafBlocks: [],
+                totalBlocks: 0,
+                createdAt: Date.now()
+            };
+
+            this.treeRegistry.set(treeId, treeMetadata);
+            console.log(`🌳 Created tree registry: ID ${treeId}, type: ${treeType} at (${x}, ${y}, ${z})`);
+            return treeId;
+        };
+
+        this.registerTreeBlock = (treeId, x, y, z, blockType, isLeaf = false) => {
+            const blockKey = `${x},${y},${z}`;
+            const treeMetadata = this.treeRegistry.get(treeId);
+
+            if (!treeMetadata) {
+                console.error(`🚨 Cannot register block - Tree ID ${treeId} not found in registry`);
+                return;
             }
+
+            // Add to tree metadata
+            const blockInfo = { x, y, z, blockType };
+            if (isLeaf) {
+                treeMetadata.leafBlocks.push(blockInfo);
+            } else {
+                treeMetadata.trunkBlocks.push(blockInfo);
+            }
+            treeMetadata.totalBlocks++;
+
+            // Add to fast lookup map
+            this.blockToTreeMap.set(blockKey, treeId);
+
+            console.log(`🌳 Registered ${isLeaf ? 'leaf' : 'trunk'} block for tree ${treeId} at (${x}, ${y}, ${z})`);
+        };
+
+        this.getTreeIdFromBlock = (x, y, z) => {
+            const blockKey = `${x},${y},${z}`;
+            return this.blockToTreeMap.get(blockKey) || null;
+        };
+
+        this.getTreeMetadata = (treeId) => {
+            return this.treeRegistry.get(treeId) || null;
+        };
+
+        this.removeTreeFromRegistry = (treeId) => {
+            const treeMetadata = this.treeRegistry.get(treeId);
+            if (!treeMetadata) return;
+
+            // Remove all block mappings
+            [...treeMetadata.trunkBlocks, ...treeMetadata.leafBlocks].forEach(block => {
+                const blockKey = `${block.x},${block.y},${block.z}`;
+                this.blockToTreeMap.delete(blockKey);
+            });
+
+            // Remove tree registry entry
+            this.treeRegistry.delete(treeId);
+            console.log(`🗑️ Removed tree ${treeId} from registry (${treeMetadata.totalBlocks} blocks freed)`);
+        };
+
+        // 🌳 HELPER: Add block with tree ID registration
+        this.addTreeBlock = (treeId, x, y, z, blockType, playerPlaced = false, color = null) => {
+            // Determine if this is a leaf block
+            const isLeaf = this.isLeafBlock(blockType);
+
+            // Add the block normally
+            this.addBlock(x, y, z, blockType, playerPlaced, color);
+
+            // Register with tree system
+            this.registerTreeBlock(treeId, x, y, z, blockType, isLeaf);
         };
 
         // 🌳 TREE GENERATION ALGORITHMS
-        // Generate Oak Tree (Forest/Plains biomes)
+        // Generate Oak Tree (Forest/Plains biomes) - ENHANCED with Tree ID System
         this.generateOakTree = (x, y, z) => {
+            // 🌳 Create unique tree registry
+            const treeId = this.createTreeRegistry('oak_wood', x, y, z);
+
             // 🗺️ Track tree position for minimap
-            this.treePositions.push({ x, z, type: 'oak' });
-            console.log(`🌳 Generated Oak tree at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+            this.treePositions.push({ x, z, type: 'oak', treeId });
+            console.log(`🌳 Generated Oak tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
 
             const height = 4 + Math.floor(this.seededNoise(x + 5000, z + 5000, this.worldSeed) * 4); // 4-7 blocks tall
 
-            // Generate trunk
+            // Generate trunk with tree ID registration
             for (let h = 0; h < height; h++) {
-                this.addBlock(x, y + h, z, 'oak_wood', false);
+                this.addTreeBlock(treeId, x, y + h, z, 'oak_wood', false);
             }
 
             // Generate canopy (3x3 at top, expanding to 5x5 in middle)
@@ -4298,7 +4493,7 @@ class NebulaVoxelApp {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) <= 2) { // Cross pattern
-                        this.addBlock(x + dx, canopyCenter, z + dz, 'forest_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, canopyCenter, z + dz, 'forest_leaves', false);
                     }
                 }
             }
@@ -4307,7 +4502,7 @@ class NebulaVoxelApp {
             for (let dx = -2; dx <= 2; dx++) {
                 for (let dz = -2; dz <= 2; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) <= 3 && !(Math.abs(dx) === 2 && Math.abs(dz) === 2)) {
-                        this.addBlock(x + dx, canopyCenter - 1, z + dz, 'forest_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, canopyCenter - 1, z + dz, 'forest_leaves', false);
                     }
                 }
             }
@@ -4316,23 +4511,28 @@ class NebulaVoxelApp {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) <= 2) {
-                        this.addBlock(x + dx, canopyCenter - 2, z + dz, 'forest_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, canopyCenter - 2, z + dz, 'forest_leaves', false);
                     }
                 }
             }
+
+            console.log(`🌳 Oak tree ${treeId} completed with ${height} trunk blocks and canopy`);
         };
 
-        // Generate Pine Tree (Mountain biome)
+        // Generate Pine Tree (Mountain biome) - ENHANCED with Tree ID System
         this.generatePineTree = (x, y, z) => {
+            // 🌳 Create unique tree registry
+            const treeId = this.createTreeRegistry('pine_wood', x, y, z);
+
             // 🗺️ Track tree position for minimap
-            this.treePositions.push({ x, z, type: 'pine' });
-            console.log(`🌲 Generated Pine tree at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+            this.treePositions.push({ x, z, type: 'pine', treeId });
+            console.log(`🌲 Generated Pine tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
 
             const height = 6 + Math.floor(this.seededNoise(x + 6000, z + 6000, this.worldSeed) * 5); // 6-10 blocks tall
 
-            // Generate trunk
+            // Generate trunk with tree ID registration
             for (let h = 0; h < height; h++) {
-                this.addBlock(x, y + h, z, 'pine_wood', false);
+                this.addTreeBlock(treeId, x, y + h, z, 'pine_wood', false);
             }
 
             // Generate conical canopy (starts small at top, gets wider)
@@ -4350,21 +4550,30 @@ class NebulaVoxelApp {
                             // Add some randomness to make it less perfect
                             const leafNoise = this.seededNoise(x + dx + 7000, z + dz + 7000, this.worldSeed);
                             if (leafNoise > -0.3) { // 80% chance for each leaf
-                                this.addBlock(x + dx, layerY, z + dz, 'mountain_leaves', false);
+                                this.addTreeBlock(treeId, x + dx, layerY, z + dz, 'mountain_leaves', false);
                             }
                         }
                     }
                 }
             }
+
+            console.log(`🌲 Pine tree ${treeId} completed with ${height} trunk blocks and conical canopy`);
         };
 
-        // Generate Palm Tree (Desert biome)
+        // Generate Palm Tree (Desert biome) - ENHANCED with Tree ID System
         this.generatePalmTree = (x, y, z) => {
+            // 🌳 Create unique tree registry
+            const treeId = this.createTreeRegistry('palm_wood', x, y, z);
+
+            // 🗺️ Track tree position for minimap
+            this.treePositions.push({ x, z, type: 'palm', treeId });
+            console.log(`🌴 Generated Palm tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+
             const height = 5 + Math.floor(this.seededNoise(x + 8000, z + 8000, this.worldSeed) * 4); // 5-8 blocks tall
 
-            // Generate trunk
+            // Generate trunk with tree ID registration
             for (let h = 0; h < height; h++) {
-                this.addBlock(x, y + h, z, 'palm_wood', false);
+                this.addTreeBlock(treeId, x, y + h, z, 'palm_wood', false);
             }
 
             // Generate fronds at top (8-directional pattern)
@@ -4378,29 +4587,38 @@ class NebulaVoxelApp {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) === 1) { // Plus pattern
-                        this.addBlock(x + dx, topY, z + dz, 'desert_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, topY, z + dz, 'desert_leaves', false);
                     }
                 }
             }
 
             // Extending fronds
             directions.forEach(([dx, dz]) => {
-                this.addBlock(x + dx, topY, z + dz, 'desert_leaves', false);
+                this.addTreeBlock(treeId, x + dx, topY, z + dz, 'desert_leaves', false);
                 // Sometimes add a second frond block
                 const extendNoise = this.seededNoise(x + dx + 9000, z + dz + 9000, this.worldSeed);
                 if (extendNoise > 0.2) {
-                    this.addBlock(x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'desert_leaves', false);
+                    this.addTreeBlock(treeId, x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'desert_leaves', false);
                 }
             });
+
+            console.log(`🌴 Palm tree ${treeId} completed with ${height} trunk blocks and radial fronds`);
         };
 
-        // Generate Birch Tree (Tundra biome)
+        // Generate Birch Tree (Tundra biome) - ENHANCED with Tree ID System
         this.generateBirchTree = (x, y, z) => {
+            // 🌳 Create unique tree registry
+            const treeId = this.createTreeRegistry('birch_wood', x, y, z);
+
+            // 🗺️ Track tree position for minimap
+            this.treePositions.push({ x, z, type: 'birch', treeId });
+            console.log(`🌿 Generated Birch tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+
             const height = 2 + Math.floor(this.seededNoise(x + 10000, z + 10000, this.worldSeed) * 3); // 2-4 blocks tall
 
-            // Generate trunk
+            // Generate trunk with tree ID registration
             for (let h = 0; h < height; h++) {
-                this.addBlock(x, y + h, z, 'birch_wood', false);
+                this.addTreeBlock(treeId, x, y + h, z, 'birch_wood', false);
             }
 
             // Generate sparse, hardy canopy
@@ -4413,7 +4631,7 @@ class NebulaVoxelApp {
                     if (Math.abs(dx) + Math.abs(dz) === 1) {
                         const leafNoise = this.seededNoise(x + dx + 11000, z + dz + 11000, this.worldSeed);
                         if (leafNoise > 0.1) { // 70% chance for sparse look
-                            this.addBlock(x + dx, topY, z + dz, 'tundra_leaves', false);
+                            this.addTreeBlock(treeId, x + dx, topY, z + dz, 'tundra_leaves', false);
                         }
                     }
                 }
@@ -4423,12 +4641,14 @@ class NebulaVoxelApp {
             if (height > 2) {
                 const belowNoise = this.seededNoise(x + 12000, z + 12000, this.worldSeed);
                 if (belowNoise > 0.3) {
-                    this.addBlock(x + 1, topY - 1, z, 'tundra_leaves', false);
+                    this.addTreeBlock(treeId, x + 1, topY - 1, z, 'tundra_leaves', false);
                 }
                 if (belowNoise > 0.6) {
-                    this.addBlock(x - 1, topY - 1, z, 'tundra_leaves', false);
+                    this.addTreeBlock(treeId, x - 1, topY - 1, z, 'tundra_leaves', false);
                 }
             }
+
+            console.log(`🌿 Birch tree ${treeId} completed with ${height} trunk blocks and sparse canopy`);
         };
 
         // 🌳 TREE GENERATION HELPERS
@@ -4478,7 +4698,8 @@ class NebulaVoxelApp {
                 return; // Don't generate trees on inappropriate ground
             }
 
-            // 🌿 ENHANCED: Check for vegetation and other obstacles at tree position
+            // 🌿 ENHANCED: Multi-layer collision detection for trees
+            // Check exact tree placement position
             const existingBlock = this.getBlock(worldX, treeHeight, worldZ);
             if (existingBlock) {
                 // Don't place trees on shrubs, other trees, or any existing blocks
@@ -4486,22 +4707,38 @@ class NebulaVoxelApp {
                 return; // Don't generate if space is occupied
             }
 
-            // 🌿 CRITICAL: Check for shrubs specifically - they're often placed before trees
-            for (let dx = -2; dx <= 2; dx++) {
-                for (let dz = -2; dz <= 2; dz++) {
-                    const checkBlock = this.getBlock(worldX + dx, treeHeight, worldZ + dz);
-                    if (checkBlock) {
-                        if (checkBlock.type === 'shrub') {
-                            console.log(`🚫 Tree blocked at (${worldX},${treeHeight},${worldZ}) by shrub at (${worldX + dx},${treeHeight},${worldZ + dz})`);
-                            return; // Don't generate if shrub nearby
-                        }
-                        if (this.isWoodBlock(checkBlock.type)) {
-                            console.log(`🚫 Tree blocked at (${worldX},${treeHeight},${worldZ}) by ${checkBlock.type} at (${worldX + dx},${treeHeight},${worldZ + dz})`);
-                            return; // Don't generate if another tree nearby
+            // 🌿 CRITICAL: Enhanced shrub detection with multiple height levels
+            // Check both at ground level and above for shrubs
+            for (let dx = -3; dx <= 3; dx++) {
+                for (let dz = -3; dz <= 3; dz++) {
+                    for (let dy = -1; dy <= 1; dy++) { // Check below, at, and above ground level
+                        const checkY = treeHeight + dy;
+                        const checkBlock = this.getBlock(worldX + dx, checkY, worldZ + dz);
+
+                        if (checkBlock) {
+                            if (checkBlock.type === 'shrub') {
+                                console.log(`🚫🌿 Tree BLOCKED by shrub: position (${worldX},${treeHeight},${worldZ}) blocked by shrub at (${worldX + dx},${checkY},${worldZ + dz})`);
+                                return; // ABSOLUTELY no trees near shrubs
+                            }
+
+                            // Also check for existing tree blocks
+                            if (this.isWoodBlock(checkBlock.type)) {
+                                console.log(`🚫🌳 Tree blocked by existing tree: ${checkBlock.type} at (${worldX + dx},${checkY},${worldZ + dz})`);
+                                return; // Don't generate if another tree nearby
+                            }
+
+                            // Check for existing tree IDs to prevent ID collision
+                            const existingTreeId = this.getTreeIdFromBlock(worldX + dx, checkY, worldZ + dz);
+                            if (existingTreeId) {
+                                console.log(`🚫🆔 Tree blocked by existing tree ID ${existingTreeId} at (${worldX + dx},${checkY},${worldZ + dz})`);
+                                return; // Don't generate near existing tree IDs
+                            }
                         }
                     }
                 }
             }
+
+            console.log(`✅ Tree placement approved at (${worldX},${treeHeight},${worldZ}) - no conflicts detected`);
 
             // Generate tree based on biome type
             switch (biome.name) {
