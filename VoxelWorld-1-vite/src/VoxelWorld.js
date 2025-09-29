@@ -4097,6 +4097,44 @@ class NebulaVoxelApp {
             return this.biomeWorldGen.getHeightBasedColor(biome, height);
         };
 
+        // 🌍 SPAWN POSITION FINDER: Find safe spawn position after terrain generation
+        this.findAndSetSpawnPosition = () => {
+            console.log('🎯 Finding proper spawn position after terrain generation...');
+
+            // Search in small area around spawn point (0, 0)
+            let bestSpawnY = 10; // fallback height
+            let foundSurface = false;
+
+            // Check multiple positions near spawn to find best surface
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dz = -2; dz <= 2; dz++) {
+                    const checkX = dx;
+                    const checkZ = dz;
+
+                    // Find surface height at this position
+                    for (let y = 8; y >= -5; y--) {
+                        const block = this.getBlock(checkX, y, checkZ);
+                        if (block) {
+                            const spawnY = y + 2; // Place player 2 blocks above surface for safety
+                            if (!foundSurface || spawnY < bestSpawnY) { // Prefer lower, more stable ground
+                                bestSpawnY = spawnY;
+                                foundSurface = true;
+                                console.log(`🎯 Found surface at (${checkX}, ${y}, ${checkZ}) -> spawn at y=${bestSpawnY}`);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (foundSurface) {
+                console.log(`🎯 Setting spawn position to (0, ${bestSpawnY}, 0) based on terrain height`);
+                this.player.position.y = bestSpawnY;
+            } else {
+                console.warn('🚨 No surface found near spawn - keeping default position');
+            }
+        };
+
         // Chunk-based terrain generation functions
         const getChunkKey = (chunkX, chunkZ) => `${chunkX},${chunkZ}`;
 
@@ -4111,32 +4149,49 @@ class NebulaVoxelApp {
                 this.chunkSize
             );
 
-            // 🌳 Generate trees for this chunk using existing tree system
-            // Bind 'this' context properly by storing reference
-            const voxelWorld = this;
-            for (let x = 0; x < voxelWorld.chunkSize; x++) {
-                for (let z = 0; z < voxelWorld.chunkSize; z++) {
-                    const worldX = chunkX * voxelWorld.chunkSize + x;
-                    const worldZ = chunkZ * voxelWorld.chunkSize + z;
+            // 🌳 ENHANCED: Defer tree generation to ensure terrain is fully placed
+            // Use setTimeout to allow terrain blocks to be properly added before trees
+            setTimeout(() => {
+                this.generateTreesForChunk(chunkX, chunkZ);
+            }, 10); // Small delay to ensure block placement is complete
+        };
 
-                    const biome = voxelWorld.biomeWorldGen.getBiomeAt(worldX, worldZ, voxelWorld.worldSeed);
+        // 🌳 SEPARATED TREE GENERATION: Now a dedicated method for better timing control
+        this.generateTreesForChunk = (chunkX, chunkZ) => {
+            // Minimal logging - only for significant issues
+            let treesPlaced = 0;
+            for (let x = 0; x < this.chunkSize; x++) {
+                for (let z = 0; z < this.chunkSize; z++) {
+                    const worldX = chunkX * this.chunkSize + x;
+                    const worldZ = chunkZ * this.chunkSize + z;
 
-                    // Check if we should generate a tree at this position using VoxelWorld's method
-                    if (voxelWorld.shouldGenerateTree(worldX, worldZ, biome)) {
-                        // Find the surface height at this position
+                    const biome = this.biomeWorldGen.getBiomeAt(worldX, worldZ, this.worldSeed);
+
+                    // Check if we should generate a tree at this position
+                    const shouldGenerate = this.shouldGenerateTree(worldX, worldZ, biome);
+
+                    if (shouldGenerate) {
+                        // 🌍 ENHANCED: Find surface height matching BiomeWorldGen terrain range
                         let surfaceY = -10;
-                        for (let y = 10; y >= -10; y--) {
-                            if (voxelWorld.getBlock(worldX, y, worldZ)) {
+                        for (let y = 8; y >= -5; y--) {  // Extended range to cover BiomeWorldGen heights
+                            const block = this.getBlock(worldX, y, worldZ);
+                            if (block) {
                                 surfaceY = y + 1;
                                 break;
                             }
                         }
 
-                        if (surfaceY > -10) {
-                            voxelWorld.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
+                        if (surfaceY > -10 && surfaceY <= 10) {  // Validate reasonable tree height
+                            this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
+                            treesPlaced++;
                         }
                     }
                 }
+            }
+
+            // Only log if there's something noteworthy
+            if (treesPlaced > 0 || (Math.abs(chunkX) <= 1 && Math.abs(chunkZ) <= 1)) {
+                console.log(`🌳 Chunk (${chunkX}, ${chunkZ}): ${treesPlaced} trees placed`);
             }
         };
 
@@ -4451,6 +4506,9 @@ class NebulaVoxelApp {
         console.log('Loading initial chunks...');
         updateChunks();
         console.log('✅ Initial chunks loaded');
+
+        // 🌍 ENHANCED: Find proper spawn position after terrain generation
+        this.findAndSetSpawnPosition();
 
         // Spawn starting backpack after terrain is ready
         this.spawnStartingBackpack();
