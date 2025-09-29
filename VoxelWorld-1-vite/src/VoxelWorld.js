@@ -2470,11 +2470,11 @@ class NebulaVoxelApp {
             return floatingBlocks;
         };
 
-        // 🎯 PHASE 3: Revolutionary Tree Physics Implementation
+        // 🎯 PHASE 3: Revolutionary Tree Physics Implementation - FIXED for all tree types
         this.checkTreeFalling = (harvestedX, harvestedY, harvestedZ) => {
             console.log(`🌳 Checking tree falling for harvested wood at (${harvestedX}, ${harvestedY}, ${harvestedZ})`);
 
-            // 🌳 ENHANCED: Find ALL connected wood blocks in entire tree structure, then find what's above harvested block
+            // 🌳 STEP 1: Find ALL connected wood blocks in the ENTIRE tree structure
             const allConnectedBlocks = this.getAllConnectedWoodBlocks(harvestedX, harvestedY, harvestedZ);
 
             if (allConnectedBlocks.length === 0) {
@@ -2482,21 +2482,29 @@ class NebulaVoxelApp {
                 return;
             }
 
-            // Find all blocks that should fall (everything above and connected to harvested position)
-            const treeBlocks = this.scanTreeStructure(harvestedX, harvestedY + 1, harvestedZ);
+            console.log(`🌳 Found complete tree with ${allConnectedBlocks.length} total wood blocks`);
 
-            if (treeBlocks.length === 0) {
-                console.log(`🌳 No tree structure found above harvested block`);
+            // 🌳 STEP 2: Determine which blocks are now disconnected from ground
+            // Find what should remain connected to ground (everything reachable from base without going through harvested block)
+            const remainingBlocks = this.getGroundConnectedBlocks(allConnectedBlocks, harvestedX, harvestedY, harvestedZ);
+            const fallenBlocks = allConnectedBlocks.filter(block =>
+                !remainingBlocks.some(remaining =>
+                    remaining.x === block.x && remaining.y === block.y && remaining.z === block.z
+                )
+            );
+
+            console.log(`🌳 Tree analysis: ${remainingBlocks.length} blocks remain standing, ${fallenBlocks.length} blocks will fall`);
+
+            if (fallenBlocks.length === 0) {
+                console.log(`🌳 No blocks will fall - tree structure remains stable`);
                 return;
             }
 
-            console.log(`🌳 Found tree structure with ${treeBlocks.length} wood blocks - TIMBER!`);
-
-            // 🪵 RESOURCE COLLECTION: Give player wood for all trunk blocks
-            if (treeBlocks.length > 0) {
+            // 🪵 RESOURCE COLLECTION: Give player wood for all fallen trunk blocks
+            if (fallenBlocks.length > 0) {
                 // Determine wood type based on the first block (they should all be the same tree type)
-                const woodType = treeBlocks[0].blockData.type; // e.g., 'oak_wood', 'pine_wood'
-                const woodCount = treeBlocks.length;
+                const woodType = fallenBlocks[0].blockData.type; // e.g., 'oak_wood', 'pine_wood'
+                const woodCount = fallenBlocks.length;
 
                 // Add wood to player inventory
                 this.inventory.addToInventory(woodType, woodCount);
@@ -2508,10 +2516,63 @@ class NebulaVoxelApp {
             }
 
             // Create dramatic falling tree effect
-            this.createFallingTreePhysics(treeBlocks, harvestedX, harvestedY, harvestedZ);
+            this.createFallingTreePhysics(fallenBlocks, harvestedX, harvestedY, harvestedZ);
 
-            // 🍃 NEW: Also cascade any leaves that were connected to these wood blocks
-            this.cascadeDisconnectedLeaves(treeBlocks);
+            // 🍃 ENHANCED: Find and remove ALL leaves connected to fallen blocks (not just above!)
+            this.cascadeDisconnectedLeaves(fallenBlocks, remainingBlocks);
+        };
+
+        // 🌳 NEW: Find blocks that remain connected to ground after harvesting (excluding harvested block)
+        this.getGroundConnectedBlocks = (allBlocks, harvestedX, harvestedY, harvestedZ) => {
+            // Find all ground-level blocks (lowest Y values) as potential tree bases
+            const minY = Math.min(...allBlocks.map(block => block.y));
+            const groundBlocks = allBlocks.filter(block =>
+                block.y === minY &&
+                !(block.x === harvestedX && block.y === harvestedY && block.z === harvestedZ) // Exclude harvested block
+            );
+
+            if (groundBlocks.length === 0) {
+                console.log(`🌳 No ground blocks remain after harvesting - entire tree will fall`);
+                return [];
+            }
+
+            // Use flood-fill from ground blocks to find all reachable blocks (without going through harvested block)
+            const visited = new Set();
+            const connected = [];
+            const queue = [...groundBlocks];
+
+            // Mark harvested block as "blocked" so flood-fill can't pass through it
+            const harvestedKey = `${harvestedX},${harvestedY},${harvestedZ}`;
+
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const key = `${current.x},${current.y},${current.z}`;
+
+                if (visited.has(key)) continue;
+                if (key === harvestedKey) continue; // Skip harvested block
+
+                visited.add(key);
+                connected.push(current);
+
+                // Find adjacent blocks in the original tree structure
+                allBlocks.forEach(block => {
+                    const blockKey = `${block.x},${block.y},${block.z}`;
+                    if (visited.has(blockKey) || blockKey === harvestedKey) return;
+
+                    // Check if block is adjacent to current block
+                    const dx = Math.abs(block.x - current.x);
+                    const dy = Math.abs(block.y - current.y);
+                    const dz = Math.abs(block.z - current.z);
+
+                    // Allow horizontal and vertical adjacency (including diagonals for branching trees)
+                    if (dx <= 1 && dy <= 1 && dz <= 1 && (dx + dy + dz) <= 2) {
+                        queue.push(block);
+                    }
+                });
+            }
+
+            console.log(`🌳 Ground connection analysis: ${connected.length} blocks remain connected to ground`);
+            return connected;
         };
 
         // 🎯 PHASE 3: Scan connected wood blocks to find tree structure
@@ -2561,12 +2622,12 @@ class NebulaVoxelApp {
             return treeBlocks;
         };
 
-        // 🍃 NEW: Find and cascade leaves that are no longer connected to wood
-        this.cascadeDisconnectedLeaves = (fallenWoodBlocks) => {
-            console.log(`🍃 Checking for disconnected leaves around ${fallenWoodBlocks.length} fallen wood blocks`);
+        // 🍃 ENHANCED: Find and cascade leaves that are no longer connected to STANDING wood
+        this.cascadeDisconnectedLeaves = (fallenWoodBlocks, remainingWoodBlocks = []) => {
+            console.log(`🍃 Checking for disconnected leaves around ${fallenWoodBlocks.length} fallen wood blocks (${remainingWoodBlocks.length} still standing)`);
 
             const leafBlocks = [];
-            const searchRadius = 3; // Search 3 blocks around each fallen wood block
+            const searchRadius = 4; // Increased radius to catch all leaf types (Pine trees can have wider canopies)
 
             // Find all leaf blocks near the fallen wood blocks
             fallenWoodBlocks.forEach(({ x: woodX, y: woodY, z: woodZ }) => {
@@ -2579,8 +2640,8 @@ class NebulaVoxelApp {
 
                             const blockData = this.getBlock(leafX, leafY, leafZ);
                             if (blockData && this.isLeafBlock(blockData.type)) {
-                                // Check if this leaf is still connected to standing wood
-                                if (!this.isLeafConnectedToWood(leafX, leafY, leafZ)) {
+                                // 🌳 ENHANCED: Check if this leaf is still connected to STANDING wood only
+                                if (!this.isLeafConnectedToStandingWood(leafX, leafY, leafZ, remainingWoodBlocks)) {
                                     leafBlocks.push({ x: leafX, y: leafY, z: leafZ, type: blockData.type });
                                 }
                             }
@@ -2595,7 +2656,28 @@ class NebulaVoxelApp {
             }
         };
 
-        // 🍃 Check if a leaf block is connected to standing wood (within 2 blocks)
+        // 🍃 ENHANCED: Check if a leaf block is connected to STANDING wood only (not fallen wood)
+        this.isLeafConnectedToStandingWood = (leafX, leafY, leafZ, standingWoodBlocks) => {
+            const connectionRadius = 3; // Increased radius for better Pine/Palm tree support
+
+            // Check if any standing wood blocks are within connection radius
+            for (const woodBlock of standingWoodBlocks) {
+                const dx = Math.abs(leafX - woodBlock.x);
+                const dy = Math.abs(leafY - woodBlock.y);
+                const dz = Math.abs(leafZ - woodBlock.z);
+
+                // Allow connection if within radius (including diagonal connections)
+                if (dx <= connectionRadius && dy <= connectionRadius && dz <= connectionRadius) {
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (distance <= connectionRadius) {
+                        return true; // Found standing wood nearby
+                    }
+                }
+            }
+            return false; // No standing wood found, leaf is disconnected
+        };
+
+        // 🍃 LEGACY: Check if a leaf block is connected to ANY wood (kept for backward compatibility)
         this.isLeafConnectedToWood = (leafX, leafY, leafZ) => {
             const connectionRadius = 2;
 
