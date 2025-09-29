@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
 import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { InventorySystem } from './InventorySystem.js';
+import { EnhancedGraphics } from './EnhancedGraphics.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -94,6 +95,9 @@ class NebulaVoxelApp {
         // 🎒 Initialize Advanced InventorySystem
         this.inventory = new InventorySystem(this);
 
+        // 🎨 Initialize Enhanced Graphics System
+        this.enhancedGraphics = new EnhancedGraphics();
+
         // 🔄 COMPATIBILITY: Provide access to inventory arrays for legacy code
         // These properties delegate to InventorySystem for backward compatibility
         Object.defineProperty(this, 'hotbarSlots', {
@@ -134,13 +138,17 @@ class NebulaVoxelApp {
             let mat;
             if (customColor) {
                 // Create custom material with height-based color
-                mat = new THREE.MeshLambertMaterial({
+                const baseMaterial = new THREE.MeshLambertMaterial({
                     map: this.materials[type].map,
                     color: customColor
                 });
+                // Try to enhance with texture if available
+                mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
             } else {
                 // Use darker material for player-placed blocks, normal for generated
-                mat = playerPlaced ? this.playerMaterials[type] : this.materials[type];
+                const baseMaterial = playerPlaced ? this.playerMaterials[type] : this.materials[type];
+                // Try to enhance with texture if available
+                mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
             }
 
             const cube = new THREE.Mesh(geo, mat);
@@ -321,24 +329,35 @@ class NebulaVoxelApp {
             const config = emojiConfig[type];
             if (!config) return null;
 
-            // Create canvas with emoji
-            const canvas = document.createElement('canvas');
-            canvas.width = canvas.height = 128;
-            const ctx = canvas.getContext('2d');
+            // Try to use enhanced graphics first, fall back to emoji
+            let texture;
+            const enhancedImage = this.enhancedGraphics.toolImages.get(type);
 
-            // Clear background
-            ctx.clearRect(0, 0, 128, 128);
+            if (enhancedImage && this.enhancedGraphics.isEnabled) {
+                // Use enhanced PNG image
+                texture = new THREE.TextureLoader().load(enhancedImage.src);
+                texture.magFilter = THREE.LinearFilter;
+                texture.minFilter = THREE.LinearFilter;
+            } else {
+                // Fall back to emoji canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = canvas.height = 128;
+                const ctx = canvas.getContext('2d');
 
-            // Draw emoji
-            ctx.font = '96px serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(config.emoji, 64, 64);
+                // Clear background
+                ctx.clearRect(0, 0, 128, 128);
 
-            // Create texture and sprite
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.magFilter = THREE.LinearFilter;
-            texture.minFilter = THREE.LinearFilter;
+                // Draw emoji
+                ctx.font = '96px serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(config.emoji, 64, 64);
+
+                // Create texture and sprite
+                texture = new THREE.CanvasTexture(canvas);
+                texture.magFilter = THREE.LinearFilter;
+                texture.minFilter = THREE.LinearFilter;
+            }
 
             const material = new THREE.SpriteMaterial({
                 map: texture,
@@ -455,7 +474,8 @@ class NebulaVoxelApp {
                 delete this.world[key];
 
                 // Log removal for debugging
-                console.log(`Removed block ${blockData.type} at (${x},${y},${z})`);
+                // commented out due to console spam - brad
+                //console.log(`Removed block ${blockData.type} at (${x},${y},${z})`);
             }
         };
 
@@ -968,6 +988,65 @@ class NebulaVoxelApp {
             }, 4000);
         };
 
+        // Refresh all existing billboards to use enhanced graphics
+        this.refreshAllBillboards = () => {
+            Object.keys(this.world).forEach(key => {
+                const worldItem = this.world[key];
+                if (worldItem && worldItem.billboard && worldItem.billboard.userData.type === 'billboard') {
+                    const billboard = worldItem.billboard;
+                    const billboardType = worldItem.type;
+
+                    // Remove old billboard
+                    this.scene.remove(billboard);
+
+                    // Create new billboard with current enhanced graphics setting
+                    const newBillboard = this.createBillboard(billboard.position.x, billboard.position.y - 0.6, billboard.position.z, billboardType);
+                    if (newBillboard) {
+                        this.scene.add(newBillboard);
+                        worldItem.billboard = newBillboard;
+                    }
+                }
+            });
+            console.log('🔄 Refreshed all billboards for enhanced graphics');
+        };
+
+        // Update tool button icon with enhanced graphics if available
+        this.updateToolButtonIcon = (buttonElement, toolType, defaultEmoji) => {
+            console.log(`🔧 Updating tool button for ${toolType}, enhanced graphics enabled: ${this.enhancedGraphics.isEnabled}`);
+
+            const enhancedIcon = this.enhancedGraphics.getEnhancedToolIcon(toolType, defaultEmoji, 28);
+            console.log(`🎨 Enhanced icon result: ${enhancedIcon}`);
+
+            // Preserve existing hotkey label
+            const existingLabel = buttonElement.querySelector('div');
+
+            if (enhancedIcon.includes('<img')) {
+                console.log(`✅ Using enhanced image for ${toolType}`);
+                // Use enhanced image, but need to handle the styling properly
+                buttonElement.innerHTML = enhancedIcon;
+                // Reset text-based styling that doesn't work with images
+                buttonElement.style.fontSize = '';
+                buttonElement.style.lineHeight = '32px'; // Keep vertical centering
+
+                // Re-add the hotkey label if it existed
+                if (existingLabel) {
+                    buttonElement.appendChild(existingLabel);
+                }
+            } else {
+                console.log(`📱 Using emoji fallback for ${toolType}: ${enhancedIcon}`);
+                // Use emoji fallback
+                buttonElement.innerHTML = '';
+                buttonElement.textContent = enhancedIcon;
+                buttonElement.style.fontSize = '28px';
+                buttonElement.style.lineHeight = '32px';
+
+                // Re-add the hotkey label if it existed
+                if (existingLabel) {
+                    buttonElement.appendChild(existingLabel);
+                }
+            }
+        };
+
         // Show tool buttons when backpack is found
         this.showToolButtons = () => {
             if (this.backpackTool) {
@@ -1050,7 +1129,7 @@ class NebulaVoxelApp {
                 // Use innerHTML for crafted items (HTML icons), textContent for emojis
                 if (itemName) {
                     const iconContent = this.getItemIcon(itemName);
-                    if (iconContent.includes('<span')) {
+                    if (iconContent.includes('<span') || iconContent.includes('<img')) {
                         itemIcon.innerHTML = iconContent;
                     } else {
                         itemIcon.textContent = iconContent;
@@ -1203,9 +1282,19 @@ class NebulaVoxelApp {
                 tundra_leaves: '🍂',   // Gray-green hardy
 
                 // NEW: Tools
-                machete: '🔪'         // For harvesting leaves and vegetation
+                machete: '🔪',        // For harvesting leaves and vegetation
+                backpack: '🎒'        // Backpack icon
             };
-            return icons[itemType] || '❓';
+
+            // Check for enhanced graphics first
+            const defaultIcon = icons[itemType] || '❓';
+
+            // Try to get enhanced icon for tools
+            if (['machete', 'workbench', 'backpack'].includes(itemType)) {
+                return this.enhancedGraphics.getInventoryToolIcon(itemType, defaultIcon);
+            }
+
+            return defaultIcon;
         };
 
         // Update hotbar visual selection
@@ -3410,7 +3499,7 @@ class NebulaVoxelApp {
                     // Create item icon
                     const itemIcon = document.createElement('div');
                     // Use innerHTML for crafted items (HTML icons), textContent for emojis
-                    if (iconContent.includes('<span')) {
+                    if (iconContent.includes('<span') || iconContent.includes('<img')) {
                         itemIcon.innerHTML = iconContent;
                     } else {
                         itemIcon.textContent = iconContent;
@@ -5065,35 +5154,57 @@ class NebulaVoxelApp {
             const time = this.dayNightCycle.currentTime;
             let icon, color, title;
 
+            let timePeriod;
             if (time >= 6 && time < 8) {
                 // Dawn - sunrise
                 icon = 'wb_twilight';
                 color = '#FF8C00'; // Orange
                 title = 'Dawn - Click for menu';
+                timePeriod = 'dawn';
             } else if (time >= 8 && time < 17) {
                 // Day - sun
                 icon = 'wb_sunny';
                 color = '#FFD700'; // Gold
                 title = 'Daytime - Click for menu';
+                timePeriod = 'sun';
             } else if (time >= 17 && time < 19) {
                 // Dusk - sunset
                 icon = 'wb_twighlight';
                 color = '#FF6347'; // Tomato red
                 title = 'Sunset - Click for menu';
+                timePeriod = 'dusk';
             } else if (time >= 19 && time < 21) {
                 // Evening - moon rise
                 icon = 'brightness_2';
                 color = '#9370DB'; // Medium purple
                 title = 'Evening - Click for menu';
+                timePeriod = 'moon';
             } else {
                 // Night - full moon
                 icon = 'brightness_3';
                 color = '#C0C0C0'; // Silver
                 title = 'Nighttime - Click for menu';
+                timePeriod = 'night';
             }
 
-            this.timeIndicator.textContent = icon;
-            this.timeIndicator.style.color = color;
+            // Try to get enhanced icon
+            const enhancedIcon = this.enhancedGraphics.getTimeIndicatorIcon(timePeriod, icon);
+
+            if (enhancedIcon.type === 'image') {
+                // Use enhanced image
+                this.timeIndicator.innerHTML = `<img src="${enhancedIcon.content}" style="${enhancedIcon.style} pointer-events: none;" alt="${enhancedIcon.alt}">`;
+                // Reset text color for image mode
+                this.timeIndicator.style.color = '';
+                // Ensure pointer events work on the container
+                this.timeIndicator.style.pointerEvents = 'auto';
+            } else {
+                // Use material icon fallback
+                this.timeIndicator.innerHTML = '';
+                this.timeIndicator.textContent = enhancedIcon.content;
+                this.timeIndicator.style.color = color;
+                this.timeIndicator.style.pointerEvents = 'auto';
+            }
+
             this.timeIndicator.title = title;
 
             // Update tool hotkey label colors for day/night contrast
@@ -5887,7 +5998,7 @@ class NebulaVoxelApp {
             line-height: 32px;
             position: relative;
         `;
-        this.backpackTool.textContent = '🎒';
+        this.updateToolButtonIcon(this.backpackTool, 'backpack', '🎒');
         this.backpackTool.title = 'Open backpack inventory (B key)';
 
         // Add hotkey label
@@ -5926,7 +6037,7 @@ class NebulaVoxelApp {
             line-height: 32px;
             position: relative;
         `;
-        this.workbenchTool.textContent = '🔨';
+        this.updateToolButtonIcon(this.workbenchTool, 'workbench', '🔨');
         this.workbenchTool.title = 'Open workbench crafting (E key)';
 
         // Add hotkey label
@@ -5991,6 +6102,7 @@ class NebulaVoxelApp {
                 <h2 style="margin:0 0 12px 0; color: white; font-size: 20px;">Voxel World Menu</h2>
                 <button id="modal-newgame-btn" style="font-size: 16px; padding: 8px 24px; background: #FF9800; color: white; border: none; border-radius: 6px; cursor: pointer;">🎲 New Game</button>
                 <button id="modal-benchmark-btn" style="font-size: 16px; padding: 8px 24px; background: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer;">⚡ Re-run Benchmark</button>
+                <button id="modal-enhanced-graphics-btn" style="font-size: 16px; padding: 8px 24px; background: ${this.enhancedGraphics.isEnabled ? '#4CAF50' : '#757575'}; color: white; border: none; border-radius: 6px; cursor: pointer;">${this.enhancedGraphics.isEnabled ? '🎨 Enhanced Graphics ON' : '🎨 Enhanced Graphics OFF'}</button>
                 <button id="modal-save-btn" style="font-size: 16px; padding: 8px 24px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">💾 Save Game</button>
                 <button id="modal-load-btn" style="font-size: 16px; padding: 8px 24px; background: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer;">📂 Load Game</button>
                 <button id="modal-delete-btn" style="font-size: 16px; padding: 8px 24px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer;">🗑 Delete Save</button>
@@ -6009,6 +6121,7 @@ class NebulaVoxelApp {
         const modalDeleteBtn = modal.querySelector("#modal-delete-btn");
         const modalNewGameBtn = modal.querySelector("#modal-newgame-btn");
         const modalBenchmarkBtn = modal.querySelector("#modal-benchmark-btn");
+        const modalEnhancedGraphicsBtn = modal.querySelector("#modal-enhanced-graphics-btn");
         const modalCloseBtn = modal.querySelector("#modal-close-btn");
 
         const saveWorld = () => {
@@ -6040,11 +6153,56 @@ class NebulaVoxelApp {
             await this.runPerformanceBenchmark();
         };
 
+        const toggleEnhancedGraphics = async () => {
+            const newState = this.enhancedGraphics.toggle();
+
+            // Re-initialize graphics if turned on
+            if (newState) {
+                this.updateStatus('🎨 Loading enhanced graphics assets...', 'info', false);
+                const result = await this.enhancedGraphics.initialize();
+                if (result.success) {
+                    this.updateStatus(`🎨 Enhanced Graphics enabled! ${result.assetsLoaded} assets loaded`, 'info');
+                } else {
+                    this.updateStatus('❌ Enhanced Graphics failed to load assets', 'info');
+                }
+            } else {
+                this.updateStatus('🎨 Enhanced Graphics disabled', 'info');
+            }
+
+            // Update button appearance
+            modalEnhancedGraphicsBtn.style.background = newState ? '#4CAF50' : '#757575';
+            modalEnhancedGraphicsBtn.textContent = newState ? '🎨 Enhanced Graphics ON' : '🎨 Enhanced Graphics OFF';
+
+            // Refresh the time indicator to apply/remove enhanced graphics
+            if (this.updateTimeIndicator) {
+                this.updateTimeIndicator();
+            }
+
+            // Refresh hotbar and inventory icons
+            if (this.updateHotbarCounts) {
+                this.updateHotbarCounts();
+            }
+
+            // Refresh tool button icons
+            if (this.backpackTool) {
+                this.updateToolButtonIcon(this.backpackTool, 'backpack', '🎒');
+            }
+            if (this.workbenchTool) {
+                this.updateToolButtonIcon(this.workbenchTool, 'workbench', '🔨');
+            }
+
+            // Refresh existing billboards in the world
+            this.refreshAllBillboards();
+
+            modal.style.display = 'none';
+        };
+
         if (modalSaveBtn) modalSaveBtn.onclick = saveWorld;
         if (modalLoadBtn) modalLoadBtn.onclick = loadWorld;
         if (modalDeleteBtn) modalDeleteBtn.onclick = deleteSave;
         if (modalNewGameBtn) modalNewGameBtn.onclick = newGame;
         if (modalBenchmarkBtn) modalBenchmarkBtn.onclick = reRunBenchmark;
+        if (modalEnhancedGraphicsBtn) modalEnhancedGraphicsBtn.onclick = toggleEnhancedGraphics;
         if (modalCloseBtn) modalCloseBtn.onclick = () => modal.style.display = 'none';
 
         // Update status bar reference
@@ -6364,6 +6522,10 @@ export async function initVoxelWorld(container) {
         // Initialize workbench system
         app.workbenchSystem.init();
         console.log('🔨 WorkbenchSystem initialized');
+
+        // Initialize enhanced graphics system
+        const graphicsResult = await app.enhancedGraphics.initialize();
+        console.log('🎨 EnhancedGraphics initialized:', graphicsResult);
 
         console.log('✅ VoxelWorld initialization completed');
 

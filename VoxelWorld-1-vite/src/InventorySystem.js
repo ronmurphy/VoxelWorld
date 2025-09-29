@@ -349,7 +349,7 @@ export class InventorySystem {
 
                 // Create item icon
                 const itemIcon = document.createElement('div');
-                if (iconContent.includes('<span')) {
+                if (iconContent.includes('<span') || iconContent.includes('<img')) {
                     itemIcon.innerHTML = iconContent;
                 } else {
                     itemIcon.textContent = iconContent;
@@ -421,7 +421,7 @@ export class InventorySystem {
                 // Create item icon
                 const itemIcon = document.createElement('div');
                 // Use innerHTML for crafted items (HTML icons), textContent for emojis
-                if (iconContent.includes('<span')) {
+                if (iconContent.includes('<span') || iconContent.includes('<img')) {
                     itemIcon.innerHTML = iconContent;
                 } else {
                     itemIcon.textContent = iconContent;
