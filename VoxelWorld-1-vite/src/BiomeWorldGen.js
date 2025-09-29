@@ -870,7 +870,7 @@ export class BiomeWorldGen {
         if (loadedChunks.has(chunkKey)) return;
 
         this.STATS.chunksGenerated++;
-        if (this.DEBUG_MODE || this.STATS.chunksGenerated % 10 === 0) {
+        if (this.DEBUG_MODE && this.STATS.chunksGenerated % 50 === 0) {
             console.log(`🌍 Generated ${this.STATS.chunksGenerated} chunks - Latest: ${chunkKey}`);
         }
 
@@ -1028,7 +1028,7 @@ export class BiomeWorldGen {
         }
 
         loadedChunks.add(chunkKey);
-        console.log(`✅ CHUNK (${chunkX}, ${chunkZ}) - COMPLETED`);
+        // console.log(`✅ CHUNK (${chunkX}, ${chunkZ}) - COMPLETED`); // Removed for performance
 
         // 📊 Log statistics summary every 20 chunks (reduced frequency)
         if (this.STATS.chunksGenerated % 20 === 0) {
