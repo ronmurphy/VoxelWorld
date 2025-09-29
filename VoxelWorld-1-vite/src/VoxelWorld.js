@@ -3411,14 +3411,32 @@ class NebulaVoxelApp {
                     blockData: blockData
                 });
 
-                this.inventory.addToInventory(blockType, 1);
-                console.log(`Harvested ${blockType}!`);
+                // 🔪 MACHETE LEAF HARVESTING: Check if we're harvesting leaves with machete
+                if (this.isLeafBlock(blockType)) {
+                    const selectedSlot = this.getHotbarSlot(this.selectedSlot);
+                    const hasMachete = selectedSlot && selectedSlot.itemType === 'machete';
 
-                // addToInventory() already handles UI updates
+                    if (hasMachete) {
+                        // Machete allows leaf collection
+                        this.inventory.addToInventory(blockType, 1);
+                        console.log(`🔪 Machete harvested ${blockType}!`);
 
-                // Use enhanced notification system with harvest type
-                const emoji = this.getItemIcon(blockType);
-                this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
+                        const emoji = this.getItemIcon(blockType);
+                        this.updateStatus(`🔪${emoji} Machete harvested ${blockType}!`, 'harvest');
+                    } else {
+                        // No machete - leaves just disappear
+                        console.log(`${blockType} destroyed (need machete to collect)`);
+                        this.updateStatus(`🍃 ${blockType} destroyed (need machete to collect)`, 'harvest');
+                    }
+                } else {
+                    // Regular block harvesting
+                    this.inventory.addToInventory(blockType, 1);
+                    console.log(`Harvested ${blockType}!`);
+
+                    // Use enhanced notification system with harvest type
+                    const emoji = this.getItemIcon(blockType);
+                    this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
+                }
 
                 // 🎯 PHASE 3: Revolutionary tree physics - Check if we just chopped a tree base!
                 if (this.isWoodBlock(blockType)) {
@@ -4382,8 +4400,9 @@ class NebulaVoxelApp {
                     const worldX = chunkX * this.chunkSize + x;
                     const worldZ = chunkZ * this.chunkSize + z;
 
-                    // Only remove the 3 layers we actually create (don't give items for despawned blocks)
-                    for (let y = -5; y <= 5; y++) { // Small range around ground level
+                    // 🌳 ENHANCED: Remove all blocks in full height range to handle trees and leaves
+                    // Trees can be up to 15+ blocks tall, so we need to clear full height range
+                    for (let y = -10; y <= 20; y++) { // Expanded range to handle tall trees and floating leaves
                         this.removeBlock(worldX, y, worldZ, false); // 🎯 false = don't give items for despawned blocks
                     }
                 }
