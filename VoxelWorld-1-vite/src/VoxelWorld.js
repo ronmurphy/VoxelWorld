@@ -4666,7 +4666,16 @@ class NebulaVoxelApp {
 
             // Remove tree registry entry
             this.treeRegistry.delete(treeId);
-            // console.log(`🗑️ Removed tree ${treeId} from registry (${treeMetadata.totalBlocks} blocks freed)`);
+
+            // 🗺️ Remove tree from minimap positions
+            const initialLength = this.treePositions.length;
+            this.treePositions = this.treePositions.filter(tree => tree.treeId !== treeId);
+            const removedCount = initialLength - this.treePositions.length;
+
+            console.log(`🗑️ Removed tree ${treeId} from registry (${treeMetadata.totalBlocks} blocks freed)${removedCount > 0 ? ' and minimap' : ''}`);
+            if (removedCount > 0) {
+                console.log(`🗺️ Tree ${treeId} removed from minimap (${this.treePositions.length} trees remaining)`);
+            }
         };
 
         // 🌳 HELPER: Add block with tree ID registration
