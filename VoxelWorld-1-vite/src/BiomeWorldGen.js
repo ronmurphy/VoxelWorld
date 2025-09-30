@@ -1066,9 +1066,14 @@ export class BiomeWorldGen {
                     this.STATS.treesPlaced++;
 
                     // 🌳 ACTUALLY GENERATE THE TREE based on biome type
-                    if (biome.name === 'Mountain' || biome.name === 'Tundra') {
+                    if (biome.name === 'Mountain' || biome.name.includes('mountain')) {
                         this.voxelWorld.generatePineTree(worldX, actualGroundHeight, worldZ);
+                    } else if (biome.name === 'Tundra' || biome.name.includes('tundra')) {
+                        this.voxelWorld.generateBirchTree(worldX, actualGroundHeight, worldZ);
+                    } else if (biome.name === 'Desert' || biome.name.includes('desert')) {
+                        this.voxelWorld.generatePalmTree(worldX, actualGroundHeight, worldZ);
                     } else {
+                        // Forest, Plains, and other biomes get Oak trees
                         this.voxelWorld.generateOakTree(worldX, actualGroundHeight, worldZ);
                     }
 
