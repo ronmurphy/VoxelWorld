@@ -4,10 +4,15 @@ import { WorkbenchSystem } from './WorkbenchSystem.js';
 import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { InventorySystem } from './InventorySystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
+import { BlockResourcePool } from './BlockResourcePool.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
     constructor(container) {
+        // Initialize resource pool FIRST for geometry/material pooling
+        this.resourcePool = new BlockResourcePool();
+        console.log('🎮 Phase 1: Object Pooling enabled');
+
         // Initialize properties
         this.world = {};
         this.loadedChunks = new Set();
@@ -147,7 +152,8 @@ class NebulaVoxelApp {
                 }
             }
 
-            const geo = new THREE.BoxGeometry(1, 1, 1);
+            // Use pooled geometry for performance
+            const geo = this.resourcePool.getGeometry('cube');
 
             let mat;
             if (customColor) {
@@ -5144,7 +5150,13 @@ class NebulaVoxelApp {
                 map: this.materials[type].map,
                 color: darkerColor
             });
+
+            // Register materials in resource pool for reuse
+            this.resourcePool.registerMaterial(type, this.materials[type]);
+            this.resourcePool.registerMaterial(`${type}_player`, this.playerMaterials[type]);
         });
+
+        console.log(`📦 Registered ${Object.keys(this.blockTypes).length * 2} materials in resource pool`);
 
         // 🎨 Method to recreate all materials when Enhanced Graphics becomes ready
         this.recreateAllMaterials = () => {
