@@ -457,10 +457,10 @@ class NebulaVoxelApp {
                 if (giveItems) {
                     // Check if it's a shrub for harvesting
                     if (blockData.type === 'shrub') {
-                        this.inventory.addToInventory('wood', 1); // Add 1 wood to inventory using slot system
-                        const totalWood = this.inventory.countItemInSlots('wood');
-                        console.log(`Harvested shrub! Wood: ${totalWood}`);
-                        this.updateStatus(`Harvested shrub! Wood: ${totalWood}`);
+                        this.inventory.addToInventory('oak_wood', 1); // Add 1 oak wood to inventory using slot system
+                        const totalWood = this.inventory.countItemInSlots('oak_wood');
+                        console.log(`Harvested shrub! Oak Wood: ${totalWood}`);
+                        this.updateStatus(`Harvested shrub! Oak Wood: ${totalWood}`);
                         // addToInventory already handles UI updates
                     }
                     // Check if it's a backpack for pickup
@@ -623,8 +623,11 @@ class NebulaVoxelApp {
 
             // Guaranteed starter materials (but smaller amounts to fit in hotbar + backpack)
             const woodCount = randomRange(4, 8);  // Reduced from 8-16
-            console.log(`🪵 Adding ${woodCount} wood...`);
-            this.inventory.addToInventory('wood', woodCount);
+            // Randomly select a wood type for variety
+            const woodTypes = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood'];
+            const randomWoodType = woodTypes[Math.floor(this.seededRandom() * woodTypes.length)];
+            console.log(`🪵 Adding ${woodCount} ${randomWoodType}...`);
+            this.inventory.addToInventory(randomWoodType, woodCount);
 
             const stoneCount = randomRange(2, 6);  // Reduced from 4-10
             console.log(`🪨 Adding ${stoneCount} stone...`);
@@ -1383,7 +1386,12 @@ class NebulaVoxelApp {
             }
 
             // Try to get enhanced icon for materials that have block textures
-            const materialsWithAssets = ['bedrock', 'dirt', 'sand', 'snow', 'stone'];
+            const materialsWithAssets = [
+                'bedrock', 'dirt', 'sand', 'snow', 'stone', 'grass',
+                'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
+                'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
+                'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
+            ];
             if (materialsWithAssets.includes(itemType)) {
                 return this.enhancedGraphics.getInventoryMaterialIcon(itemType, defaultIcon);
             }

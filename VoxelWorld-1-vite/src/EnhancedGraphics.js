@@ -529,10 +529,21 @@ export class EnhancedGraphics {
         }
 
         // Check if we have a block texture for this material
-        const image = this.blockTextures.get(materialType);
-        if (image && image.image && image.image.src) {
-            // Return HTML img element with proper scaling
-            return `<img src="${image.image.src}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle; border-radius: 2px;" alt="${materialType}">`;
+        const textures = this.blockTextures.get(materialType);
+
+        if (textures) {
+            // Handle multi-face textures (array of THREE.Texture objects)
+            if (Array.isArray(textures)) {
+                // Use the first side texture (index 0) for inventory icon
+                const sideTexture = textures[0];
+                if (sideTexture && sideTexture.image && sideTexture.image.src) {
+                    return `<img src="${sideTexture.image.src}" style="width: ${size}px; height: ${size}px; object-fit: cover; vertical-align: middle; border-radius: 2px; image-rendering: pixelated;" alt="${materialType}">`;
+                }
+            }
+            // Handle single texture (THREE.Texture object)
+            else if (textures.image && textures.image.src) {
+                return `<img src="${textures.image.src}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle; border-radius: 2px; image-rendering: pixelated;" alt="${materialType}">`;
+            }
         }
 
         return defaultEmoji;
