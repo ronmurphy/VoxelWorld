@@ -5,6 +5,7 @@ import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { InventorySystem } from './InventorySystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
+import { InstancedChunkRenderer } from './InstancedChunkRenderer.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -12,6 +13,11 @@ class NebulaVoxelApp {
         // Initialize resource pool FIRST for geometry/material pooling
         this.resourcePool = new BlockResourcePool();
         console.log('🎮 Phase 1: Object Pooling enabled');
+
+        // 🚀 PHASE 2: InstancedMesh Feature Flag
+        // Set to true to enable InstancedMesh rendering (3-10x FPS boost)
+        // Set to false to use Phase 1 only (object pooling)
+        this.PHASE_2_ENABLED = false; // DISABLED - needs bounding box fix
 
         // Initialize properties
         this.world = {};
@@ -147,45 +153,74 @@ class NebulaVoxelApp {
                 if (existingBlock.mesh) {
                     this.scene.remove(existingBlock.mesh);
                 }
+                if (existingBlock.instanced && this.instancedRenderer) {
+                    this.instancedRenderer.removeInstance(x, y, z);
+                }
                 if (existingBlock.billboard) {
                     this.scene.remove(existingBlock.billboard);
                 }
             }
 
-            // Use pooled geometry for performance
-            const geo = this.resourcePool.getGeometry('cube');
+            // 🚀 PHASE 2: Hybrid Rendering System
+            // Natural terrain → InstancedMesh (fast)
+            // Player-placed → Regular mesh (easy to manipulate)
+            if (!playerPlaced && this.PHASE_2_ENABLED && this.instancedRenderer) {
+                // Use instanced rendering for natural terrain
+                const threeColor = customColor ? customColor : null;
+                const instanceId = this.instancedRenderer.addInstance(x, y, z, type, threeColor);
 
-            let mat;
-            if (customColor) {
-                // Create custom material with height-based color
-                const baseMaterial = new THREE.MeshLambertMaterial({
-                    map: this.materials[type].map,
-                    color: customColor
-                });
-                // Try to enhance with texture if available
-                mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
-            } else {
-                // Use darker material for player-placed blocks, normal for generated
-                const baseMaterial = playerPlaced ? this.playerMaterials[type] : this.materials[type];
-                // Try to enhance with texture if available
-                mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
-            }
-
-            const cube = new THREE.Mesh(geo, mat);
-            cube.position.set(x, y, z);
-            cube.userData = { type, playerPlaced };
-            this.scene.add(cube);
-
-            // Create billboard sprite for special items
-            let billboard = null;
-            if (this.shouldUseBillboard(type)) {
-                billboard = this.createBillboard(x, y, z, type);
-                if (billboard) {
-                    this.scene.add(billboard);
+                // Create billboard sprite for special items
+                let billboard = null;
+                if (this.shouldUseBillboard(type)) {
+                    billboard = this.createBillboard(x, y, z, type);
+                    if (billboard) {
+                        this.scene.add(billboard);
+                    }
                 }
-            }
 
-            this.world[key] = { type, mesh: cube, playerPlaced, billboard };
+                this.world[key] = {
+                    type,
+                    playerPlaced: false,
+                    instanced: true,
+                    instanceId: instanceId,
+                    billboard: billboard
+                };
+            } else {
+                // Use regular mesh for player-placed blocks (Phase 1 behavior)
+                const geo = this.resourcePool.getGeometry('cube');
+
+                let mat;
+                if (customColor) {
+                    // Create custom material with height-based color
+                    const baseMaterial = new THREE.MeshLambertMaterial({
+                        map: this.materials[type].map,
+                        color: customColor
+                    });
+                    // Try to enhance with texture if available
+                    mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
+                } else {
+                    // Use darker material for player-placed blocks, normal for generated
+                    const baseMaterial = playerPlaced ? this.playerMaterials[type] : this.materials[type];
+                    // Try to enhance with texture if available
+                    mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
+                }
+
+                const cube = new THREE.Mesh(geo, mat);
+                cube.position.set(x, y, z);
+                cube.userData = { type, playerPlaced };
+                this.scene.add(cube);
+
+                // Create billboard sprite for special items
+                let billboard = null;
+                if (this.shouldUseBillboard(type)) {
+                    billboard = this.createBillboard(x, y, z, type);
+                    if (billboard) {
+                        this.scene.add(billboard);
+                    }
+                }
+
+                this.world[key] = { type, mesh: cube, playerPlaced, instanced: false, billboard };
+            }
         };
 
         // 🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
@@ -478,8 +513,12 @@ class NebulaVoxelApp {
                     }
                 }
 
-                // Properly dispose of mesh geometry and material to prevent memory leaks
-                if (blockData.mesh) {
+                // 🚀 PHASE 2: Handle instanced blocks
+                if (blockData.instanced && this.instancedRenderer) {
+                    this.instancedRenderer.removeInstance(x, y, z);
+                }
+                // Handle regular mesh blocks
+                else if (blockData.mesh) {
                     this.scene.remove(blockData.mesh);
                     if (blockData.mesh.geometry) {
                         blockData.mesh.geometry.dispose();
@@ -4745,14 +4784,26 @@ class NebulaVoxelApp {
         // Target highlight update method
         this.updateTargetHighlight = () => {
             if (!this.raycaster) return; // Only update if raycaster exists
-            
+
             this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
             const intersects = this.raycaster.intersectObjects(this.scene.children.filter(obj => obj.isMesh && obj !== this.targetHighlight));
-            
+
             if (intersects.length > 0) {
                 const hit = intersects[0];
-                this.targetHighlight.position.copy(hit.object.position);
-                
+
+                // 🚀 PHASE 2: Handle InstancedMesh targeting
+                if (hit.object.isInstancedMesh && hit.instanceId !== undefined) {
+                    // Get the position from the instance matrix
+                    const matrix = new THREE.Matrix4();
+                    hit.object.getMatrixAt(hit.instanceId, matrix);
+                    const position = new THREE.Vector3();
+                    position.setFromMatrixPosition(matrix);
+                    this.targetHighlight.position.copy(position);
+                } else {
+                    // Regular mesh - use object position
+                    this.targetHighlight.position.copy(hit.object.position);
+                }
+
                 // Default to green (placement mode)
                 this.targetHighlight.material.color.setHex(0x00ff00);
                 this.targetHighlight.visible = true;
@@ -5185,6 +5236,35 @@ class NebulaVoxelApp {
                 });
             });
 
+            // 🚀 PHASE 2: Update InstancedMesh materials
+            if (this.PHASE_2_ENABLED && this.instancedRenderer) {
+                console.log('🎨 Updating InstancedMesh materials...');
+                // Dispose old instanced meshes and recreate with new materials
+                for (const [blockType, instancedMesh] of this.instancedRenderer.instancedMeshes) {
+                    // Get new enhanced material
+                    const baseMaterial = this.resourcePool.getMaterialClone(blockType);
+                    let enhancedMaterial = this.enhancedGraphics.getEnhancedBlockMaterial(blockType, baseMaterial);
+
+                    // ⚠️ FIX: Handle material arrays (multi-face textures not supported by InstancedMesh)
+                    let newMaterial;
+                    if (Array.isArray(enhancedMaterial)) {
+                        console.warn(`⚠️ Block '${blockType}' has multi-face texture - using base material`);
+                        newMaterial = baseMaterial;
+                    } else {
+                        newMaterial = enhancedMaterial;
+                    }
+
+                    // Dispose old material
+                    if (instancedMesh.material) {
+                        instancedMesh.material.dispose();
+                    }
+
+                    // Update to new material
+                    instancedMesh.material = newMaterial;
+                    console.log(`✅ Updated InstancedMesh material for '${blockType}'`);
+                }
+            }
+
             // Force update all existing blocks in the world (only if chunks are initialized)
             if (this.chunks && typeof this.chunks === 'object') {
                 Object.values(this.chunks).forEach(chunk => {
@@ -5202,6 +5282,15 @@ class NebulaVoxelApp {
 
         // Three.js setup
         this.scene = new THREE.Scene();
+
+        // 🚀 PHASE 2: Initialize InstancedChunkRenderer (if enabled)
+        if (this.PHASE_2_ENABLED) {
+            this.instancedRenderer = new InstancedChunkRenderer(this.scene, this.resourcePool, this.enhancedGraphics);
+            console.log('✅ Phase 2: InstancedMesh enabled');
+        } else {
+            this.instancedRenderer = null;
+            console.log('📦 Phase 1 only: InstancedMesh disabled');
+        }
 
         // 🎯 PHASE 1.2: Physics World Setup
         this.physicsWorld = new CANNON.World();
@@ -6969,15 +7058,25 @@ class NebulaVoxelApp {
             
             if (intersects.length > 0) {
                 const hit = intersects[0];
-                const pos = hit.object.position.clone();
-                
+
+                // 🚀 PHASE 2: Get position for InstancedMesh or regular mesh
+                let pos;
+                if (hit.object.isInstancedMesh && hit.instanceId !== undefined) {
+                    const matrix = new THREE.Matrix4();
+                    hit.object.getMatrixAt(hit.instanceId, matrix);
+                    pos = new THREE.Vector3();
+                    pos.setFromMatrixPosition(matrix);
+                } else {
+                    pos = hit.object.position.clone();
+                }
+
                 // Check if clicked object is a world item billboard
                 if (hit.object.userData.type === 'worldItem') {
                     // Harvest world item directly
                     this.harvestWorldItem(hit.object);
                     return;
                 }
-                
+
                 if (e.button === 0) { // Left click - harvesting (blocks or crafted objects)
                     // PHASE 6: Check if clicked object is a crafted object
                     if (hit.object.userData && hit.object.userData.isCraftedObject) {
@@ -7692,7 +7791,17 @@ class NebulaVoxelApp {
 
         if (intersects.length > 0) {
             const hit = intersects[0];
-            const pos = hit.object.position.clone();
+
+            // 🚀 PHASE 2: Handle InstancedMesh for mobile
+            let pos;
+            if (hit.object.isInstancedMesh && hit.instanceId !== undefined) {
+                const matrix = new THREE.Matrix4();
+                hit.object.getMatrixAt(hit.instanceId, matrix);
+                pos = new THREE.Vector3();
+                pos.setFromMatrixPosition(matrix);
+            } else {
+                pos = hit.object.position.clone();
+            }
 
             // Start harvesting on mobile touch and hold
             this.startHarvesting(pos.x, pos.y, pos.z);
