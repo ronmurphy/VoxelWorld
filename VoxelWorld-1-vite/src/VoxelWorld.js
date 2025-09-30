@@ -7718,20 +7718,37 @@ class NebulaVoxelApp {
     }
 }
 
-export async function initVoxelWorld(container) {
+export async function initVoxelWorld(container, splashScreen = null) {
     console.log('🔧 initVoxelWorld called with container:', container);
 
     try {
+        if (splashScreen) {
+            splashScreen.setInitializing();
+        }
+
         const app = new NebulaVoxelApp(container);
         console.log('📱 NebulaVoxelApp created');
+
+        // Pass splash screen to enhanced graphics
+        if (splashScreen) {
+            app.enhancedGraphics.splashScreen = splashScreen;
+        }
 
         // Initialize workbench system
         app.workbenchSystem.init();
         console.log('🔨 WorkbenchSystem initialized');
 
+        if (splashScreen) {
+            splashScreen.updateProgress(30, 'Loading enhanced graphics...');
+        }
+
         // Initialize enhanced graphics system
         const graphicsResult = await app.enhancedGraphics.initialize();
         console.log('🎨 EnhancedGraphics initialized:', graphicsResult);
+
+        if (splashScreen) {
+            splashScreen.setGeneratingWorld();
+        }
 
         // Refresh tool button icons now that enhanced graphics are loaded (only if backpack found)
         if (app.hasBackpack) {
@@ -7748,11 +7765,20 @@ export async function initVoxelWorld(container) {
         app.refreshAllBillboards();
         console.log('🔄 All billboards refreshed after Enhanced Graphics initialization');
 
+        if (splashScreen) {
+            splashScreen.setLoadingChunks();
+        }
+
         // Refresh all existing blocks with enhanced graphics
         app.refreshAllBlockTextures();
         console.log('🔄 All block textures refreshed after Enhanced Graphics initialization');
 
         console.log('✅ VoxelWorld initialization completed');
+
+        // Hide splash screen after everything is loaded
+        if (splashScreen) {
+            splashScreen.setComplete();
+        }
 
         return app;
     } catch (error) {
