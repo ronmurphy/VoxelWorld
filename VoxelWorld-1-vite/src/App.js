@@ -1,17 +1,21 @@
 // App.js - Entry point for unified VoxelWorld + ShapeForge app (Vite version)
 import './style.css';
 import { initVoxelWorld } from './VoxelWorld.js';
+import { SplashScreen } from './SplashScreen.js';
 // import { initWorkbench } from './ShapeForgeWorkbench.js'; // To be created
 
 window.addEventListener('DOMContentLoaded', () => {
   console.log('DOM loaded, initializing app...');
-  
+
   const gameContainer = document.getElementById('gameContainer');
   const workbenchContainer = document.getElementById('workbenchContainer');
   const playModeBtn = document.getElementById('playModeBtn');
   const workbenchBtn = document.getElementById('workbenchBtn');
 
   console.log('Elements found:', { gameContainer, playModeBtn, workbenchBtn });
+
+  // Initialize splash screen
+  const splashScreen = new SplashScreen();
 
   function showGame() {
     console.log('showGame() called');
@@ -38,13 +42,18 @@ window.addEventListener('DOMContentLoaded', () => {
   // Show Play Mode before initializing VoxelWorld
   console.log('Calling showGame() initially');
   showGame();
-  
+
   console.log('Calling initVoxelWorld...');
-  initVoxelWorld(gameContainer).then(() => {
+  initVoxelWorld(gameContainer, splashScreen).then(() => {
     console.log('✅ VoxelWorld initialized successfully');
   }).catch(error => {
     console.error('❌ Failed to initialize VoxelWorld:', error);
     console.error('Error stack:', error.stack);
+    // Hide splash on error
+    if (splashScreen) {
+      splashScreen.updateProgress(100, 'Error loading game');
+      setTimeout(() => splashScreen.hide(), 2000);
+    }
   });
 
   playModeBtn.addEventListener('click', () => {

@@ -8,11 +8,12 @@
 import * as THREE from 'three';
 
 export class EnhancedGraphics {
-    constructor() {
+    constructor(splashScreen = null) {
         // Settings management
         this.isEnabled = this.loadSetting();
         this.assetsLoaded = false;
         this.loadingPromise = null;
+        this.splashScreen = splashScreen;
 
         // Asset caches
         this.blockTextures = new Map(); // Map<blockType, THREE.Texture or Array<THREE.Texture>>
@@ -88,6 +89,9 @@ export class EnhancedGraphics {
     async initialize() {
         if (!this.isEnabled) {
             console.log('🎨 Enhanced Graphics disabled - skipping asset loading');
+            if (this.splashScreen) {
+                this.splashScreen.setTexturesLoaded();
+            }
             return { success: true, assetsLoaded: 0 };
         }
 
@@ -97,6 +101,9 @@ export class EnhancedGraphics {
         }
 
         console.log('🎨 Discovering and loading enhanced graphics assets...');
+        if (this.splashScreen) {
+            this.splashScreen.setLoadingTextures();
+        }
 
         // First discover what assets are available
         await this._discoverAvailableAssets();
@@ -105,6 +112,10 @@ export class EnhancedGraphics {
         const result = await this.loadingPromise;
 
         this.assetsLoaded = result.success;
+
+        if (this.splashScreen) {
+            this.splashScreen.setTexturesLoaded();
+        }
 
         // 🎨 Trigger ready callback if assets were successfully loaded
         if (result.success && this.onReady) {
