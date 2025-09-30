@@ -95,16 +95,36 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Item Placement/Harvesting**: Items properly removed from inventory when placed, harvestable back
 - **Smart Notifications**: Enhanced notification system with icons and auto-dismiss
 - **Proximity Interaction**: Press E near workbench to open crafting interface
+- **Dead Trees**: Rare treasure trees (5% spawn rate) that drop dead_wood + exotic wood from other biomes
+- **Specific Wood Types**: Replaced legacy 'wood' with oak_wood, pine_wood, birch_wood, palm_wood, dead_wood
+- **Campfire Recipe**: Crafted from 3x any wood type, creates glowing light source (particles disabled due to THREE.js r180 compatibility)
 
-### Latest Session - Collision System Overhaul
-- **Removed Auto-Jump System**: Eliminated problematic auto-jump that caused continuous jumping bugs
-- **Implemented Hitbox Collision**: Replaced point-based collision with industry-standard AABB hitbox system
-- **Player Hitbox**: 0.6w × 1.8h × 0.6d units with full volume coverage
-- **Block Hitboxes**: Perfect 1×1×1 cube collision detection
-- **Wall Sliding Preserved**: Maintains smooth movement along obstacles
-- **Issues Remaining**: Still has collision bypasses with multi-block structures (2+ stacked blocks)
+### Latest Session - Dead Trees, Wood Types, and Campfire System
+1. **Dead Trees with Treasure Loot**:
+   - 5% spawn chance in any biome during tree generation
+   - 1-3 blocks tall with 1-2 withered dead_wood-leaves
+   - Drops treasure loot: 2-4 dead_wood + optional exotic wood from other biomes + optional stone
+   - Integrated with tree registry and harvesting system
 
-### ✅ COMPLETED: Advanced Workbench System (Latest Session)
+2. **Specific Wood Types Throughout Codebase**:
+   - Replaced all legacy 'wood' references with specific types (oak_wood, pine_wood, birch_wood, palm_wood, dead_wood)
+   - Fixed backpack loot generation to give random wood type instead of generic 'wood'
+   - Updated workbench recipes to accept any wood type with flexible material matching
+
+3. **Campfire Crafting System**:
+   - Recipe: 3x any wood type → campfire with glow effect
+   - Creates cylinder mesh with orange/red emissive material
+   - THREE.PointLight provides warm flickering glow (1.5 intensity, 10 unit range)
+   - **Fire particles disabled**: THREE.Points particle system caused shader errors in THREE.js r180
+   - Effect metadata stored in crafted items for future extensibility
+
+4. **THREE.js r180 Compatibility Issues Identified**:
+   - THREE.Points particles cause "can't access property 'elements' of undefined" shader error
+   - Error originates from `refreshTransformUniform` in THREE.js render pipeline
+   - Particles disabled in campfire but glow light works perfectly
+   - Billboard system (enhanced PNG textures) works fine - not the cause of shader errors
+
+### ✅ COMPLETED: Advanced Workbench System
 1. **3D Preview System**: Fully functional 3D shape preview with orbit controls
    - Fixed recipe shape extraction from `recipe.shapes[0].type`
    - Fixed renderer sizing issues (0x0 → proper container dimensions)
@@ -291,7 +311,7 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 
 
 
-### ✅ COMPLETED: Advanced BiomeWorldGen System (Latest Session)
+### ✅ COMPLETED: Advanced BiomeWorldGen System
 
 **🌍 BiomeWorldGen.js - Complete Terrain Generation Overhaul**
 
