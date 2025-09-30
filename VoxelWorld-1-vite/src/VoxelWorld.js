@@ -121,6 +121,12 @@ class NebulaVoxelApp {
         // Provide access to STACK_LIMIT for legacy code
         this.STACK_LIMIT = this.inventory.STACK_LIMIT;
 
+        // 🌳 HELPER: Check if a block type is any kind of leaf (must be defined before addBlock)
+        this.isLeafBlock = (blockType) => {
+            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'];
+            return leafTypes.includes(blockType);
+        };
+
         this.addBlock = (x, y, z, type, playerPlaced = false, customColor = null) => {
             const key = `${x},${y},${z}`;
 
@@ -1560,6 +1566,9 @@ class NebulaVoxelApp {
             this.container.appendChild(this.backpackInventoryElement);
         };
 
+        // ===============================================================
+        // NOTE: Old workbench modal code removed - WorkbenchSystem.js is now used
+        // ===============================================================
         // TODO: Replace with new WorkbenchSystem
 
         // Create workbench modal UI
@@ -1669,9 +1678,9 @@ class NebulaVoxelApp {
 
         // 📖 Create full-screen exploration journal book
         this.createWorldMapModal = () => {
-            // Initialize pins if not already done
+            // Initialize pins if not already done (cleared on each page load)
             if (!this.explorerPins) {
-                this.explorerPins = JSON.parse(localStorage.getItem('voxelworld_explorer_pins') || '[]');
+                this.explorerPins = []; // Start fresh each session
                 this.activeNavigation = null; // Currently navigating to pin
             }
 
@@ -2091,8 +2100,12 @@ class NebulaVoxelApp {
 
             const canvas = e.target;
             const rect = canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
+
+            // Scale click coordinates from display size to canvas internal size
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
 
             // Convert screen coordinates to world coordinates
             const centerX = canvas.width / 2;
@@ -2107,9 +2120,17 @@ class NebulaVoxelApp {
             const pixelOffsetX = clickX - centerX;
             const pixelOffsetY = clickY - centerY;
 
-            // Convert to world coordinates (matching the rendering logic)
-            const worldX = this.player.position.x + (pixelOffsetX / pixelsPerChunk) * chunkSize;
-            const worldZ = this.player.position.z + (pixelOffsetY / pixelsPerChunk) * chunkSize;
+            // Convert pixel offset to chunk offset
+            const relativeChunkX = Math.round(pixelOffsetX / pixelsPerChunk);
+            const relativeChunkZ = Math.round(pixelOffsetY / pixelsPerChunk);
+
+            // Calculate target chunk coordinates
+            const targetChunkX = playerChunkX + relativeChunkX;
+            const targetChunkZ = playerChunkZ + relativeChunkZ;
+
+            // Convert back to world coordinates (center of target chunk)
+            const worldX = targetChunkX * chunkSize + chunkSize / 2;
+            const worldZ = targetChunkZ * chunkSize + chunkSize / 2;
 
             // Create new pin
             const newPin = {
@@ -2148,9 +2169,10 @@ class NebulaVoxelApp {
             this.updateStatus(`🗑️ Waypoint "${pin.name}" deleted`, 'info');
         };
 
-        // 📍 Save pins to localStorage
+        // 📍 Save pins (will be handled by main save/load system)
         this.savePins = () => {
-            localStorage.setItem('voxelworld_explorer_pins', JSON.stringify(this.explorerPins));
+            // Pins are now saved as part of game save system, not separate localStorage
+            // This function kept for compatibility but doesn't write to localStorage
         };
 
         // 🗺️ Toggle world map modal
@@ -3284,11 +3306,7 @@ class NebulaVoxelApp {
             return woodTypes.includes(blockType);
         };
 
-        // 🌳 HELPER: Check if a block type is any kind of leaf
-        this.isLeafBlock = (blockType) => {
-            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'];
-            return leafTypes.includes(blockType);
-        };
+        // (isLeafBlock moved earlier in constructor, before addBlock)
 
         // 🌳 ENHANCED: Scan entire tree structure and separate grounded vs floating blocks
         this.scanEntireTreeStructure = (startX, startY, startZ) => {
@@ -5981,6 +5999,9 @@ class NebulaVoxelApp {
                     selectedSlot: this.selectedSlot,
                     player: this.player,
                     worldSeed: this.worldSeed,
+                    // NEW: Save explorer journal pins and navigation state
+                    explorerPins: this.explorerPins || [],
+                    activeNavigation: this.activeNavigation,
                     timestamp: Date.now()
                 };
 
@@ -6073,6 +6094,16 @@ class NebulaVoxelApp {
                     this.showToolButtons(); // Show tool menu buttons
                     this.updateHotbarCounts();
                     this.updateBackpackInventoryDisplay();
+                }
+
+                // NEW: Restore explorer journal pins and navigation state
+                if (saveData.explorerPins) {
+                    this.explorerPins = saveData.explorerPins;
+                    console.log(`📍 Restored ${this.explorerPins.length} explorer pins`);
+                }
+                if (saveData.activeNavigation) {
+                    this.activeNavigation = saveData.activeNavigation;
+                    console.log(`🧭 Restored active navigation to "${this.activeNavigation.name}"`);
                 }
 
                 // Restore seed if available, otherwise generate new one
@@ -6776,10 +6807,17 @@ class NebulaVoxelApp {
 
         // Keyboard controls
         const keydownHandler = (e) => {
-            if (!this.controlsEnabled) return;
-            
             const key = e.key.toLowerCase();
-            
+
+            // ESC or M key: Close journal if open (handle before controlsEnabled check)
+            if ((key === 'escape' || key === 'm') && this.worldMapModal && this.worldMapModal.style.display !== 'none') {
+                this.closeWorldMap();
+                e.preventDefault();
+                return;
+            }
+
+            if (!this.controlsEnabled) return;
+
             // Movement keys
             if (['w', 'a', 's', 'd', ' '].includes(key)) {
                 this.keys[key] = true;
