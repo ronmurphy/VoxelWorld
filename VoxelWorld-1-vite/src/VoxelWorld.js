@@ -257,16 +257,19 @@ class NebulaVoxelApp {
 
             // Create material based on crafted item's material and color
             let craftedMaterial;
-            if (this.blockTypes[material]) {
+            if (this.blockTypes[material] && this.materials[material]) {
                 // Use the base material type with custom color
                 craftedMaterial = new THREE.MeshLambertMaterial({
                     map: this.materials[material].map,
                     color: new THREE.Color(color)
                 });
             } else {
-                // Fallback to basic colored material
+                // Fallback to basic colored material (for custom items like campfire)
+                console.log(`Creating basic material for ${material} with color ${color}`);
                 craftedMaterial = new THREE.MeshLambertMaterial({
-                    color: new THREE.Color(color)
+                    color: new THREE.Color(color),
+                    emissive: material === 'campfire' ? new THREE.Color(0xFF4400) : new THREE.Color(0x000000),
+                    emissiveIntensity: material === 'campfire' ? 0.5 : 0
                 });
             }
 
@@ -298,6 +301,11 @@ class NebulaVoxelApp {
 
             // Add to scene
             this.scene.add(craftedObject);
+
+            // 🔥 Add effects if item has them (fire, glow, etc.)
+            if (metadata.effects && metadata.effects.length > 0) {
+                this.addCraftedObjectEffects(craftedObject, metadata.effects, objectX, objectY, objectZ);
+            }
 
             // 🎯 PHASE 2.1: Create physics body for collision detection
             this.createPhysicsBodyForCraftedObject(craftedObject, shapeType, dimensions, material);
@@ -439,6 +447,54 @@ class NebulaVoxelApp {
                         billboard.material.rotation += 0.005; // Slow rotation
                     }
                 }
+            }
+        };
+
+        // 🔥 Animate particle effects for crafted objects
+        this.animateParticleEffects = (currentTime) => {
+            if (!this.craftedObjects) return;
+
+            let particleEffectCount = 0;
+            Object.values(this.craftedObjects).forEach(objData => {
+                const craftedMesh = objData.mesh;
+                if (!craftedMesh || !craftedMesh.userData.effectObjects) return;
+
+                craftedMesh.userData.effectObjects.forEach(effect => {
+                    if (effect.type === 'particles') {
+                        particleEffectCount++;
+                        const positions = effect.positions;
+                        const velocities = effect.velocities;
+
+                        for (let i = 0; i < velocities.length; i++) {
+                            // Update particle positions
+                            positions[i * 3] += velocities[i].x;
+                            positions[i * 3 + 1] += velocities[i].y;
+                            positions[i * 3 + 2] += velocities[i].z;
+
+                            // Reset particle when it gets too high
+                            if (positions[i * 3 + 1] > 1.0) {
+                                positions[i * 3] = (Math.random() - 0.5) * 0.3;
+                                positions[i * 3 + 1] = 0;
+                                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+                                velocities[i].x = (Math.random() - 0.5) * 0.02;
+                                velocities[i].y = Math.random() * 0.05 + 0.05;
+                                velocities[i].z = (Math.random() - 0.5) * 0.02;
+                            }
+                        }
+
+                        effect.object.geometry.attributes.position.needsUpdate = true;
+                    }
+
+                    if (effect.type === 'light') {
+                        // Flicker the light slightly
+                        const flicker = Math.sin(currentTime * 0.01) * 0.2 + 1.3;
+                        effect.object.intensity = flicker;
+                    }
+                });
+            });
+
+            if (particleEffectCount > 0 && currentTime % 120 === 0) {
+                console.log(`🔥 Animating ${particleEffectCount} particle effects`);
             }
         };
 
@@ -3115,6 +3171,36 @@ class NebulaVoxelApp {
             }
         };
 
+        // 🔥 Add visual effects to crafted objects (fire, glow, particles)
+        this.addCraftedObjectEffects = (craftedObject, effects, x, y, z) => {
+            console.log(`🔥 Adding effects to crafted object:`, effects);
+
+            if (!craftedObject.userData.effectObjects) {
+                craftedObject.userData.effectObjects = [];
+            }
+
+            effects.forEach(effectType => {
+                if (effectType === 'fire') {
+                    // DISABLED fire particles to test if they cause shader errors
+                    console.log(`🔥 Fire effect requested but particles disabled for testing`);
+                }
+
+                if (effectType === 'holy' || effectType === 'glow') {
+                    // Create glowing point light
+                    const light = new THREE.PointLight(0xffe599, 1.5, 10, 2);
+                    light.position.set(x, y + 0.5, z);
+                    this.scene.add(light);
+
+                    craftedObject.userData.effectObjects.push({
+                        type: 'light',
+                        object: light
+                    });
+
+                    console.log(`✨ Added glow light at (${x}, ${y}, ${z})`);
+                }
+            });
+        };
+
         // 🎯 PHASE 2.1: Create physics body for crafted objects
         this.createPhysicsBodyForCraftedObject = (threeObject, shapeType, dimensions, materialType) => {
             console.log(`🔧 Creating physics body for ${shapeType} with dimensions:`, dimensions);
@@ -3536,6 +3622,19 @@ class NebulaVoxelApp {
                 const woodIcon = this.getItemIcon(woodType);
                 this.updateStatus(`🌳 TIMBER! Collected ${woodCount}x ${woodType.replace('_', ' ')} ${woodIcon}`, 'discovery');
                 console.log(`🪵 Gave player ${woodCount}x ${woodType} from tree ID ${treeId}`);
+            }
+
+            // 💀 TREASURE LOOT: Check if this dead tree has treasure
+            if (treeMetadata.hasTreasure && treeMetadata.treasureLoot) {
+                console.log(`💀🎁 Dead tree has treasure! Distributing loot...`);
+
+                treeMetadata.treasureLoot.forEach(lootItem => {
+                    this.inventory.addToInventory(lootItem.type, lootItem.count);
+                    const lootIcon = this.getItemIcon(lootItem.type);
+                    console.log(`💰 Treasure loot: ${lootItem.count}x ${lootItem.type} ${lootIcon}`);
+                });
+
+                this.updateStatus(`💀💎 Dead tree treasure found! Check your inventory!`, 'discovery');
             }
 
             // 🍃 MACHETE LEAF COLLECTION: Check if player has machete for leaf harvesting
@@ -5806,6 +5905,67 @@ class NebulaVoxelApp {
             console.log(`🌿 Birch tree ${treeId} completed with ${height} trunk blocks and sparse canopy`);
         };
 
+        // Generate Dead Tree (rare treasure tree) - ENHANCED with Tree ID System
+        this.generateDeadTree = (x, y, z) => {
+            // 🌳 Create unique tree registry
+            const treeId = this.createTreeRegistry('dead_wood', x, y, z);
+
+            // 🗺️ Track tree position for minimap (skull icon for dead trees!)
+            this.treePositions.push({ x, z, type: 'dead', treeId });
+            console.log(`💀 Generated Dead tree ID ${treeId} at (${x}, ${y}, ${z}) - Contains treasure!`);
+
+            // Short stumpy dead tree (1-3 blocks tall)
+            const height = 1 + Math.floor(this.seededNoise(x + 13000, z + 13000, this.worldSeed) * 3); // 1-3 blocks tall
+
+            // Generate dead trunk
+            for (let h = 0; h < height; h++) {
+                this.addTreeBlock(treeId, x, y + h, z, 'dead_wood', false);
+            }
+
+            // Add 1-2 withered leaves randomly for spooky effect
+            const topY = y + height;
+            const leafCount = Math.floor(this.seededNoise(x + 14000, z + 14000, this.worldSeed) * 2) + 1; // 1-2 leaves
+
+            const possiblePositions = [
+                [1, 0], [-1, 0], [0, 1], [0, -1],  // Cardinal
+                [1, 1], [-1, -1], [1, -1], [-1, 1] // Diagonal
+            ];
+
+            for (let i = 0; i < leafCount; i++) {
+                const pos = possiblePositions[i % possiblePositions.length];
+                this.addTreeBlock(treeId, x + pos[0], topY, z + pos[1], 'dead_wood-leaves', false);
+            }
+
+            // 🎁 Mark this tree as containing treasure loot
+            this.treeRegistry[treeId].hasTreasure = true;
+            this.treeRegistry[treeId].treasureLoot = this.generateDeadTreeLoot();
+
+            console.log(`💀 Dead tree ${treeId} completed with ${height} trunk blocks, ${leafCount} withered leaves, and treasure loot`);
+        };
+
+        // Generate treasure loot for dead trees
+        this.generateDeadTreeLoot = () => {
+            const loot = [];
+
+            // Always give dead wood (2-4 pieces)
+            const deadWoodCount = 2 + Math.floor(Math.random() * 3);
+            loot.push({ type: 'dead_wood', count: deadWoodCount });
+
+            // 50% chance for wood from another biome (exploration reward!)
+            if (Math.random() > 0.5) {
+                const exoticWoods = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood'];
+                const randomWood = exoticWoods[Math.floor(Math.random() * exoticWoods.length)];
+                loot.push({ type: randomWood, count: 1 + Math.floor(Math.random() * 2) }); // 1-2 pieces
+            }
+
+            // 30% chance for rare item (future: could be special items)
+            if (Math.random() > 0.7) {
+                loot.push({ type: 'stone', count: 2 + Math.floor(Math.random() * 4) }); // 2-5 stone for now
+            }
+
+            return loot;
+        };
+
         // 🌳 TREE GENERATION HELPERS
         // Determine if a tree should be generated at this location
         this.shouldGenerateTree = (worldX, worldZ, biome) => {
@@ -5894,6 +6054,14 @@ class NebulaVoxelApp {
             }
 
             console.log(`✅ Tree placement approved at (${worldX},${treeHeight},${worldZ}) - no conflicts detected`);
+
+            // 🎲 5% chance to spawn a rare dead tree with treasure!
+            const deadTreeChance = this.seededNoise(worldX + 15000, worldZ + 15000, this.worldSeed);
+            if (deadTreeChance > 0.95) {
+                console.log(`💀 RARE SPAWN: Dead tree with treasure at (${worldX},${treeHeight},${worldZ})!`);
+                this.generateDeadTree(worldX, treeHeight, worldZ);
+                return; // Don't generate normal tree
+            }
 
             // Generate tree based on biome type
             switch (biome.name) {
@@ -6509,6 +6677,9 @@ class NebulaVoxelApp {
                 this.physicsWorld.step(deltaTime);
                 this.updatePhysicsObjects();
             }
+
+            // 🔥 Animate particle effects (fire, etc.)
+            this.animateParticleEffects(currentTime);
 
             // Animate billboards (even when paused - they should keep floating)
             this.animateBillboards(currentTime);

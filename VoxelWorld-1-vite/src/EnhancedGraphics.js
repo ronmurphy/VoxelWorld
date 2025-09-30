@@ -444,6 +444,9 @@ export class EnhancedGraphics {
                     texture.anisotropy = 4; // Sharp textures at angles
                     texture.wrapS = THREE.RepeatWrapping;
                     texture.wrapT = THREE.RepeatWrapping;
+                    // Store original relative path for UI usage
+                    texture.userData = texture.userData || {};
+                    texture.userData.originalPath = imagePath;
                     resolve(texture);
                 },
                 undefined, // onProgress
@@ -536,13 +539,15 @@ export class EnhancedGraphics {
             if (Array.isArray(textures)) {
                 // Use the first side texture (index 0) for inventory icon
                 const sideTexture = textures[0];
-                if (sideTexture && sideTexture.image && sideTexture.image.src) {
-                    return `<img src="${sideTexture.image.src}" style="width: ${size}px; height: ${size}px; object-fit: cover; vertical-align: middle; border-radius: 2px; image-rendering: pixelated;" alt="${materialType}">`;
+                if (sideTexture && sideTexture.userData && sideTexture.userData.originalPath) {
+                    // Use stored relative path instead of absolute texture.image.src
+                    return `<img src="${sideTexture.userData.originalPath}" style="width: ${size}px; height: ${size}px; object-fit: cover; vertical-align: middle; border-radius: 2px; image-rendering: pixelated;" alt="${materialType}">`;
                 }
             }
             // Handle single texture (THREE.Texture object)
-            else if (textures.image && textures.image.src) {
-                return `<img src="${textures.image.src}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle; border-radius: 2px; image-rendering: pixelated;" alt="${materialType}">`;
+            else if (textures.userData && textures.userData.originalPath) {
+                // Use stored relative path instead of absolute texture.image.src
+                return `<img src="${textures.userData.originalPath}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle; border-radius: 2px; image-rendering: pixelated;" alt="${materialType}">`;
             }
         }
 

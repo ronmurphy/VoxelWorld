@@ -134,6 +134,18 @@ export class WorkbenchSystem {
                     { type: 'hollow_cube', position: { x: 0, y: 0, z: 0 }, size: { x: 4, y: 3, z: 4 } },
                     { type: 'pyramid', position: { x: 0, y: 3, z: 0 }, size: { x: 4, y: 2, z: 4 } }
                 ]
+            },
+
+            // Light Sources
+            campfire: {
+                name: '🔥 Campfire',
+                materials: { wood: 3 },
+                description: 'Warm light source with fire effect',
+                isBasicShape: true,
+                shapes: [
+                    { type: 'cylinder', position: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 0.3, z: 1 } }
+                ],
+                effects: ['fire', 'holy']  // Fire particles + golden glow
             }
         };
     }
@@ -1039,7 +1051,9 @@ export class WorkbenchSystem {
             brick: new THREE.MeshLambertMaterial({ color: 0xCD853F }),       // Peru/brick color
             grass: new THREE.MeshLambertMaterial({ color: 0x228B22 }),       // Forest green
             dirt: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),        // Saddle brown
-            glowstone: new THREE.MeshLambertMaterial({ color: 0xFFFF88, emissive: 0xFFFF44, emissiveIntensity: 0.5 })  // Glowing yellow
+            glowstone: new THREE.MeshLambertMaterial({ color: 0xFFFF88, emissive: 0xFFFF44, emissiveIntensity: 0.5 }),  // Glowing yellow
+            // Campfire - orange/red with emissive glow
+            campfire: new THREE.MeshLambertMaterial({ color: 0xFF6600, emissive: 0xFF4400, emissiveIntensity: 0.8 })
         };
 
         return materials[materialType] || materials.wood;
@@ -1145,6 +1159,10 @@ export class WorkbenchSystem {
         console.log('🍳 Recipe name:', recipe.name);
         console.log('🍳 Recipe shapes array:', recipe.shapes);
         console.log('🍳 Recipe materials:', recipe.materials);
+
+        // Store the current recipe for effect access
+        this.currentRecipe = recipe;
+        this.currentRecipeKey = key;
 
         // Get the shape from the recipe (use first shape for preview)
         if (recipe.shapes && recipe.shapes.length > 0) {
@@ -1769,7 +1787,8 @@ export class WorkbenchSystem {
             width: width,
             height: height,
             requiredQuantity: requiredQuantity,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            effects: this.currentRecipe?.effects || []  // Include effects from recipe
         };
 
         // Show naming modal instead of immediately crafting
@@ -1799,7 +1818,8 @@ export class WorkbenchSystem {
             sand: '#F4A460',
             grass: '#228B22',
             dirt: '#8B4513',
-            glowstone: '#FFFF88'
+            glowstone: '#FFFF88',
+            campfire: '#FF6600'  // Orange/red fire color
         };
 
         const itemColor = materialColors[itemData.material] || '#8B4513';
@@ -1834,6 +1854,9 @@ export class WorkbenchSystem {
                 skin: null, // Placeholder for future skin system
                 icon_type: 'material_web_icon'
             },
+
+            // Effects (fire, holy, etc.)
+            effects: itemData.effects || [],
 
             // Metadata
             metadata: {
