@@ -1667,43 +1667,112 @@ class NebulaVoxelApp {
             this.container.appendChild(this.workbenchModal);
         };
 
-        // 🗺️ Create expanded world map modal
+        // 📖 Create full-screen exploration journal book
         this.createWorldMapModal = () => {
+            // Initialize pins if not already done
+            if (!this.explorerPins) {
+                this.explorerPins = JSON.parse(localStorage.getItem('voxelworld_explorer_pins') || '[]');
+                this.activeNavigation = null; // Currently navigating to pin
+            }
+
             this.worldMapModal = document.createElement('div');
             this.worldMapModal.style.cssText = `
                 position: fixed;
-                top: 15%;
-                left: 15%;
-                width: 70%;
-                height: 70%;
-                background: linear-gradient(135deg, rgba(101, 67, 33, 0.95), rgba(139, 90, 43, 0.95));
-                border: 4px solid #8B4513;
-                border-radius: 15px;
+                top: 5%;
+                left: 5%;
+                width: 90%;
+                height: 90%;
+                background: linear-gradient(135deg, rgba(101, 67, 33, 0.98), rgba(139, 90, 43, 0.98));
+                border: 8px solid #654321;
+                border-radius: 20px;
                 z-index: 1000;
                 display: none;
-                box-shadow: 0 0 25px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(101, 67, 33, 0.3);
-                backdrop-filter: blur(3px);
-                transition: all 0.3s ease;
-                transform: scale(0.8);
+                box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(101, 67, 33, 0.4);
+                backdrop-filter: blur(2px);
+                transition: all 0.4s ease;
+                transform: scale(0.7);
                 opacity: 0;
-                border-style: double;
-                border-width: 6px;
+                border-style: ridge;
+                border-width: 10px;
             `;
 
-            // World map canvas
+            // Create book layout container
+            const bookContainer = document.createElement('div');
+            bookContainer.style.cssText = `
+                width: 100%;
+                height: calc(100% - 80px);
+                display: flex;
+                padding: 20px;
+                gap: 20px;
+            `;
+
+            // Left page - Pin Management
+            const leftPage = document.createElement('div');
+            leftPage.style.cssText = `
+                width: 48%;
+                height: 100%;
+                background: linear-gradient(45deg, #F5E6D3, #E8D5B7);
+                border: 3px solid #8B4513;
+                border-radius: 15px 5px 5px 15px;
+                padding: 20px;
+                box-shadow: inset 2px 0 10px rgba(139, 69, 19, 0.3);
+                overflow-y: auto;
+            `;
+
+            // Book spine separator
+            const bookSpine = document.createElement('div');
+            bookSpine.style.cssText = `
+                width: 4%;
+                height: 100%;
+                background: linear-gradient(180deg, #654321, #8B4513, #654321);
+                border-radius: 5px;
+                box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+            `;
+
+            // Add decorative spine elements
+            for (let i = 0; i < 5; i++) {
+                const spineDecor = document.createElement('div');
+                spineDecor.style.cssText = `
+                    width: 60%;
+                    height: 3px;
+                    background: #8B4513;
+                    margin: 20px 0;
+                    border-radius: 2px;
+                `;
+                bookSpine.appendChild(spineDecor);
+            }
+
+            // Right page - World Map
+            const rightPage = document.createElement('div');
+            rightPage.style.cssText = `
+                width: 48%;
+                height: 100%;
+                background: linear-gradient(45deg, #F5E6D3, #E8D5B7);
+                border: 3px solid #8B4513;
+                border-radius: 5px 15px 15px 5px;
+                padding: 20px;
+                box-shadow: inset -2px 0 10px rgba(139, 69, 19, 0.3);
+                position: relative;
+            `;
+
+            // World map canvas (right page)
             const worldMapCanvas = document.createElement('canvas');
             worldMapCanvas.id = 'worldMapCanvas';
             worldMapCanvas.style.cssText = `
                 width: 100%;
-                height: calc(100% - 60px);
+                height: 100%;
                 display: block;
-                background: linear-gradient(45deg, #F5E6D3, #E8D5B7);
+                background: transparent;
                 border-radius: 8px;
-                border: 2px solid #8B4513;
-                margin: 10px;
-                width: calc(100% - 20px);
-                height: calc(100% - 80px);
+                cursor: crosshair;
             `;
+
+            // Create pin management interface (left page content)
+            this.createPinManagementInterface(leftPage);
 
             // Header with title and close button
             const header = document.createElement('div');
@@ -1712,57 +1781,374 @@ class NebulaVoxelApp {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 0 20px;
-                border-bottom: 3px solid #654321;
+                padding: 0 30px;
+                border-bottom: 4px solid #654321;
                 background: linear-gradient(180deg, rgba(139, 90, 43, 0.9), rgba(101, 67, 33, 0.9));
-                border-radius: 12px 12px 0 0;
-                box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+                border-radius: 15px 15px 0 0;
+                box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.4);
             `;
 
-            const title = document.createElement('h2');
-            title.textContent = '🗺️ Explorer\'s Journal - Charted Lands';
+            const title = document.createElement('h1');
+            title.textContent = '📖 Explorer\'s Journal - Charted Territories & Waypoints';
             title.style.cssText = `
                 color: #2F1B14;
                 margin: 0;
                 font-family: 'Georgia', serif;
-                font-size: 22px;
-                text-shadow: 1px 1px 2px rgba(245, 230, 211, 0.8);
+                font-size: 24px;
+                text-shadow: 2px 2px 3px rgba(245, 230, 211, 0.8);
                 font-weight: bold;
-                letter-spacing: 1px;
+                letter-spacing: 1.5px;
+                text-align: center;
+                flex: 1;
             `;
 
             const closeBtn = document.createElement('button');
-            closeBtn.textContent = '📜 Close';
+            closeBtn.textContent = '📚 Close Journal';
             closeBtn.style.cssText = `
                 background: linear-gradient(135deg, #8B4513, #A0522D);
                 color: #F5E6D3;
-                border: 2px solid #654321;
-                border-radius: 8px;
-                padding: 8px 16px;
+                border: 3px solid #654321;
+                border-radius: 10px;
+                padding: 10px 20px;
                 cursor: pointer;
-                font-size: 14px;
+                font-size: 16px;
                 font-weight: bold;
                 font-family: 'Georgia', serif;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                transition: all 0.3s;
+                box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
             `;
             closeBtn.onmouseover = () => {
                 closeBtn.style.background = 'linear-gradient(135deg, #A0522D, #CD853F)';
-                closeBtn.style.transform = 'translateY(-1px)';
+                closeBtn.style.transform = 'translateY(-2px)';
+                closeBtn.style.boxShadow = '0 5px 10px rgba(0, 0, 0, 0.4)';
             };
             closeBtn.onmouseout = () => {
                 closeBtn.style.background = 'linear-gradient(135deg, #8B4513, #A0522D)';
                 closeBtn.style.transform = 'translateY(0)';
+                closeBtn.style.boxShadow = '0 3px 6px rgba(0, 0, 0, 0.4)';
             };
             closeBtn.onclick = () => this.closeWorldMap();
 
             header.appendChild(title);
             header.appendChild(closeBtn);
+
+            // Assemble the book
+            bookContainer.appendChild(leftPage);
+            bookContainer.appendChild(bookSpine);
+            bookContainer.appendChild(rightPage);
+            rightPage.appendChild(worldMapCanvas);
+
             this.worldMapModal.appendChild(header);
-            this.worldMapModal.appendChild(worldMapCanvas);
+            this.worldMapModal.appendChild(bookContainer);
 
             // Add to DOM
             this.container.appendChild(this.worldMapModal);
+
+            // Add click handler for pin placement on world map
+            worldMapCanvas.addEventListener('click', (e) => this.handleMapClick(e));
+        };
+
+        // 📍 Create pin management interface for left page
+        this.createPinManagementInterface = (leftPage) => {
+            // Pin management title
+            const pinTitle = document.createElement('h3');
+            pinTitle.textContent = '📍 Waypoint Markers';
+            pinTitle.style.cssText = `
+                color: #2F1B14;
+                font-family: 'Georgia', serif;
+                font-size: 20px;
+                margin: 0 0 20px 0;
+                text-align: center;
+                border-bottom: 2px solid #8B4513;
+                padding-bottom: 10px;
+            `;
+
+            // Pin creation section
+            const createPinSection = document.createElement('div');
+            createPinSection.style.cssText = `
+                background: rgba(139, 69, 19, 0.1);
+                border: 2px solid #8B4513;
+                border-radius: 10px;
+                padding: 15px;
+                margin-bottom: 20px;
+            `;
+
+            const createTitle = document.createElement('h4');
+            createTitle.textContent = '✨ Create New Waypoint';
+            createTitle.style.cssText = `
+                color: #654321;
+                font-family: 'Georgia', serif;
+                margin: 0 0 15px 0;
+                font-size: 16px;
+            `;
+
+            // Pin name input
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.placeholder = 'Waypoint name...';
+            nameInput.style.cssText = `
+                width: 100%;
+                padding: 8px;
+                border: 2px solid #8B4513;
+                border-radius: 5px;
+                font-family: 'Georgia', serif;
+                background: rgb(124, 82, 40);
+                margin-bottom: 10px;
+                box-sizing: border-box;
+            `;
+
+            // Color picker
+            const colorSection = document.createElement('div');
+            colorSection.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 15px;
+                flex-wrap: wrap;
+                gap: 5px;
+            `;
+
+            const pinColors = ['#FF4444', '#44FF44', '#4444FF', '#FFFF44', '#FF44FF', '#44FFFF', '#FFA500', '#800080'];
+            let selectedColor = pinColors[0];
+
+            pinColors.forEach(color => {
+                const colorBtn = document.createElement('button');
+                colorBtn.style.cssText = `
+                    width: 30px;
+                    height: 30px;
+                    background: ${color};
+                    border: 3px solid ${color === selectedColor ? '#2F1B14' : '#8B4513'};
+                    border-radius: 50%;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                `;
+                colorBtn.onclick = () => {
+                    selectedColor = color;
+                    colorSection.querySelectorAll('button').forEach(btn => btn.style.border = '3px solid #8B4513');
+                    colorBtn.style.border = '3px solid #2F1B14';
+                };
+                colorSection.appendChild(colorBtn);
+            });
+
+            // Instructions
+            const instructions = document.createElement('p');
+            instructions.textContent = '📌 Click on the map to place your waypoint';
+            instructions.style.cssText = `
+                color: #654321;
+                font-family: 'Georgia', serif;
+                font-style: italic;
+                margin: 10px 0;
+                text-align: center;
+                font-size: 14px;
+            `;
+
+            // Store references for pin creation
+            this.newPinName = nameInput;
+            this.newPinColor = () => selectedColor;
+
+            createPinSection.appendChild(createTitle);
+            createPinSection.appendChild(nameInput);
+            createPinSection.appendChild(colorSection);
+            createPinSection.appendChild(instructions);
+
+            // Pin list section
+            const pinListSection = document.createElement('div');
+            pinListSection.style.cssText = `
+                background: rgba(139, 69, 19, 0.05);
+                border: 2px solid #8B4513;
+                border-radius: 10px;
+                padding: 15px;
+                max-height: 400px;
+                overflow-y: auto;
+            `;
+
+            const listTitle = document.createElement('h4');
+            listTitle.textContent = '🗂️ Saved Waypoints';
+            listTitle.style.cssText = `
+                color: #654321;
+                font-family: 'Georgia', serif;
+                margin: 0 0 15px 0;
+                font-size: 16px;
+            `;
+
+            const pinList = document.createElement('div');
+            pinList.id = 'pinList';
+            this.pinListContainer = pinList;
+
+            pinListSection.appendChild(listTitle);
+            pinListSection.appendChild(pinList);
+
+            // Assemble left page
+            leftPage.appendChild(pinTitle);
+            leftPage.appendChild(createPinSection);
+            leftPage.appendChild(pinListSection);
+
+            // Populate existing pins
+            this.updatePinList();
+        };
+
+        // 📍 Update pin list display
+        this.updatePinList = () => {
+            if (!this.pinListContainer) return;
+
+            this.pinListContainer.innerHTML = '';
+
+            if (this.explorerPins.length === 0) {
+                const emptyMsg = document.createElement('p');
+                emptyMsg.textContent = '📍 No waypoints yet. Click on the map to create one!';
+                emptyMsg.style.cssText = `
+                    color: #8B4513;
+                    font-family: 'Georgia', serif;
+                    font-style: italic;
+                    text-align: center;
+                    margin: 20px 0;
+                `;
+                this.pinListContainer.appendChild(emptyMsg);
+                return;
+            }
+
+            this.explorerPins.forEach((pin, index) => {
+                const pinItem = document.createElement('div');
+                pinItem.style.cssText = `
+                    background: rgba(245, 230, 211, 0.8);
+                    border: 2px solid #8B4513;
+                    border-radius: 8px;
+                    padding: 10px;
+                    margin-bottom: 10px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+
+                const pinInfo = document.createElement('div');
+                pinInfo.style.cssText = `
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                `;
+
+                const colorDot = document.createElement('div');
+                colorDot.style.cssText = `
+                    width: 20px;
+                    height: 20px;
+                    background: ${pin.color};
+                    border: 2px solid #654321;
+                    border-radius: 50%;
+                `;
+
+                const pinText = document.createElement('div');
+                pinText.innerHTML = `
+                    <strong style="color: #2F1B14; font-family: Georgia;">${pin.name}</strong><br>
+                    <small style="color: #654321; font-family: Georgia;">(${Math.floor(pin.x)}, ${Math.floor(pin.z)})</small>
+                `;
+
+                const pinActions = document.createElement('div');
+                pinActions.style.cssText = 'display: flex; gap: 5px;';
+
+                const navigateBtn = document.createElement('button');
+                navigateBtn.textContent = '🧭';
+                navigateBtn.title = 'Navigate to this waypoint';
+                navigateBtn.style.cssText = `
+                    background: #44AA44;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 5px 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                `;
+                navigateBtn.onclick = () => this.startNavigation(pin);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '🗑️';
+                deleteBtn.title = 'Delete waypoint';
+                deleteBtn.style.cssText = `
+                    background: #AA4444;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 5px 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                `;
+                deleteBtn.onclick = () => this.deletePin(index);
+
+                pinInfo.appendChild(colorDot);
+                pinInfo.appendChild(pinText);
+                pinActions.appendChild(navigateBtn);
+                pinActions.appendChild(deleteBtn);
+                pinItem.appendChild(pinInfo);
+                pinItem.appendChild(pinActions);
+                this.pinListContainer.appendChild(pinItem);
+            });
+        };
+
+        // 📍 Handle map click for pin placement
+        this.handleMapClick = (e) => {
+            if (!this.newPinName.value.trim()) {
+                this.updateStatus('📍 Enter a waypoint name first!', 'warning');
+                return;
+            }
+
+            const canvas = e.target;
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            // Convert screen coordinates to world coordinates
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const pixelsPerChunk = 6;
+            const chunkSize = 8;
+
+            const playerChunkX = Math.floor(this.player.position.x / chunkSize);
+            const playerChunkZ = Math.floor(this.player.position.z / chunkSize);
+
+            const relativeChunkX = Math.floor((clickX - centerX) / pixelsPerChunk);
+            const relativeChunkZ = Math.floor((clickY - centerY) / pixelsPerChunk);
+
+            const worldX = (playerChunkX + relativeChunkX) * chunkSize + chunkSize/2;
+            const worldZ = (playerChunkZ + relativeChunkZ) * chunkSize + chunkSize/2;
+
+            // Create new pin
+            const newPin = {
+                id: Date.now(),
+                name: this.newPinName.value.trim(),
+                color: this.newPinColor(),
+                x: worldX,
+                z: worldZ,
+                created: new Date().toISOString()
+            };
+
+            this.explorerPins.push(newPin);
+            this.savePins();
+            this.updatePinList();
+            this.renderWorldMap();
+
+            // Clear input
+            this.newPinName.value = '';
+            this.updateStatus(`📍 Waypoint "${newPin.name}" placed!`, 'success');
+        };
+
+        // 📍 Start navigation to pin
+        this.startNavigation = (pin) => {
+            this.activeNavigation = pin;
+            this.updateStatus(`🧭 Navigating to "${pin.name}"`, 'info', false);
+            this.closeWorldMap();
+        };
+
+        // 📍 Delete pin
+        this.deletePin = (index) => {
+            const pin = this.explorerPins[index];
+            this.explorerPins.splice(index, 1);
+            this.savePins();
+            this.updatePinList();
+            this.renderWorldMap();
+            this.updateStatus(`🗑️ Waypoint "${pin.name}" deleted`, 'info');
+        };
+
+        // 📍 Save pins to localStorage
+        this.savePins = () => {
+            localStorage.setItem('voxelworld_explorer_pins', JSON.stringify(this.explorerPins));
         };
 
         // 🗺️ Toggle world map modal
@@ -1780,6 +2166,15 @@ class NebulaVoxelApp {
 
         // 🗺️ Open world map with animation
         this.openWorldMap = () => {
+            // Release pointer lock when opening journal
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+
+            // Disable VoxelWorld input controls while journal is open
+            this.controlsEnabled = false;
+            console.log('🔒 Disabled input controls for Explorer\'s Journal');
+
             this.worldMapModal.style.display = 'block';
             // Trigger animation
             setTimeout(() => {
@@ -1798,6 +2193,17 @@ class NebulaVoxelApp {
             this.worldMapModal.style.opacity = '0';
             setTimeout(() => {
                 this.worldMapModal.style.display = 'none';
+
+                // Re-enable VoxelWorld input controls when journal closes
+                this.controlsEnabled = true;
+                console.log('✅ Re-enabled input controls after closing Explorer\'s Journal');
+
+                // Re-request pointer lock after closing journal
+                if (this.controlsEnabled) {
+                    setTimeout(() => {
+                        this.renderer.domElement.requestPointerLock();
+                    }, 100);
+                }
             }, 300);
             console.log('🗺️ World map closed');
         };
@@ -1980,6 +2386,56 @@ class NebulaVoxelApp {
                     ctx.fillText('🌲', screenX + pixelsPerChunk/2, screenY + pixelsPerChunk/2 + 3);
                 }
             });
+
+            // Draw explorer pins/waypoints
+            if (this.explorerPins && this.explorerPins.length > 0) {
+                this.explorerPins.forEach(pin => {
+                    const pinChunkX = Math.floor(pin.x / chunkSize);
+                    const pinChunkZ = Math.floor(pin.z / chunkSize);
+                    const relativeX = pinChunkX - playerChunkX;
+                    const relativeZ = pinChunkZ - playerChunkZ;
+                    const screenX = centerX + (relativeX * pixelsPerChunk);
+                    const screenY = centerY + (relativeZ * pixelsPerChunk);
+
+                    if (screenX >= 30 && screenX < canvas.width - 30 &&
+                        screenY >= 30 && screenY < canvas.height - 30) {
+
+                        // Draw pin marker
+                        ctx.fillStyle = pin.color;
+                        ctx.strokeStyle = '#2F1B14';
+                        ctx.lineWidth = 2;
+
+                        // Pin shape
+                        ctx.beginPath();
+                        ctx.arc(screenX + pixelsPerChunk/2, screenY + pixelsPerChunk/2, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Pin name label
+                        ctx.font = 'bold 10px Georgia';
+                        ctx.fillStyle = '#2F1B14';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(pin.name, screenX + pixelsPerChunk/2, screenY - 8);
+
+                        // Navigation indicator if this pin is active
+                        if (this.activeNavigation && this.activeNavigation.id === pin.id) {
+                            ctx.strokeStyle = '#FFD700';
+                            ctx.lineWidth = 3;
+                            ctx.beginPath();
+                            ctx.arc(screenX + pixelsPerChunk/2, screenY + pixelsPerChunk/2, 12, 0, Math.PI * 2);
+                            ctx.stroke();
+
+                            // Pulsing effect for active navigation
+                            const pulseRadius = 15 + Math.sin(Date.now() / 200) * 3;
+                            ctx.strokeStyle = 'rgba(255, 215, 0, 0.5)';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(screenX + pixelsPerChunk/2, screenY + pixelsPerChunk/2, pulseRadius, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                    }
+                });
+            }
 
             // Draw player position as explorer marker
             ctx.fillStyle = '#B22222';
@@ -5866,6 +6322,90 @@ class NebulaVoxelApp {
                     ctx.fill();
                 }
             });
+
+            // Draw explorer pins on minimap
+            if (this.explorerPins && this.explorerPins.length > 0) {
+                this.explorerPins.forEach(pin => {
+                    const relX = pin.x - this.player.position.x;
+                    const relZ = pin.z - this.player.position.z;
+
+                    // Convert to minimap coordinates
+                    const pinMapX = size/2 + relX / scale;
+                    const pinMapZ = size/2 + relZ / scale;
+
+                    // Only draw if within minimap bounds
+                    if (pinMapX >= 0 && pinMapX < size && pinMapZ >= 0 && pinMapZ < size) {
+                        ctx.fillStyle = pin.color;
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(pinMapX, pinMapZ, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Add pulse effect for active navigation pin
+                        if (this.activeNavigation && this.activeNavigation.id === pin.id) {
+                            const pulseRadius = 6 + Math.sin(Date.now() / 150) * 2;
+                            ctx.strokeStyle = '#FFD700';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(pinMapX, pinMapZ, pulseRadius, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                    }
+                });
+            }
+
+            // Draw navigation arrow pointing to active pin
+            if (this.activeNavigation) {
+                const relX = this.activeNavigation.x - this.player.position.x;
+                const relZ = this.activeNavigation.z - this.player.position.z;
+                const distance = Math.sqrt(relX * relX + relZ * relZ);
+
+                // If pin is outside minimap range, show directional arrow
+                const pinMapX = size/2 + relX / scale;
+                const pinMapZ = size/2 + relZ / scale;
+
+                if (pinMapX < 0 || pinMapX >= size || pinMapZ < 0 || pinMapZ >= size || distance > 60) {
+                    // Calculate angle to pin
+                    const angle = Math.atan2(relX, relZ);
+
+                    // Draw arrow pointing to pin from edge of minimap
+                    const arrowDistance = 45; // Distance from center
+                    const arrowX = size/2 + Math.sin(angle) * arrowDistance;
+                    const arrowZ = size/2 + Math.cos(angle) * arrowDistance;
+
+                    ctx.strokeStyle = '#FFD700';
+                    ctx.fillStyle = '#FFD700';
+                    ctx.lineWidth = 3;
+
+                    // Arrow shaft
+                    ctx.beginPath();
+                    ctx.moveTo(size/2 + Math.sin(angle) * 20, size/2 + Math.cos(angle) * 20);
+                    ctx.lineTo(arrowX, arrowZ);
+                    ctx.stroke();
+
+                    // Arrow head
+                    ctx.beginPath();
+                    ctx.moveTo(arrowX, arrowZ);
+                    ctx.lineTo(arrowX - Math.sin(angle - 0.5) * 8, arrowZ - Math.cos(angle - 0.5) * 8);
+                    ctx.lineTo(arrowX - Math.sin(angle + 0.5) * 8, arrowZ - Math.cos(angle + 0.5) * 8);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Distance text
+                    ctx.font = 'bold 10px Arial';
+                    ctx.fillStyle = '#FFD700';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${Math.floor(distance)}m`, arrowX, arrowZ + 15);
+                }
+
+                // Check if player reached the destination
+                if (distance < 5) {
+                    this.activeNavigation = null;
+                    this.updateStatus('🎯 Destination reached!', 'success');
+                }
+            }
 
             // Draw player position (white dot)
             ctx.fillStyle = '#ffffff'; // Changed to white so backpack red stands out
