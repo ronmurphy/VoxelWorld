@@ -4505,42 +4505,94 @@ class NebulaVoxelApp {
             return this.biomeWorldGen.getHeightBasedColor(biome, height);
         };
 
-        // 🌍 SPAWN POSITION FINDER: Find safe spawn position after terrain generation
+        // 🌍 SPAWN POSITION FINDER: Find safe spawn position after terrain and tree generation
         this.findAndSetSpawnPosition = () => {
             console.log('🎯 Finding proper spawn position after terrain generation...');
 
-            // Search in small area around spawn point (0, 0)
-            let bestSpawnY = 10; // fallback height
-            let foundSurface = false;
+            // Wait a bit for tree generation to complete (since trees are generated with setTimeout)
+            setTimeout(() => {
+                this.findSafeSpawnPosition();
+            }, 50); // Wait longer than tree generation delay (10ms)
+        };
 
-            // Check multiple positions near spawn to find best surface
-            for (let dx = -2; dx <= 2; dx++) {
-                for (let dz = -2; dz <= 2; dz++) {
-                    const checkX = dx;
-                    const checkZ = dz;
+        // 🎯 SAFE SPAWN FINDER: Find 4x4 clear area away from trees and terrain
+        this.findSafeSpawnPosition = () => {
+            console.log('🎯 Searching for 4x4 clear spawn area...');
 
-                    // Find surface height at this position
-                    for (let y = 8; y >= -5; y--) {
-                        const block = this.getBlock(checkX, y, checkZ);
-                        if (block) {
-                            const spawnY = y + 2; // Place player 2 blocks above surface for safety
-                            if (!foundSurface || spawnY < bestSpawnY) { // Prefer lower, more stable ground
-                                bestSpawnY = spawnY;
-                                foundSurface = true;
-                                console.log(`🎯 Found surface at (${checkX}, ${y}, ${checkZ}) -> spawn at y=${bestSpawnY}`);
-                            }
-                            break;
+            let bestSpawnX = 0;
+            let bestSpawnZ = 0;
+            let bestSpawnY = 12; // fallback height
+            let foundSafeArea = false;
+
+            // Search in expanding circles around spawn point
+            for (let radius = 0; radius <= 8 && !foundSafeArea; radius++) {
+                for (let angle = 0; angle < 360 && !foundSafeArea; angle += 45) {
+                    const checkX = Math.round(Math.cos(angle * Math.PI / 180) * radius);
+                    const checkZ = Math.round(Math.sin(angle * Math.PI / 180) * radius);
+
+                    // Check if this position has a 4x4 clear area
+                    if (this.isAreaClear(checkX, checkZ, 4)) {
+                        const surfaceY = this.findSurfaceHeight(checkX, checkZ);
+                        if (surfaceY !== null) {
+                            bestSpawnX = checkX;
+                            bestSpawnZ = checkZ;
+                            bestSpawnY = surfaceY + 4; // 4 blocks above surface
+                            foundSafeArea = true;
+                            console.log(`🎯 Found safe 4x4 area at (${checkX}, ${checkZ}) -> spawn at (${bestSpawnX}, ${bestSpawnY}, ${bestSpawnZ})`);
                         }
                     }
                 }
             }
 
-            if (foundSurface) {
-                console.log(`🎯 Setting spawn position to (0, ${bestSpawnY}, 0) based on terrain height`);
+            if (foundSafeArea) {
+                this.player.position.x = bestSpawnX;
                 this.player.position.y = bestSpawnY;
+                this.player.position.z = bestSpawnZ;
+                console.log(`🎯 Player spawned in safe area at (${bestSpawnX}, ${bestSpawnY}, ${bestSpawnZ})`);
             } else {
-                console.warn('🚨 No surface found near spawn - keeping default position');
+                console.warn('🚨 No safe 4x4 area found - using fallback position');
+                this.player.position.y = 15; // Higher fallback
             }
+        };
+
+        // 🔍 Check if a 4x4 area is clear of blocks (terrain and trees)
+        this.isAreaClear = (centerX, centerZ, size) => {
+            const halfSize = Math.floor(size / 2);
+
+            // Check all positions in the area
+            for (let dx = -halfSize; dx <= halfSize; dx++) {
+                for (let dz = -halfSize; dz <= halfSize; dz++) {
+                    const checkX = centerX + dx;
+                    const checkZ = centerZ + dz;
+
+                    // Check from a reasonable height down to surface
+                    for (let y = 15; y >= 0; y--) {
+                        const block = this.getBlock(checkX, y, checkZ);
+                        if (block) {
+                            // Found surface, check if there are blocks above it (trees/obstacles)
+                            for (let checkY = y + 1; checkY <= y + 6; checkY++) {
+                                const aboveBlock = this.getBlock(checkX, checkY, checkZ);
+                                if (aboveBlock) {
+                                    return false; // Found obstacle above surface
+                                }
+                            }
+                            break; // Surface found, no obstacles above
+                        }
+                    }
+                }
+            }
+            return true; // Area is clear
+        };
+
+        // 🔍 Find surface height at a specific position
+        this.findSurfaceHeight = (x, z) => {
+            for (let y = 15; y >= -5; y--) {
+                const block = this.getBlock(x, y, z);
+                if (block) {
+                    return y;
+                }
+            }
+            return null; // No surface found
         };
 
         // Chunk-based terrain generation functions
