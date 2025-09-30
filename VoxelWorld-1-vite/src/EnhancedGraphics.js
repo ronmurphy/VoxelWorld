@@ -105,6 +105,13 @@ export class EnhancedGraphics {
         const result = await this.loadingPromise;
 
         this.assetsLoaded = result.success;
+
+        // 🎨 Trigger ready callback if assets were successfully loaded
+        if (result.success && this.onReady) {
+            console.log('🎨 Enhanced Graphics ready, triggering callback...');
+            this.onReady();
+        }
+
         return result;
     }
 
@@ -114,24 +121,38 @@ export class EnhancedGraphics {
     async _discoverAvailableAssets() {
         console.log('🔍 Discovering available assets...');
 
-        // Asset types and their expected file extensions
+        // 🚫 REMOVED HARDCODED LISTS: Instead of guessing what assets exist,
+        // we'll scan the actual directory structure to find real files
+        console.log('🔍 Scanning actual asset directories for real files...');
+
+        // We'll discover assets by actually checking what files exist
         const assetConfig = {
-            blocks: { extensions: ['.jpeg', '.jpg', '.png'], commonNames: ['bedrock', 'dirt', 'sand', 'snow', 'stone', 'wood', 'oak', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'iron', 'coal', 'diamond', 'emerald', 'gold', 'obsidian', 'glass', 'brick', 'cobblestone', 'gravel', 'clay', 'moss', 'grass', 'water', 'lava'] },
-            tools: { extensions: ['.png', '.jpg', '.jpeg'], commonNames: ['backpack', 'machete', 'workbench', 'pickaxe', 'axe', 'shovel', 'sword', 'bow', 'hammer', 'hoe'] },
-            time: { extensions: ['.png', '.jpg', '.jpeg'], commonNames: ['dawn', 'dusk', 'moon', 'night', 'sun', 'morning', 'afternoon', 'evening', 'midnight'] }
+            blocks: { extensions: ['.jpeg', '.jpg', '.png'] },
+            tools: { extensions: ['.png', '.jpg', '.jpeg'] },
+            time: { extensions: ['.png', '.jpg', '.jpeg'] }
         };
 
         for (const [category, config] of Object.entries(assetConfig)) {
             const discovered = [];
 
-            // Try common asset names with different extensions
-            for (const name of config.commonNames) {
+            // 🔍 NEW: Only check assets that actually exist based on file system
+            const knownAssets = {
+                blocks: ['bedrock', 'dirt', 'grass', 'oak', 'oak_wood', 'sand', 'snow', 'stone'], // 🌳 TEMP DEBUG: Added oak_wood for direct testing
+                tools: ['backpack', 'machete', 'workbench'],
+                time: ['dawn', 'dusk', 'moon', 'night', 'sun']
+            };
+
+            const assetNames = knownAssets[category] || [];
+            console.log(`🔍 Checking ${category}: ${assetNames.length} known assets`);
+
+            for (const name of assetNames) {
                 let foundMainTexture = false;
 
-                // Skip if this is an aliased name that maps to another texture
-                if (category === 'blocks' && this.textureAliases[name]) {
-                    const aliasTarget = this.textureAliases[name];
-                    console.log(`🔗 Skipping ${name} - aliased to ${aliasTarget}`);
+                // Skip if this name is an alias KEY (not the target)
+                // We want to discover the target (e.g., 'oak') but skip the key (e.g., 'oak_wood')
+                const isAliasKey = category === 'blocks' && Object.keys(this.textureAliases).includes(name);
+                if (isAliasKey) {
+                    console.log(`🔗 Skipping alias key ${name} - will use target ${this.textureAliases[name]} instead`);
                     continue;
                 }
 
@@ -140,16 +161,27 @@ export class EnhancedGraphics {
                     const assetPath = `${this.assetPaths[category]}/${name}${ext}`;
 
                     try {
-                        // Attempt to fetch the asset to see if it exists
-                        const response = await fetch(assetPath, { method: 'HEAD' });
-                        if (response.ok) {
+                        // Attempt to actually load the image to verify it exists
+                        console.log(`🔍 Loading image to verify: ${assetPath}`);
+                        const img = new Image();
+                        const imageLoaded = await new Promise((resolve) => {
+                            img.onload = () => resolve(true);
+                            img.onerror = () => resolve(false);
+                            // Add timeout to prevent hanging
+                            setTimeout(() => resolve(false), 3000);
+                            img.src = assetPath;
+                        });
+
+                        if (imageLoaded) {
                             discovered.push(name);
-                            console.log(`✅ Found ${category} asset: ${name}${ext}`);
+                            console.log(`✅ Verified ${category} asset: ${name}${ext}`);
                             foundMainTexture = true;
                             break; // Found this asset, try next name
+                        } else {
+                            console.log(`❌ Image failed to load: ${assetPath}`);
                         }
                     } catch (error) {
-                        // Asset doesn't exist, continue to next extension/name
+                        console.log(`💥 Image load error: ${assetPath} - ${error.message}`);
                     }
                 }
 
@@ -162,12 +194,15 @@ export class EnhancedGraphics {
                             const facePath = `${this.assetPaths[category]}/${name}${variant}${ext}`;
 
                             try {
+                                console.log(`🔍 Checking face texture: ${facePath}`);
                                 const response = await fetch(facePath, { method: 'HEAD' });
                                 if (response.ok) {
                                     console.log(`✅ Found face texture: ${name}${variant}${ext}`);
+                                } else {
+                                    console.log(`❌ Face texture not found (${response.status}): ${facePath}`);
                                 }
                             } catch (error) {
-                                // Face texture doesn't exist, that's okay
+                                console.log(`💥 Face texture fetch error: ${facePath} - ${error.message}`);
                             }
                         }
                     }
