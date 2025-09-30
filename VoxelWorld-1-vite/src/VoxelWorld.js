@@ -98,6 +98,12 @@ class NebulaVoxelApp {
         // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
 
+        // 🎨 Set up Enhanced Graphics ready callback
+        this.enhancedGraphics.onReady = () => {
+            console.log('🎨 Enhanced Graphics assets discovered, recreating materials...');
+            this.recreateAllMaterials();
+        };
+
         // 🔄 COMPATIBILITY: Provide access to inventory arrays for legacy code
         // These properties delegate to InventorySystem for backward compatibility
         Object.defineProperty(this, 'hotbarSlots', {
@@ -121,7 +127,7 @@ class NebulaVoxelApp {
             if (existingBlock) {
                 // If it's a leaf block overlapping with another leaf block, skip to prevent duplicates
                 if (this.isLeafBlock(type) && this.isLeafBlock(existingBlock.type)) {
-                    console.log(`🍃 Prevented leaf overlap at (${x},${y},${z}): ${type} would overlap ${existingBlock.type}`);
+                    // console.log(`🍃 Prevented leaf overlap at (${x},${y},${z}): ${type} would overlap ${existingBlock.type}`);
                     return;
                 }
                 // For other block types, allow overwriting (existing behavior)
@@ -3936,8 +3942,19 @@ class NebulaVoxelApp {
             workbench: { color: 0x8B7355, texture: 'workbench' } // Tan brown workbench
         };
 
-        // Create textured materials
-        const createBlockMaterial = (blockType) => {
+        // Create textured materials with Enhanced Graphics integration
+        const createBlockMaterial = (blockType, enhancedGraphics = null) => {
+            // 🎨 ENHANCED GRAPHICS FIRST: Check if we have enhanced textures
+            if (enhancedGraphics && enhancedGraphics.isReady()) {
+                const enhancedMaterial = enhancedGraphics.getEnhancedBlockMaterial(blockType.texture, null);
+                if (enhancedMaterial && enhancedMaterial !== null) {
+                    console.log(`🎨 Using enhanced texture for ${blockType.texture}`);
+                    return enhancedMaterial;
+                }
+            }
+
+            // 🎨 FALLBACK: Create procedural canvas texture
+            console.log(`🎨 Using procedural texture for ${blockType.texture}`);
             const canvas = document.createElement('canvas');
             canvas.width = canvas.height = 64;
             const ctx = canvas.getContext('2d');
@@ -4272,8 +4289,8 @@ class NebulaVoxelApp {
         this.playerMaterials = {}; // Darker versions for player-placed blocks
 
         Object.keys(this.blockTypes).forEach(type => {
-            // Normal materials
-            this.materials[type] = createBlockMaterial(this.blockTypes[type]);
+            // Normal materials - pass Enhanced Graphics instance
+            this.materials[type] = createBlockMaterial(this.blockTypes[type], this.enhancedGraphics);
 
             // Pre-create darker materials for player-placed blocks (performance optimization)
             const darkerColor = new THREE.Color(this.blockTypes[type].color).multiplyScalar(0.7);
@@ -4282,6 +4299,46 @@ class NebulaVoxelApp {
                 color: darkerColor
             });
         });
+
+        // 🎨 Method to recreate all materials when Enhanced Graphics becomes ready
+        this.recreateAllMaterials = () => {
+            console.log('🎨 Recreating all materials with Enhanced Graphics...');
+            Object.keys(this.blockTypes).forEach(type => {
+                // Dispose old material to prevent memory leaks
+                if (this.materials[type].map) {
+                    this.materials[type].map.dispose();
+                }
+                this.materials[type].dispose();
+
+                // Create new enhanced material
+                this.materials[type] = createBlockMaterial(this.blockTypes[type], this.enhancedGraphics);
+
+                // Update player material with new texture
+                const darkerColor = new THREE.Color(this.blockTypes[type].color).multiplyScalar(0.7);
+                if (this.playerMaterials[type].map) {
+                    this.playerMaterials[type].map.dispose();
+                }
+                this.playerMaterials[type].dispose();
+                this.playerMaterials[type] = new THREE.MeshLambertMaterial({
+                    map: this.materials[type].map,
+                    color: darkerColor
+                });
+            });
+
+            // Force update all existing blocks in the world (only if chunks are initialized)
+            if (this.chunks && typeof this.chunks === 'object') {
+                Object.values(this.chunks).forEach(chunk => {
+                    if (chunk && chunk.mesh) {
+                        chunk.needsRebuild = true;
+                    }
+                });
+                console.log('🎨 Existing chunks marked for rebuild');
+            } else {
+                console.log('🎨 No chunks to rebuild yet (chunks not initialized)');
+            }
+
+            console.log('🎨 Material recreation complete - chunks marked for rebuild');
+        };
 
         // Three.js setup
         this.scene = new THREE.Scene();
@@ -4560,7 +4617,7 @@ class NebulaVoxelApp {
             };
 
             this.treeRegistry.set(treeId, treeMetadata);
-            console.log(`🌳 Created tree registry: ID ${treeId}, type: ${treeType} at (${x}, ${y}, ${z})`);
+            // console.log(`🌳 Created tree registry: ID ${treeId}, type: ${treeType} at (${x}, ${y}, ${z})`);
             return treeId;
         };
 
@@ -4585,7 +4642,7 @@ class NebulaVoxelApp {
             // Add to fast lookup map
             this.blockToTreeMap.set(blockKey, treeId);
 
-            console.log(`🌳 Registered ${isLeaf ? 'leaf' : 'trunk'} block for tree ${treeId} at (${x}, ${y}, ${z})`);
+            // console.log(`🌳 Registered ${isLeaf ? 'leaf' : 'trunk'} block for tree ${treeId} at (${x}, ${y}, ${z})`);
         };
 
         this.getTreeIdFromBlock = (x, y, z) => {
@@ -4609,7 +4666,7 @@ class NebulaVoxelApp {
 
             // Remove tree registry entry
             this.treeRegistry.delete(treeId);
-            console.log(`🗑️ Removed tree ${treeId} from registry (${treeMetadata.totalBlocks} blocks freed)`);
+            // console.log(`🗑️ Removed tree ${treeId} from registry (${treeMetadata.totalBlocks} blocks freed)`);
         };
 
         // 🌳 HELPER: Add block with tree ID registration
@@ -4632,7 +4689,7 @@ class NebulaVoxelApp {
 
             // 🗺️ Track tree position for minimap
             this.treePositions.push({ x, z, type: 'oak', treeId });
-            console.log(`🌳 Generated Oak tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
+            // console.log(`🌳 Generated Oak tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
 
             const height = 4 + Math.floor(this.seededNoise(x + 5000, z + 5000, this.worldSeed) * 4); // 4-7 blocks tall
 
@@ -4671,7 +4728,7 @@ class NebulaVoxelApp {
                 }
             }
 
-            console.log(`🌳 Oak tree ${treeId} completed with ${height} trunk blocks and canopy`);
+            // console.log(`🌳 Oak tree ${treeId} completed with ${height} trunk blocks and canopy`);
         };
 
         // Generate Pine Tree (Mountain biome) - ENHANCED with Tree ID System
