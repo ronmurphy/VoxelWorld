@@ -1034,7 +1034,12 @@ export class WorkbenchSystem {
             dead_wood: new THREE.MeshLambertMaterial({ color: 0x696969 }),
             stone: new THREE.MeshLambertMaterial({ color: 0x696969 }),
             iron: new THREE.MeshLambertMaterial({ color: 0x708090 }),
-            glass: new THREE.MeshLambertMaterial({ color: 0x87CEEB, transparent: true, opacity: 0.7 })
+            glass: new THREE.MeshLambertMaterial({ color: 0x87CEEB, transparent: true, opacity: 0.7 }),
+            sand: new THREE.MeshLambertMaterial({ color: 0xF4A460 }),        // Sandy brown/tan
+            brick: new THREE.MeshLambertMaterial({ color: 0xCD853F }),       // Peru/brick color
+            grass: new THREE.MeshLambertMaterial({ color: 0x228B22 }),       // Forest green
+            dirt: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),        // Saddle brown
+            glowstone: new THREE.MeshLambertMaterial({ color: 0xFFFF88, emissive: 0xFFFF44, emissiveIntensity: 0.5 })  // Glowing yellow
         };
 
         return materials[materialType] || materials.wood;
@@ -1215,9 +1220,9 @@ export class WorkbenchSystem {
         }
 
         if (this.selectedMaterial) {
-            // Update emoji
-            const emoji = this.voxelWorld.getItemIcon(this.selectedMaterial);
-            this.materialEmojiDisplay.textContent = emoji;
+            // Update icon (could be emoji or texture image)
+            const icon = this.voxelWorld.getItemIcon(this.selectedMaterial);
+            this.materialEmojiDisplay.innerHTML = icon;
 
             // Calculate and update cost
             const length = this.shapeLength;
@@ -1263,6 +1268,25 @@ export class WorkbenchSystem {
             'grass', 'dirt', 'coal', 'flowers', 'snow'
         ];
         return craftingMaterials.includes(material);
+    }
+
+    /**
+     * Check if player material matches recipe requirement
+     * Handles "any wood type" matching (wood -> oak_wood, pine_wood, etc.)
+     */
+    materialMatches(recipeMaterial, playerMaterial) {
+        // Direct match
+        if (recipeMaterial === playerMaterial) {
+            return true;
+        }
+
+        // "wood" in recipe matches any specific wood type
+        if (recipeMaterial === 'wood') {
+            const woodTypes = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood'];
+            return woodTypes.includes(playerMaterial);
+        }
+
+        return false;
     }
 
 
@@ -1383,8 +1407,10 @@ export class WorkbenchSystem {
         Object.entries(this.recipeBook).forEach(([key, recipe]) => {
             // Check if recipe can be made with selected materials
             const recipeMaterials = Object.keys(recipe.materials);
-            const canMake = recipeMaterials.some(material =>
-                this.selectedMaterials.has(material)
+            const canMake = recipeMaterials.some(recipeMat =>
+                Array.from(this.selectedMaterials).some(playerMat =>
+                    this.materialMatches(recipeMat, playerMat)
+                )
             );
 
             if (canMake) {
