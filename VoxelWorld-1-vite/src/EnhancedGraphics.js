@@ -415,9 +415,11 @@ export class EnhancedGraphics {
             loader.load(
                 imagePath,
                 (texture) => {
-                    // Configure texture settings for pixel art
+                    // Configure texture settings for pixel art with mipmaps
                     texture.magFilter = THREE.NearestFilter;
-                    texture.minFilter = THREE.NearestFilter;
+                    texture.minFilter = THREE.LinearMipmapNearestFilter; // Mipmaps for performance, nearest for pixel-art look
+                    texture.generateMipmaps = true;
+                    texture.anisotropy = 4; // Sharp textures at angles
                     texture.wrapS = THREE.RepeatWrapping;
                     texture.wrapT = THREE.RepeatWrapping;
                     resolve(texture);
