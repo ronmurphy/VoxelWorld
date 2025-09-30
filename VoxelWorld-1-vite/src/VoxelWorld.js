@@ -29,6 +29,8 @@ class NebulaVoxelApp {
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
+        this.exploredChunks = new Set(); // Track all visited chunks for world map
+        this.worldMapModal = null; // Full-screen world map modal
 
         // 🌳 TREE ID SYSTEM: Advanced tree tracking with unique identifiers
         this.nextTreeId = 1; // Incremental unique tree ID generator
@@ -1663,6 +1665,374 @@ class NebulaVoxelApp {
 
             // Add to DOM
             this.container.appendChild(this.workbenchModal);
+        };
+
+        // 🗺️ Create expanded world map modal
+        this.createWorldMapModal = () => {
+            this.worldMapModal = document.createElement('div');
+            this.worldMapModal.style.cssText = `
+                position: fixed;
+                top: 15%;
+                left: 15%;
+                width: 70%;
+                height: 70%;
+                background: linear-gradient(135deg, rgba(101, 67, 33, 0.95), rgba(139, 90, 43, 0.95));
+                border: 4px solid #8B4513;
+                border-radius: 15px;
+                z-index: 1000;
+                display: none;
+                box-shadow: 0 0 25px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(101, 67, 33, 0.3);
+                backdrop-filter: blur(3px);
+                transition: all 0.3s ease;
+                transform: scale(0.8);
+                opacity: 0;
+                border-style: double;
+                border-width: 6px;
+            `;
+
+            // World map canvas
+            const worldMapCanvas = document.createElement('canvas');
+            worldMapCanvas.id = 'worldMapCanvas';
+            worldMapCanvas.style.cssText = `
+                width: 100%;
+                height: calc(100% - 60px);
+                display: block;
+                background: linear-gradient(45deg, #F5E6D3, #E8D5B7);
+                border-radius: 8px;
+                border: 2px solid #8B4513;
+                margin: 10px;
+                width: calc(100% - 20px);
+                height: calc(100% - 80px);
+            `;
+
+            // Header with title and close button
+            const header = document.createElement('div');
+            header.style.cssText = `
+                height: 60px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0 20px;
+                border-bottom: 3px solid #654321;
+                background: linear-gradient(180deg, rgba(139, 90, 43, 0.9), rgba(101, 67, 33, 0.9));
+                border-radius: 12px 12px 0 0;
+                box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+            `;
+
+            const title = document.createElement('h2');
+            title.textContent = '🗺️ Explorer\'s Journal - Charted Lands';
+            title.style.cssText = `
+                color: #2F1B14;
+                margin: 0;
+                font-family: 'Georgia', serif;
+                font-size: 22px;
+                text-shadow: 1px 1px 2px rgba(245, 230, 211, 0.8);
+                font-weight: bold;
+                letter-spacing: 1px;
+            `;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '📜 Close';
+            closeBtn.style.cssText = `
+                background: linear-gradient(135deg, #8B4513, #A0522D);
+                color: #F5E6D3;
+                border: 2px solid #654321;
+                border-radius: 8px;
+                padding: 8px 16px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: bold;
+                font-family: 'Georgia', serif;
+                transition: all 0.2s;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            `;
+            closeBtn.onmouseover = () => {
+                closeBtn.style.background = 'linear-gradient(135deg, #A0522D, #CD853F)';
+                closeBtn.style.transform = 'translateY(-1px)';
+            };
+            closeBtn.onmouseout = () => {
+                closeBtn.style.background = 'linear-gradient(135deg, #8B4513, #A0522D)';
+                closeBtn.style.transform = 'translateY(0)';
+            };
+            closeBtn.onclick = () => this.closeWorldMap();
+
+            header.appendChild(title);
+            header.appendChild(closeBtn);
+            this.worldMapModal.appendChild(header);
+            this.worldMapModal.appendChild(worldMapCanvas);
+
+            // Add to DOM
+            this.container.appendChild(this.worldMapModal);
+        };
+
+        // 🗺️ Toggle world map modal
+        this.toggleWorldMap = () => {
+            if (!this.worldMapModal) {
+                this.createWorldMapModal();
+            }
+
+            if (this.worldMapModal.style.display === 'none' || !this.worldMapModal.style.display) {
+                this.openWorldMap();
+            } else {
+                this.closeWorldMap();
+            }
+        };
+
+        // 🗺️ Open world map with animation
+        this.openWorldMap = () => {
+            this.worldMapModal.style.display = 'block';
+            // Trigger animation
+            setTimeout(() => {
+                this.worldMapModal.style.transform = 'scale(1)';
+                this.worldMapModal.style.opacity = '1';
+            }, 10);
+
+            // Render the world map
+            this.renderWorldMap();
+            console.log('🗺️ World map opened - showing explored regions');
+        };
+
+        // 🗺️ Close world map with animation
+        this.closeWorldMap = () => {
+            this.worldMapModal.style.transform = 'scale(0.8)';
+            this.worldMapModal.style.opacity = '0';
+            setTimeout(() => {
+                this.worldMapModal.style.display = 'none';
+            }, 300);
+            console.log('🗺️ World map closed');
+        };
+
+        // 🗺️ Render the full world map showing explored chunks
+        this.renderWorldMap = () => {
+            const canvas = document.getElementById('worldMapCanvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas size to match display size
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            const mapSize = Math.min(canvas.width, canvas.height) - 40; // Leave margin
+            const chunkSize = 8; // Each chunk is 8x8 blocks
+            const pixelsPerChunk = 6; // Each chunk is 6x6 pixels on the map for better visibility
+
+            // Create aged paper background effect
+            const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, Math.max(canvas.width, canvas.height));
+            gradient.addColorStop(0, '#F5E6D3');
+            gradient.addColorStop(0.7, '#E8D5B7');
+            gradient.addColorStop(1, '#D2B48C');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Add subtle paper texture with random spots
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.05)';
+            for (let i = 0; i < 200; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const size = Math.random() * 3 + 1;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw explorer's grid - faded and irregular
+            ctx.strokeStyle = 'rgba(139, 69, 19, 0.2)';
+            ctx.lineWidth = 0.5;
+            const gridSpacing = pixelsPerChunk * 2;
+            for (let x = 30; x < canvas.width - 30; x += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(x + (Math.random() - 0.5) * 2, 30);
+                ctx.lineTo(x + (Math.random() - 0.5) * 2, canvas.height - 30);
+                ctx.stroke();
+            }
+            for (let y = 30; y < canvas.height - 30; y += gridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(30, y + (Math.random() - 0.5) * 2);
+                ctx.lineTo(canvas.width - 30, y + (Math.random() - 0.5) * 2);
+                ctx.stroke();
+            }
+
+            // Add compass rose in top-right corner
+            const compassX = canvas.width - 80;
+            const compassY = 60;
+            const compassRadius = 25;
+
+            // Compass background
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
+            ctx.beginPath();
+            ctx.arc(compassX, compassY, compassRadius + 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Compass directions
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 2;
+            ctx.font = 'bold 12px Georgia';
+            ctx.fillStyle = '#654321';
+            ctx.textAlign = 'center';
+
+            // N, S, E, W markers
+            ctx.fillText('N', compassX, compassY - compassRadius + 5);
+            ctx.fillText('S', compassX, compassY + compassRadius - 5);
+            ctx.fillText('E', compassX + compassRadius - 5, compassY + 3);
+            ctx.fillText('W', compassX - compassRadius + 5, compassY + 3);
+
+            // Compass circle
+            ctx.beginPath();
+            ctx.arc(compassX, compassY, compassRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Calculate map center and bounds
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const playerChunkX = Math.floor(this.player.position.x / chunkSize);
+            const playerChunkZ = Math.floor(this.player.position.z / chunkSize);
+
+            // Draw explored chunks with hand-drawn style
+            this.exploredChunks.forEach(chunkKey => {
+                const [chunkX, chunkZ] = chunkKey.split(',').map(Number);
+
+                // Calculate position relative to player
+                const relativeX = chunkX - playerChunkX;
+                const relativeZ = chunkZ - playerChunkZ;
+
+                // Convert to screen coordinates
+                const screenX = centerX + (relativeX * pixelsPerChunk);
+                const screenY = centerY + (relativeZ * pixelsPerChunk);
+
+                // Only draw if within canvas bounds
+                if (screenX >= 30 && screenX < canvas.width - 30 &&
+                    screenY >= 30 && screenY < canvas.height - 30) {
+
+                    // Get biome color for this chunk
+                    const worldX = chunkX * chunkSize + chunkSize/2;
+                    const worldZ = chunkZ * chunkSize + chunkSize/2;
+                    const biome = this.biomeWorldGen.getBiomeAt(worldX, worldZ, this.worldSeed);
+
+                    // Make colors more muted and map-like
+                    let mapColor = biome.mapColor;
+                    if (biome.name === 'forest') mapColor = '#2F5233';
+                    else if (biome.name === 'desert') mapColor = '#D2B48C';
+                    else if (biome.name === 'mountain') mapColor = '#696969';
+                    else if (biome.name === 'plains') mapColor = '#9ACD32';
+                    else if (biome.name === 'tundra') mapColor = '#F0F8FF';
+
+                    ctx.fillStyle = mapColor;
+
+                    // Draw slightly irregular shapes for organic look
+                    const jitter = 1;
+                    ctx.fillRect(
+                        screenX + (Math.random() - 0.5) * jitter,
+                        screenY + (Math.random() - 0.5) * jitter,
+                        pixelsPerChunk + (Math.random() - 0.5) * jitter,
+                        pixelsPerChunk + (Math.random() - 0.5) * jitter
+                    );
+
+                    // Add subtle border for definition
+                    ctx.strokeStyle = 'rgba(101, 67, 33, 0.3)';
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(screenX, screenY, pixelsPerChunk, pixelsPerChunk);
+                }
+            });
+
+            // Draw backpack position if not collected with treasure map style
+            if (this.backpackPosition && !this.hasBackpack) {
+                const backpackChunkX = Math.floor(this.backpackPosition.x / chunkSize);
+                const backpackChunkZ = Math.floor(this.backpackPosition.z / chunkSize);
+                const relativeX = backpackChunkX - playerChunkX;
+                const relativeZ = backpackChunkZ - playerChunkZ;
+                const screenX = centerX + (relativeX * pixelsPerChunk);
+                const screenY = centerY + (relativeZ * pixelsPerChunk);
+
+                // Draw treasure X mark
+                ctx.strokeStyle = '#B22222';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(screenX - 4, screenY - 4);
+                ctx.lineTo(screenX + pixelsPerChunk + 4, screenY + pixelsPerChunk + 4);
+                ctx.moveTo(screenX + pixelsPerChunk + 4, screenY - 4);
+                ctx.lineTo(screenX - 4, screenY + pixelsPerChunk + 4);
+                ctx.stroke();
+
+                // Add treasure label
+                ctx.font = 'bold 10px Georgia';
+                ctx.fillStyle = '#B22222';
+                ctx.textAlign = 'center';
+                ctx.fillText('⚔️', screenX + pixelsPerChunk/2, screenY - 8);
+            }
+
+            // Draw trees with forest symbols
+            this.treePositions.forEach(tree => {
+                const treeChunkX = Math.floor(tree.x / chunkSize);
+                const treeChunkZ = Math.floor(tree.z / chunkSize);
+                const relativeX = treeChunkX - playerChunkX;
+                const relativeZ = treeChunkZ - playerChunkZ;
+                const screenX = centerX + (relativeX * pixelsPerChunk);
+                const screenY = centerY + (relativeZ * pixelsPerChunk);
+
+                if (screenX >= 30 && screenX < canvas.width - 30 &&
+                    screenY >= 30 && screenY < canvas.height - 30) {
+                    // Draw tree symbol
+                    ctx.font = '8px Georgia';
+                    ctx.fillStyle = '#228B22';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🌲', screenX + pixelsPerChunk/2, screenY + pixelsPerChunk/2 + 3);
+                }
+            });
+
+            // Draw player position as explorer marker
+            ctx.fillStyle = '#B22222';
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 2;
+
+            // Draw explorer icon
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Player direction indicator - explorer's bearing
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(
+                centerX + Math.sin(this.player.rotation.y) * 20,
+                centerY + Math.cos(this.player.rotation.y) * 20
+            );
+            ctx.stroke();
+
+            // Add explorer label
+            ctx.font = 'bold 10px Georgia';
+            ctx.fillStyle = '#2F1B14';
+            ctx.textAlign = 'center';
+            ctx.fillText('🧭', centerX, centerY - 15);
+
+            // Draw info text in explorer's journal style
+            ctx.fillStyle = '#2F1B14';
+            ctx.font = 'italic 14px Georgia';
+            ctx.textAlign = 'left';
+
+            // Add journal-style annotations
+            ctx.fillText(`📍 Regions Charted: ${this.exploredChunks.size}`, 30, canvas.height - 50);
+            ctx.fillText(`🗺️ Current Position: (${Math.floor(this.player.position.x)}, ${Math.floor(this.player.position.z)})`, 30, canvas.height - 30);
+
+            // Add date stamp for authenticity
+            const date = new Date();
+            ctx.font = 'italic 12px Georgia';
+            ctx.fillStyle = 'rgba(47, 27, 20, 0.6)';
+            ctx.fillText(`Expedition Day: ${date.toLocaleDateString()}`, 30, canvas.height - 10);
+
+            // Add legend in bottom right
+            ctx.textAlign = 'right';
+            ctx.font = 'italic 11px Georgia';
+            ctx.fillStyle = '#654321';
+            ctx.fillText('🌲 Forests  ⚔️ Treasure  🧭 Explorer', canvas.width - 30, canvas.height - 30);
+            ctx.fillText('🗺️ Press M to close journal', canvas.width - 30, canvas.height - 10);
+
+            // Reset text alignment
+            ctx.textAlign = 'left';
         };
 
         // Close workbench modal
@@ -5071,7 +5441,11 @@ class NebulaVoxelApp {
                     const chunkX = playerChunkX + dx;
                     const chunkZ = playerChunkZ + dz;
                     generateChunk(chunkX, chunkZ);
-                    
+
+                    // 🗺️ Track chunk exploration for world map
+                    const chunkKey = `${chunkX},${chunkZ}`;
+                    this.exploredChunks.add(chunkKey);
+
                     // Check for random world item spawning in this chunk
                     this.checkChunkForWorldItems(chunkX, chunkZ);
                 }
@@ -5900,6 +6274,11 @@ class NebulaVoxelApp {
                 const slotData = this.getHotbarSlot(this.selectedSlot);
                 const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
                 console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
+                e.preventDefault();
+            }
+            // 🗺️ M key for world map
+            if (key === 'm') {
+                this.toggleWorldMap();
                 e.preventDefault();
             }
             if (key === 'e') {
