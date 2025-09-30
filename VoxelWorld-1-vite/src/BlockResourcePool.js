@@ -83,6 +83,21 @@ export class BlockResourcePool {
     }
 
     /**
+     * Get a cloned material for block type (for InstancedMesh)
+     * Cloning prevents shared state issues between instanced and regular meshes
+     * @param {string} blockType - Block type ('grass', 'stone', etc.)
+     * @returns {THREE.Material} Cloned material instance
+     */
+    getMaterialClone(blockType) {
+        const material = this.materials.get(blockType);
+        if (!material) {
+            console.warn(`⚠️ Material for '${blockType}' not found in pool`);
+            return null;
+        }
+        return material.clone();
+    }
+
+    /**
      * Get statistics about pooled resources
      * @returns {object} Resource pool statistics
      */

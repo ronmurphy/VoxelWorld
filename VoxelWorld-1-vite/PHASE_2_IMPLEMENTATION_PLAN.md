@@ -1,8 +1,74 @@
 # Phase 2: InstancedMesh Rendering - Ultra-Thought Implementation Plan
 
-**Status:** Ready to implement with fixes
-**Expected Gain:** 3-10x FPS improvement
-**Risk Level:** Medium (requires careful material handling)
+**Status:** ❌ FAILED - Fundamental architectural issues discovered
+**Attempted:** 2025-01-XX
+**Result:** System freeze, needs complete redesign
+**Risk Level:** HIGH (requires chunk-based approach, not global InstancedMesh)
+
+---
+
+## 🔥 SECOND ATTEMPT - COMPLETE FAILURE (Today's Session)
+
+### What We Fixed (Successfully)
+1. ✅ **Material Cloning** - Added `getMaterialClone()` to BlockResourcePool
+2. ✅ **Lazy Initialization** - InstancedMesh created on-demand
+3. ✅ **Material Recreation** - InstancedMesh materials update when EnhancedGraphics loads
+4. ✅ **Raycasting** - Targeting outline works with InstancedMesh (extract position from instance matrix)
+5. ✅ **Click Handling** - Block breaking/placing works with InstancedMesh
+6. ✅ **Material Array Detection** - Multi-face textures (oak) fall back to base material
+
+### What Failed (Critical Issues)
+1. ❌ **Frustum Culling CANNOT be disabled**
+   - Setting `frustumCulled = false` renders ALL instances including hidden ones
+   - GPU tries to render 50,000+ blocks per frame → complete system freeze
+   - Laptop unusable, typing lagged, required emergency disable
+
+2. ❌ **Global InstancedMesh Architecture is Wrong**
+   - ONE InstancedMesh per block type spanning entire world = massive bounding box
+   - THREE.js frustum culling needs accurate bounding volumes
+   - Computing bounding sphere for 10,000 scattered instances = expensive
+   - Hidden instances at (0, -10000, 0) still count toward bounding calculations
+
+3. ❌ **Hybrid Rendering Added Overhead**
+   - Phase 2 disabled felt SLOWER than original Phase 1
+   - Extra checks (`if (instanced)` everywhere) add CPU overhead
+   - Material cloning + enhancement checks = more processing
+
+### Technical Details of Failure
+
+**Frustum Culling Issue:**
+```javascript
+// This line KILLED the system:
+instancedMesh.frustumCulled = false;
+
+// Why: THREE.js now renders every instance matrix, including:
+// - 10,000 capacity per block type
+// - 8 block types = 80,000 potential instances
+// - Even hidden instances at (0, -10000, 0) get processed
+// - GPU draws everything regardless of camera view
+```
+
+**Bounding Box Problem:**
+```javascript
+// InstancedMesh at (0,0,0) with instances at (-1000, 50, 500), etc.
+// THREE.js needs to know: "Where is this InstancedMesh in 3D space?"
+// With scattered instances, bounding box is HUGE
+// Looking up → bounding box out of view → entire InstancedMesh culled
+// Result: Terrain vanishes when looking up/down
+```
+
+**Material Array Issue (Fixed but reveals deeper problem):**
+```javascript
+// EnhancedGraphics returns material ARRAY for multi-face blocks:
+const material = getEnhancedBlockMaterial('oak_wood');
+// Returns: [topMaterial, bottomMaterial, sideMaterial...]
+
+// InstancedMesh ONLY accepts single material:
+new THREE.InstancedMesh(geometry, materialArray); // ❌ Black blocks
+
+// Fix: Detect array and use base material
+// But: This means oak wood blocks lose multi-face textures in Phase 2
+```
 
 ---
 
@@ -327,12 +393,88 @@ After Phase 2 is stable, consider:
 
 ---
 
-## ✅ Ready to Implement
+## ✅ CORRECT SOLUTION (For Future Implementation)
 
-All issues analyzed, fixes designed, testing plan ready.
+### Phase 2.5: Chunk-Based InstancedMesh (The Right Way)
 
-**Estimated time:** 2-3 hours
-**Risk:** Low (feature flag provides instant rollback)
-**Reward:** 3-10x FPS improvement
+**Core Concept:** ONE InstancedMesh per block type **PER CHUNK**, not global.
 
-**Next step:** Implement fixes in order (1→2→3→4→5), test after each.
+**Why This Works:**
+1. **Manageable Bounding Boxes** - Each InstancedMesh covers 8×8×64 area max
+2. **Frustum Culling Works** - Small, accurate bounding boxes per chunk
+3. **Chunk Unloading Simple** - Remove entire InstancedMesh when chunk unloads
+4. **No Hidden Instance Problem** - No recycling, just dispose and recreate
+
+**Architecture:**
+```javascript
+// WRONG (current attempt):
+Map<blockType, InstancedMesh>  // Global, covers entire world
+// grass → ONE InstancedMesh with 10,000 capacity
+
+// RIGHT (chunk-based):
+Map<"chunkX,chunkZ", Map<blockType, InstancedMesh>>
+// chunk_0_0 → { grass: InstancedMesh(512), stone: InstancedMesh(512) }
+// chunk_1_0 → { grass: InstancedMesh(512), stone: InstancedMesh(512) }
+```
+
+**Implementation Outline:**
+1. Create InstancedMesh when chunk generates
+2. Capacity = max blocks per chunk (8×8×64 = 4,096 / 8 types ≈ 500 per type)
+3. When chunk unloads, dispose entire InstancedMesh (no recycling needed)
+4. Bounding box = chunk bounds (frustum culling works perfectly)
+
+**Benefits:**
+- ✅ Frustum culling works (small, accurate bounds)
+- ✅ No hidden instance management
+- ✅ Chunk loading/unloading trivial
+- ✅ Memory efficient (only active chunks)
+
+**Drawbacks:**
+- ⚠️ More InstancedMesh objects (9 chunks × 8 types = 72 objects)
+- ⚠️ Still limited draw calls (72 vs 8, but MUCH better than 10,000)
+
+**Estimated Time:** 6-8 hours (complete rewrite of InstancedChunkRenderer)
+**Risk:** Medium (well-tested approach used by Minecraft-likes)
+**Reward:** 5-10x FPS improvement with stability
+
+---
+
+## 🚫 Why Current Implementation Failed
+
+**Global InstancedMesh is fundamentally incompatible with:**
+- Scattered instances across large world
+- Dynamic instance hiding/showing
+- Frustum culling (bounding boxes too large/inaccurate)
+
+**The chunk-based approach is REQUIRED for InstancedMesh to work in voxel games.**
+
+---
+
+## 📝 Implementation Checklist (Future Session)
+
+**Phase 2.5: Chunk-Based InstancedMesh**
+- [ ] Rewrite InstancedChunkRenderer to use chunk-based Maps
+- [ ] Integrate with BiomeWorldGen chunk generation
+- [ ] Handle chunk unloading (dispose InstancedMesh)
+- [ ] Test frustum culling (should work automatically)
+- [ ] Test performance (should be 5-10x better than Phase 1)
+- [ ] Handle player-placed blocks (keep as regular mesh)
+- [ ] Multi-face texture support (per-chunk materials)
+
+**Estimated Completion:** One focused 6-8 hour session
+
+---
+
+## ❌ NOT Ready to Implement (Current Approach)
+
+~~All issues analyzed, fixes designed, testing plan ready.~~
+
+**Status:** Current global InstancedMesh approach is **architecturally flawed**.
+
+**What We Learned:**
+- Material cloning works ✅
+- Raycasting can be fixed ✅
+- **Frustum culling CANNOT be worked around** ❌
+- **Chunk-based approach is mandatory** ✅
+
+**Next step:** Implement Phase 2.5 (chunk-based) when ready, NOT current Phase 2.
