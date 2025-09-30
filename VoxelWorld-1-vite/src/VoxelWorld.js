@@ -4677,15 +4677,19 @@ class NebulaVoxelApp {
             this.updateStatus('Running performance benchmark...');
 
             // Create a small test scene to measure performance
-            const testBlocks = [];
+            const testBlockPositions = [];
             const testSize = 8; // 8x8x8 test area
+            const testOffset = 1000; // Place far away from player
 
-            // Generate test blocks
+            // Generate test blocks far from player spawn
             for (let x = -testSize/2; x < testSize/2; x++) {
                 for (let y = 0; y < 4; y++) {
                     for (let z = -testSize/2; z < testSize/2; z++) {
-                        const block = this.addBlock(x, y, z, 'stone', false);
-                        if (block) testBlocks.push(block);
+                        const worldX = x + testOffset;
+                        const worldY = y + 100; // High in the air
+                        const worldZ = z + testOffset;
+                        this.addBlock(worldX, worldY, worldZ, 'stone', false);
+                        testBlockPositions.push({x: worldX, y: worldY, z: worldZ});
                     }
                 }
             }
@@ -4704,11 +4708,9 @@ class NebulaVoxelApp {
                         const avgFPS = frameCount / ((currentTime - startTime) / 1000);
                         frames.push(avgFPS);
 
-                        // Clean up test blocks
-                        testBlocks.forEach(block => {
-                            if (block && block.mesh) {
-                                this.scene.remove(block.mesh);
-                            }
+                        // Clean up test blocks using removeBlock
+                        testBlockPositions.forEach(pos => {
+                            this.removeBlock(pos.x, pos.y, pos.z, false); // Don't give items
                         });
 
                         // Calculate performance score and set render distance
