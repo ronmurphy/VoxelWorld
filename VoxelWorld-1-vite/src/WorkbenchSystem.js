@@ -1027,6 +1027,11 @@ export class WorkbenchSystem {
     getMaterialForType(materialType) {
         const materials = {
             wood: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
+            oak_wood: new THREE.MeshLambertMaterial({ color: 0x8B6914 }),
+            pine_wood: new THREE.MeshLambertMaterial({ color: 0xA0826D }),
+            birch_wood: new THREE.MeshLambertMaterial({ color: 0xF5DEB3 }),
+            palm_wood: new THREE.MeshLambertMaterial({ color: 0xCD853F }),
+            dead_wood: new THREE.MeshLambertMaterial({ color: 0x696969 }),
             stone: new THREE.MeshLambertMaterial({ color: 0x696969 }),
             iron: new THREE.MeshLambertMaterial({ color: 0x708090 }),
             glass: new THREE.MeshLambertMaterial({ color: 0x87CEEB, transparent: true, opacity: 0.7 })
@@ -1253,7 +1258,8 @@ export class WorkbenchSystem {
      */
     isCraftingMaterial(material) {
         const craftingMaterials = [
-            'wood', 'stone', 'iron', 'glass', 'sand', 'brick', 'glowstone',
+            'wood', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
+            'stone', 'iron', 'glass', 'sand', 'brick', 'glowstone',
             'grass', 'dirt', 'coal', 'flowers', 'snow'
         ];
         return craftingMaterials.includes(material);
@@ -1755,6 +1761,11 @@ export class WorkbenchSystem {
         // Get material color for the item
         const materialColors = {
             wood: '#8B4513',
+            oak_wood: '#8B6914',
+            pine_wood: '#A0826D',
+            birch_wood: '#F5DEB3',
+            palm_wood: '#CD853F',
+            dead_wood: '#696969',
             stone: '#696969',
             iron: '#708090',
             glass: '#87CEEB',

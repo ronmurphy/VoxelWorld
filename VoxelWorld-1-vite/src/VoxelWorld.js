@@ -140,7 +140,7 @@ class NebulaVoxelApp {
 
         // 🌳 HELPER: Check if a block type is any kind of leaf (must be defined before addBlock)
         this.isLeafBlock = (blockType) => {
-            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'];
+            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves', 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'];
             return leafTypes.includes(blockType);
         };
 
@@ -5640,7 +5640,7 @@ class NebulaVoxelApp {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) <= 2) { // Cross pattern
-                        this.addTreeBlock(treeId, x + dx, canopyCenter, z + dz, 'forest_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, canopyCenter, z + dz, 'oak_wood-leaves', false);
                     }
                 }
             }
@@ -5649,7 +5649,7 @@ class NebulaVoxelApp {
             for (let dx = -2; dx <= 2; dx++) {
                 for (let dz = -2; dz <= 2; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) <= 3 && !(Math.abs(dx) === 2 && Math.abs(dz) === 2)) {
-                        this.addTreeBlock(treeId, x + dx, canopyCenter - 1, z + dz, 'forest_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, canopyCenter - 1, z + dz, 'oak_wood-leaves', false);
                     }
                 }
             }
@@ -5658,7 +5658,7 @@ class NebulaVoxelApp {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) <= 2) {
-                        this.addTreeBlock(treeId, x + dx, canopyCenter - 2, z + dz, 'forest_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, canopyCenter - 2, z + dz, 'oak_wood-leaves', false);
                     }
                 }
             }
@@ -5697,7 +5697,7 @@ class NebulaVoxelApp {
                             // Add some randomness to make it less perfect
                             const leafNoise = this.seededNoise(x + dx + 7000, z + dz + 7000, this.worldSeed);
                             if (leafNoise > -0.3) { // 80% chance for each leaf
-                                this.addTreeBlock(treeId, x + dx, layerY, z + dz, 'mountain_leaves', false);
+                                this.addTreeBlock(treeId, x + dx, layerY, z + dz, 'pine_wood-leaves', false);
                             }
                         }
                     }
@@ -5734,18 +5734,18 @@ class NebulaVoxelApp {
             for (let dx = -1; dx <= 1; dx++) {
                 for (let dz = -1; dz <= 1; dz++) {
                     if (Math.abs(dx) + Math.abs(dz) === 1) { // Plus pattern
-                        this.addTreeBlock(treeId, x + dx, topY, z + dz, 'desert_leaves', false);
+                        this.addTreeBlock(treeId, x + dx, topY, z + dz, 'palm_wood-leaves', false);
                     }
                 }
             }
 
             // Extending fronds
             directions.forEach(([dx, dz]) => {
-                this.addTreeBlock(treeId, x + dx, topY, z + dz, 'desert_leaves', false);
+                this.addTreeBlock(treeId, x + dx, topY, z + dz, 'palm_wood-leaves', false);
                 // Sometimes add a second frond block
                 const extendNoise = this.seededNoise(x + dx + 9000, z + dz + 9000, this.worldSeed);
                 if (extendNoise > 0.2) {
-                    this.addTreeBlock(treeId, x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'desert_leaves', false);
+                    this.addTreeBlock(treeId, x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'palm_wood-leaves', false);
                 }
             });
 
@@ -5778,7 +5778,7 @@ class NebulaVoxelApp {
                     if (Math.abs(dx) + Math.abs(dz) === 1) {
                         const leafNoise = this.seededNoise(x + dx + 11000, z + dz + 11000, this.worldSeed);
                         if (leafNoise > 0.1) { // 70% chance for sparse look
-                            this.addTreeBlock(treeId, x + dx, topY, z + dz, 'tundra_leaves', false);
+                            this.addTreeBlock(treeId, x + dx, topY, z + dz, 'birch_wood-leaves', false);
                         }
                     }
                 }
@@ -5788,10 +5788,10 @@ class NebulaVoxelApp {
             if (height > 2) {
                 const belowNoise = this.seededNoise(x + 12000, z + 12000, this.worldSeed);
                 if (belowNoise > 0.3) {
-                    this.addTreeBlock(treeId, x + 1, topY - 1, z, 'tundra_leaves', false);
+                    this.addTreeBlock(treeId, x + 1, topY - 1, z, 'birch_wood-leaves', false);
                 }
                 if (belowNoise > 0.6) {
-                    this.addTreeBlock(treeId, x - 1, topY - 1, z, 'tundra_leaves', false);
+                    this.addTreeBlock(treeId, x - 1, topY - 1, z, 'birch_wood-leaves', false);
                 }
             }
 

@@ -35,12 +35,8 @@ export class EnhancedGraphics {
         };
 
         // Texture aliases - map block types to texture names
-        this.textureAliases = {
-            'oak_wood': 'oak',
-            'pine_wood': 'pine',
-            'birch_wood': 'birch',
-            'palm_wood': 'palm'
-        };
+        // No aliases needed - files are named exactly as block types (oak_wood, pine_wood, etc.)
+        this.textureAliases = {};
 
         // UI element size configurations
         this.uiSizes = {
@@ -148,7 +144,7 @@ export class EnhancedGraphics {
 
             // 🔍 NEW: Only check assets that actually exist based on file system
             const knownAssets = {
-                blocks: ['bedrock', 'dirt', 'grass', 'oak', 'oak_wood', 'sand', 'snow', 'stone'], // 🌳 TEMP DEBUG: Added oak_wood for direct testing
+                blocks: ['bedrock', 'dirt', 'grass', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'sand', 'snow', 'stone'],
                 tools: ['backpack', 'machete', 'workbench'],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun']
             };
@@ -167,55 +163,70 @@ export class EnhancedGraphics {
                     continue;
                 }
 
-                // Check for main texture first
-                for (const ext of config.extensions) {
-                    const assetPath = `${this.assetPaths[category]}/${name}${ext}`;
-
-                    try {
-                        // Attempt to actually load the image to verify it exists
-                        console.log(`🔍 Loading image to verify: ${assetPath}`);
-                        const img = new Image();
-                        const imageLoaded = await new Promise((resolve) => {
-                            img.onload = () => resolve(true);
-                            img.onerror = () => resolve(false);
-                            // Add timeout to prevent hanging
-                            setTimeout(() => resolve(false), 3000);
-                            img.src = assetPath;
-                        });
-
-                        if (imageLoaded) {
-                            discovered.push(name);
-                            console.log(`✅ Verified ${category} asset: ${name}${ext}`);
-                            foundMainTexture = true;
-                            break; // Found this asset, try next name
-                        } else {
-                            console.log(`❌ Image failed to load: ${assetPath}`);
-                        }
-                    } catch (error) {
-                        console.log(`💥 Image load error: ${assetPath} - ${error.message}`);
-                    }
-                }
-
-                // For blocks category, also check for face-specific textures
-                if (category === 'blocks' && foundMainTexture) {
-                    const faceVariants = ['-sides', '-top', '-bottom', '-top-bottom'];
+                // For blocks, check for face-specific textures first (multi-face wood blocks)
+                if (category === 'blocks') {
+                    const faceVariants = ['-sides', '-top-bottom'];
 
                     for (const variant of faceVariants) {
                         for (const ext of config.extensions) {
                             const facePath = `${this.assetPaths[category]}/${name}${variant}${ext}`;
 
                             try {
-                                console.log(`🔍 Checking face texture: ${facePath}`);
-                                const response = await fetch(facePath, { method: 'HEAD' });
-                                if (response.ok) {
+                                const img = new Image();
+                                const imageLoaded = await new Promise((resolve) => {
+                                    img.onload = () => resolve(true);
+                                    img.onerror = () => resolve(false);
+                                    setTimeout(() => resolve(false), 3000);
+                                    img.src = facePath;
+                                });
+
+                                if (imageLoaded) {
                                     console.log(`✅ Found face texture: ${name}${variant}${ext}`);
-                                } else {
-                                    console.log(`❌ Face texture not found (${response.status}): ${facePath}`);
+                                    foundMainTexture = true; // Mark as found if we have face textures
                                 }
                             } catch (error) {
                                 console.log(`💥 Face texture fetch error: ${facePath} - ${error.message}`);
                             }
                         }
+                    }
+                }
+
+                // Check for main texture (single texture blocks)
+                if (!foundMainTexture) {
+                    for (const ext of config.extensions) {
+                        const assetPath = `${this.assetPaths[category]}/${name}${ext}`;
+
+                        try {
+                            // Attempt to actually load the image to verify it exists
+                            console.log(`🔍 Loading image to verify: ${assetPath}`);
+                            const img = new Image();
+                            const imageLoaded = await new Promise((resolve) => {
+                                img.onload = () => resolve(true);
+                                img.onerror = () => resolve(false);
+                                // Add timeout to prevent hanging
+                                setTimeout(() => resolve(false), 3000);
+                                img.src = assetPath;
+                            });
+
+                            if (imageLoaded) {
+                                discovered.push(name);
+                                console.log(`✅ Verified ${category} asset: ${name}${ext}`);
+                                foundMainTexture = true;
+                                break; // Found this asset, try next name
+                            } else {
+                                console.log(`❌ Image failed to load: ${assetPath}`);
+                            }
+                        } catch (error) {
+                            console.log(`💥 Image load error: ${assetPath} - ${error.message}`);
+                        }
+                    }
+                }
+
+                // If we found textures (either face-specific or main), add to discovered
+                if (foundMainTexture) {
+                    if (!discovered.includes(name)) {
+                        discovered.push(name);
+                        console.log(`✅ Added ${category} asset: ${name}`);
                     }
                 }
             }
