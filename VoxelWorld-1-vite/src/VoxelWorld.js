@@ -2103,11 +2103,13 @@ class NebulaVoxelApp {
             const playerChunkX = Math.floor(this.player.position.x / chunkSize);
             const playerChunkZ = Math.floor(this.player.position.z / chunkSize);
 
-            const relativeChunkX = Math.floor((clickX - centerX) / pixelsPerChunk);
-            const relativeChunkZ = Math.floor((clickY - centerY) / pixelsPerChunk);
+            // Calculate relative pixel offset from center
+            const pixelOffsetX = clickX - centerX;
+            const pixelOffsetY = clickY - centerY;
 
-            const worldX = (playerChunkX + relativeChunkX) * chunkSize + chunkSize/2;
-            const worldZ = (playerChunkZ + relativeChunkZ) * chunkSize + chunkSize/2;
+            // Convert to world coordinates (matching the rendering logic)
+            const worldX = this.player.position.x + (pixelOffsetX / pixelsPerChunk) * chunkSize;
+            const worldZ = this.player.position.z + (pixelOffsetY / pixelsPerChunk) * chunkSize;
 
             // Create new pin
             const newPin = {
