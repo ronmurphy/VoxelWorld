@@ -21,11 +21,38 @@ export class EnhancedGraphics {
         this.timeImages = new Map();    // Map<timePeriod, HTMLImageElement>
 
         // Asset paths (relative to document root)
-        this.assetPaths = {
-            blocks: 'assets/art/blocks',
-            tools: 'assets/art/tools',
-            time: 'assets/art/time'
-        };
+        // In Electron production, assets are unpacked outside ASAR
+        const isElectron = typeof window !== 'undefined' && window.electronAPI;
+        const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+
+        console.log('🎨 EnhancedGraphics asset detection:', {
+            isElectron,
+            isProduction,
+            hostname: window.location.hostname,
+            hasElectronAPI: !!window.electronAPI
+        });
+
+        if (isElectron && isProduction) {
+            // In Electron production, use custom assets protocol
+            // Assets are copied to dist/ by Vite's publicDir, so path is art/blocks
+            console.log('🎨 Using Electron production paths with custom protocol');
+            this.assetPaths = {
+                blocks: `assets://art/blocks`,
+                tools: `assets://art/tools`,
+                time: `assets://art/time`
+            };
+        } else {
+            // Development or web - use relative paths
+            // In web build, Vite copies assets to root of dist (publicDir setting)
+            console.log('🎨 Using relative paths (dev/web)');
+            this.assetPaths = {
+                blocks: 'art/blocks',
+                tools: 'art/tools',
+                time: 'art/time'
+            };
+        }
+
+        console.log('🎨 Final asset paths:', this.assetPaths);
 
         // Available assets - will be discovered dynamically
         this.availableAssets = {
@@ -58,7 +85,8 @@ export class EnhancedGraphics {
      */
     loadSetting() {
         const stored = localStorage.getItem('enhanced_graphics_enabled');
-        return stored === 'true'; // Default to false if not set
+        // Default to enabled (true) if not explicitly set to 'false'
+        return stored !== 'false';
     }
 
     /**
@@ -123,117 +151,133 @@ export class EnhancedGraphics {
     }
 
     /**
-     * Dynamically discover available assets by attempting to load them
+     * Discover available assets by listing directory contents
      */
     async _discoverAvailableAssets() {
-        console.log('🔍 Discovering available assets...');
+        console.log('🔍 Discovering assets...');
 
-        // 🚫 REMOVED HARDCODED LISTS: Instead of guessing what assets exist,
-        // we'll scan the actual directory structure to find real files
-        console.log('🔍 Scanning actual asset directories for real files...');
+        const isElectron = typeof window !== 'undefined' && window.electronAPI;
 
-        // We'll discover assets by actually checking what files exist
-        const assetConfig = {
-            blocks: { extensions: ['.jpeg', '.jpg', '.png'] },
-            tools: { extensions: ['.png', '.jpg', '.jpeg'] },
-            time: { extensions: ['.png', '.jpg', '.jpeg'] }
+        // Store file extension map for efficient loading
+        this.fileExtensionMap = {
+            blocks: {},
+            tools: {},
+            time: {}
         };
 
-        for (const [category, config] of Object.entries(assetConfig)) {
-            const discovered = [];
+        // Extract base name and extension from filename
+        const parseFilename = (filename) => {
+            const match = filename.match(/^(.+)\.(jpeg|jpg|png)$/i);
+            if (!match) return null;
 
-            // 🔍 NEW: Only check assets that actually exist based on file system
-            const knownAssets = {
-                blocks: ['bedrock', 'dirt', 'grass', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'sand', 'snow', 'stone'],
+            const nameWithExt = match[1];
+            const ext = `.${match[2].toLowerCase()}`;
+
+            // Remove variant suffixes like -sides, -top-bottom to get base name
+            const baseName = nameWithExt.replace(/-(sides|top|bottom|top-bottom)$/i, '');
+
+            return { baseName, variant: nameWithExt, ext };
+        };
+
+        if (isElectron && window.electronAPI.listAssetFiles) {
+            // Electron: Use filesystem API to list actual files
+            console.log('🔍 Using Electron filesystem API for asset discovery');
+
+            for (const category of ['blocks', 'tools', 'time']) {
+                try {
+                    const files = await window.electronAPI.listAssetFiles(category);
+                    const baseNames = new Set();
+
+                    // Build extension map and track what we have
+                    const filesByBase = {};
+
+                    files.forEach(file => {
+                        const parsed = parseFilename(file);
+                        if (parsed) {
+                            // Store extension for this variant
+                            this.fileExtensionMap[category][parsed.variant] = parsed.ext;
+
+                            // Track variants by base name
+                            if (!filesByBase[parsed.baseName]) {
+                                filesByBase[parsed.baseName] = { main: false, variants: [] };
+                            }
+
+                            if (parsed.baseName === parsed.variant) {
+                                filesByBase[parsed.baseName].main = true;
+                            } else {
+                                filesByBase[parsed.baseName].variants.push(parsed.variant);
+                            }
+                        }
+                    });
+
+                    // Only include base names that have a main texture OR valid variants
+                    Object.keys(filesByBase).forEach(baseName => {
+                        const info = filesByBase[baseName];
+                        // Include if has main texture, OR has both sides and top-bottom variants
+                        if (info.main || info.variants.length >= 2) {
+                            baseNames.add(baseName);
+                        }
+                    });
+
+                    this.availableAssets[category] = Array.from(baseNames);
+                    console.log(`✅ ${category}: ${this.availableAssets[category].length} assets found`);
+                } catch (error) {
+                    console.warn(`Failed to list ${category} assets:`, error);
+                    this.availableAssets[category] = [];
+                }
+            }
+        } else {
+            // Web: Use fetch HEAD requests
+            console.log('🔍 Using fetch HEAD requests for asset discovery');
+
+            const fileExists = async (path) => {
+                try {
+                    const response = await fetch(path, { method: 'HEAD' });
+                    return response.ok;
+                } catch {
+                    return false;
+                }
+            };
+
+            const findFile = async (basePath, name, extensions) => {
+                for (const ext of extensions) {
+                    const exists = await fileExists(`${basePath}/${name}${ext}`);
+                    if (exists) return true;
+                }
+                return false;
+            };
+
+            const extensions = {
+                blocks: ['.jpeg', '.jpg', '.png'],
+                tools: ['.png', '.jpg', '.jpeg'],
+                time: ['.png', '.jpg', '.jpeg']
+            };
+
+            const candidates = {
+                blocks: [
+                    'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone',
+                    'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
+                    'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
+                ],
                 tools: ['backpack', 'machete', 'workbench'],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun']
             };
 
-            const assetNames = knownAssets[category] || [];
-            console.log(`🔍 Checking ${category}: ${assetNames.length} known assets`);
-
-            for (const name of assetNames) {
-                let foundMainTexture = false;
-
-                // Skip if this name is an alias KEY (not the target)
-                // We want to discover the target (e.g., 'oak') but skip the key (e.g., 'oak_wood')
-                const isAliasKey = category === 'blocks' && Object.keys(this.textureAliases).includes(name);
-                if (isAliasKey) {
-                    console.log(`🔗 Skipping alias key ${name} - will use target ${this.textureAliases[name]} instead`);
-                    continue;
+            for (const [category, names] of Object.entries(candidates)) {
+                const discovered = [];
+                for (const name of names) {
+                    const exists = await findFile(this.assetPaths[category], name, extensions[category]);
+                    if (exists) discovered.push(name);
                 }
-
-                // For blocks, check for face-specific textures first (multi-face wood blocks)
-                if (category === 'blocks') {
-                    const faceVariants = ['-sides', '-top-bottom'];
-
-                    for (const variant of faceVariants) {
-                        for (const ext of config.extensions) {
-                            const facePath = `${this.assetPaths[category]}/${name}${variant}${ext}`;
-
-                            try {
-                                const img = new Image();
-                                const imageLoaded = await new Promise((resolve) => {
-                                    img.onload = () => resolve(true);
-                                    img.onerror = () => resolve(false);
-                                    setTimeout(() => resolve(false), 3000);
-                                    img.src = facePath;
-                                });
-
-                                if (imageLoaded) {
-                                    console.log(`✅ Found face texture: ${name}${variant}${ext}`);
-                                    foundMainTexture = true; // Mark as found if we have face textures
-                                }
-                            } catch (error) {
-                                console.log(`💥 Face texture fetch error: ${facePath} - ${error.message}`);
-                            }
-                        }
-                    }
-                }
-
-                // Check for main texture (single texture blocks)
-                if (!foundMainTexture) {
-                    for (const ext of config.extensions) {
-                        const assetPath = `${this.assetPaths[category]}/${name}${ext}`;
-
-                        try {
-                            // Attempt to actually load the image to verify it exists
-                            console.log(`🔍 Loading image to verify: ${assetPath}`);
-                            const img = new Image();
-                            const imageLoaded = await new Promise((resolve) => {
-                                img.onload = () => resolve(true);
-                                img.onerror = () => resolve(false);
-                                // Add timeout to prevent hanging
-                                setTimeout(() => resolve(false), 3000);
-                                img.src = assetPath;
-                            });
-
-                            if (imageLoaded) {
-                                discovered.push(name);
-                                console.log(`✅ Verified ${category} asset: ${name}${ext}`);
-                                foundMainTexture = true;
-                                break; // Found this asset, try next name
-                            } else {
-                                console.log(`❌ Image failed to load: ${assetPath}`);
-                            }
-                        } catch (error) {
-                            console.log(`💥 Image load error: ${assetPath} - ${error.message}`);
-                        }
-                    }
-                }
-
-                // If we found textures (either face-specific or main), add to discovered
-                if (foundMainTexture) {
-                    if (!discovered.includes(name)) {
-                        discovered.push(name);
-                        console.log(`✅ Added ${category} asset: ${name}`);
-                    }
-                }
+                this.availableAssets[category] = discovered;
             }
-
-            this.availableAssets[category] = discovered;
-            console.log(`🎨 ${category}: ${discovered.length} assets discovered -`, discovered);
         }
+
+        console.log('✅ Assets discovered:', {
+            blocks: this.availableAssets.blocks.length,
+            tools: this.availableAssets.tools.length,
+            time: this.availableAssets.time.length
+        });
     }
 
     /**
@@ -292,44 +336,64 @@ export class EnhancedGraphics {
      * Returns either a single texture or an array of 6 textures for cube faces
      */
     async _loadMultiFaceTextures(blockType) {
-        const extensions = ['.jpeg', '.jpg', '.png'];
         const basePath = this.assetPaths.blocks;
 
-        // Try to find face-specific textures
+        // Define which blocks have multi-face textures (wood blocks only, not leaves)
+        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood'];
+        const isMultiFace = multiFaceBlocks.includes(blockType);
+
         const faceTextures = {
-            top: null,
-            bottom: null,
             sides: null,
             topBottom: null,
             main: null
         };
 
-        // Search for all texture variants
-        for (const ext of extensions) {
-            const paths = {
-                top: `${basePath}/${blockType}-top${ext}`,
-                bottom: `${basePath}/${blockType}-bottom${ext}`,
-                sides: `${basePath}/${blockType}-sides${ext}`,
-                topBottom: `${basePath}/${blockType}-top-bottom${ext}`,
-                main: `${basePath}/${blockType}${ext}`
-            };
+        // Helper to load texture using known extension from file map
+        const tryLoadTexture = async (baseName) => {
+            // Check if we have a known extension for this file
+            const knownExt = this.fileExtensionMap?.blocks?.[baseName];
 
-            for (const [type, path] of Object.entries(paths)) {
-                if (!faceTextures[type]) {
+            if (knownExt) {
+                // Use the exact extension we discovered
+                const path = `${basePath}/${baseName}${knownExt}`;
+                try {
+                    return await this._loadThreeTexture(path);
+                } catch (error) {
+                    console.warn(`Failed to load known texture: ${path}`);
+                }
+            } else {
+                // Fallback: try all extensions (for web compatibility)
+                for (const ext of ['.jpeg', '.jpg', '.png']) {
+                    const path = `${basePath}/${baseName}${ext}`;
                     try {
-                        const texture = await this._loadThreeTexture(path);
-                        faceTextures[type] = texture;
-                        console.log(`🎨 Loaded ${blockType} ${type} texture`);
+                        return await this._loadThreeTexture(path);
                     } catch (error) {
-                        // Texture doesn't exist, continue
+                        // Try next extension
                     }
                 }
             }
+            return null;
+        };
+
+        // Load textures based on block type
+        if (isMultiFace) {
+            // For wood blocks: try sides and top-bottom
+            faceTextures.sides = await tryLoadTexture(`${blockType}-sides`);
+            faceTextures.topBottom = await tryLoadTexture(`${blockType}-top-bottom`);
+            if (faceTextures.sides || faceTextures.topBottom) {
+                console.log(`🎨 Loaded ${blockType} multi-face textures`);
+            }
         }
 
-        // Build final texture mapping with fallback hierarchy
-        const finalTextures = this._buildFaceTextureMapping(faceTextures, blockType);
+        // Always try main texture as fallback
+        if (!faceTextures.sides && !faceTextures.topBottom) {
+            faceTextures.main = await tryLoadTexture(blockType);
+            if (faceTextures.main) {
+                console.log(`🎨 Loaded ${blockType} main texture`);
+            }
+        }
 
+        const finalTextures = this._buildFaceTextureMapping(faceTextures, blockType);
         return finalTextures;
     }
 
