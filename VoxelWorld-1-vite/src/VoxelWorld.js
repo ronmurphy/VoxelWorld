@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
 import { BiomeWorldGen } from './BiomeWorldGen.js';
+import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
@@ -120,6 +121,10 @@ class NebulaVoxelApp {
 
         // 🌍 Initialize Advanced BiomeWorldGen System (reverted for performance)
         this.biomeWorldGen = new BiomeWorldGen(this);
+
+        // 👷 Initialize Web Worker-based chunk generation
+        this.workerManager = new WorkerManager(this);
+        this.workerInitialized = false;
 
         // 🎒 Initialize Advanced InventorySystem
         this.inventory = new InventorySystem(this);
@@ -5590,21 +5595,74 @@ class NebulaVoxelApp {
         const getChunkKey = (chunkX, chunkZ) => `${chunkX},${chunkZ}`;
 
         const generateChunk = (chunkX, chunkZ) => {
-            // 🌍 Use new advanced BiomeWorldGen system for chunk generation
-            this.biomeWorldGen.generateChunk(
-                chunkX,
-                chunkZ,
-                this.worldSeed,
-                this.addBlock.bind(this),
-                this.loadedChunks,
-                this.chunkSize
-            );
+            // Skip if already loaded
+            const chunkKey = `${chunkX},${chunkZ}`;
+            if (this.loadedChunks.has(chunkKey)) return;
 
-            // 🌳 ENHANCED: Defer tree generation to ensure terrain is fully placed
-            // Use setTimeout to allow terrain blocks to be properly added before trees
+            // 👷 Use Web Worker if initialized, otherwise fall back to BiomeWorldGen
+            if (this.workerInitialized) {
+                this.workerManager.requestChunk(chunkX, chunkZ, this.chunkSize, (chunkData) => {
+                    this.handleWorkerChunkData(chunkX, chunkZ, chunkData);
+                });
+            } else {
+                // Fallback to main thread generation
+                this.biomeWorldGen.generateChunk(
+                    chunkX,
+                    chunkZ,
+                    this.worldSeed,
+                    this.addBlock.bind(this),
+                    this.loadedChunks,
+                    this.chunkSize
+                );
+
+                // 🌳 ENHANCED: Defer tree generation to ensure terrain is fully placed
+                setTimeout(() => {
+                    this.generateTreesForChunk(chunkX, chunkZ);
+                }, 10);
+            }
+        };
+
+        // 👷 WORKER CHUNK DATA HANDLER: Convert worker data to blocks
+        this.handleWorkerChunkData = (chunkX, chunkZ, chunkData) => {
+            const { blockCount, positions, blockTypes, colors, flags } = chunkData;
+
+            // Block type reverse mapping (must match ChunkWorker.js blockTypeMap)
+            const blockTypeNames = {
+                1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow',
+                10: 'oak_wood', 11: 'pine_wood', 12: 'birch_wood', 13: 'palm_wood', 14: 'dead_wood',
+                20: 'forest_leaves', 21: 'mountain_leaves', 22: 'plains_leaves',
+                23: 'desert_leaves', 24: 'tundra_leaves'
+            };
+
+            // Add all blocks from worker data
+            for (let i = 0; i < blockCount; i++) {
+                const x = positions[i * 3];
+                const y = positions[i * 3 + 1];
+                const z = positions[i * 3 + 2];
+                const blockTypeId = blockTypes[i];
+                const color = colors[i];
+                const isPlayerPlaced = flags[i] === 1;
+
+                const blockType = blockTypeNames[blockTypeId] || 'stone';
+
+                // Convert color from uint32 to THREE.Color
+                const r = ((color >> 16) & 0xFF) / 255;
+                const g = ((color >> 8) & 0xFF) / 255;
+                const b = (color & 0xFF) / 255;
+                const blockColor = new THREE.Color(r, g, b);
+
+                this.addBlock(x, y, z, blockType, isPlayerPlaced, blockColor);
+            }
+
+            // Mark chunk as loaded
+            this.loadedChunks.add(`${chunkX},${chunkZ}`);
+
+            // Generate trees for this chunk (worker doesn't do trees to preserve tree registry)
             setTimeout(() => {
                 this.generateTreesForChunk(chunkX, chunkZ);
-            }, 10); // Small delay to ensure block placement is complete
+            }, 10);
+
+            console.log(`✅ Worker chunk (${chunkX}, ${chunkZ}) loaded: ${blockCount} blocks`);
         };
 
         // 🌳 SEPARATED TREE GENERATION: Now a dedicated method for better timing control
@@ -6153,6 +6211,12 @@ class NebulaVoxelApp {
                     unloadChunk(chunkX, chunkZ);
                 }
             });
+
+            // Clean up worker cache every 60 frames (~1 second)
+            if (this.workerInitialized && this.frameCount % 60 === 0) {
+                const maxCacheRadius = this.renderDistance * 2; // 2x render distance
+                this.workerManager.cleanupDistantChunks(playerChunkX, playerChunkZ, maxCacheRadius);
+            }
         };
 
         // Make updateChunks available as instance method
@@ -7979,6 +8043,25 @@ export async function initVoxelWorld(container, splashScreen = null) {
         // Initialize enhanced graphics system
         const graphicsResult = await app.enhancedGraphics.initialize();
         console.log('🎨 EnhancedGraphics initialized:', graphicsResult);
+
+        // Initialize Web Worker for chunk generation
+        if (splashScreen) {
+            splashScreen.updateProgress(40, 'Initializing world generator...');
+        }
+
+        try {
+            await app.workerManager.initialize(
+                app.worldSeed,
+                app.biomeWorldGen.biomes,
+                app.biomeWorldGen.noiseParams
+            );
+            app.workerInitialized = true;
+            console.log('👷 WorkerManager initialized successfully');
+        } catch (error) {
+            console.error('🚨 Failed to initialize WorkerManager:', error);
+            console.warn('⚠️ Falling back to main thread chunk generation');
+            app.workerInitialized = false;
+        }
 
         if (splashScreen) {
             splashScreen.setGeneratingWorld();
