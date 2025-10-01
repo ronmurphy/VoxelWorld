@@ -145,7 +145,64 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 
 ### Next Session TODO
 
-1. **Complete Workbench Crafting System** (HIGH PRIORITY):
+### 🚀 PRIORITY: Performance Optimization with Web Workers & Caching (NEW!)
+
+**Background Context:**
+- Object pooling optimization improved render distance: 1 → 2
+- Electron desktop wrapper improved render distance: 2 → 3
+- At render distance 3, Electron version is playable but jerky due to chunk generation blocking main thread
+- Friend suggested Web Workers for background chunk generation to eliminate stuttering
+
+**Implementation Plan:**
+
+1. **Web Worker Chunk Generation** (HIGH PRIORITY):
+   - Create `ChunkWorker.js` to handle background terrain generation
+   - Move `BiomeWorldGen` noise calculations to worker thread
+   - Generate raw vertex data (positions, normals, UVs, indices) in worker
+   - Use **transferable objects** (ArrayBuffer) for zero-copy data transfer
+   - Main thread creates THREE.Mesh from worker-generated vertex data
+   - Expected result: Smooth gameplay at render distance 3-4+ without frame drops
+
+   **Key Architecture:**
+   ```javascript
+   // Worker generates raw geometry data
+   Worker: BiomeWorldGen → vertices/indices (Float32Array/Uint16Array)
+   Worker → Main: postMessage(data, [transferable buffers])
+   Main: Receives data → Creates THREE.BufferGeometry → Adds to scene
+   ```
+
+2. **Hybrid RAM + Disk Chunk Caching** (HIGH PRIORITY):
+   - Implement `CacheChunk.js` template (already created in repo)
+   - **RAM Cache**: LRU eviction with 256 chunk limit, instant access for active chunks
+   - **Disk Cache**:
+     - **Electron**: Use `fs.promises` for async file I/O to `userData/chunks/`
+     - **Web**: Use IndexedDB for browser persistence
+   - **Block Data Format**: Use `Uint8Array` (1 byte per block) instead of JSON objects
+   - **Lazy Persistence**: Only write dirty chunks to disk when evicted from RAM
+   - **Three-tier loading**: RAM → Disk → Generate (worker)
+   - Expected result: Instant world loading on subsequent sessions, massive memory savings
+
+   **Key Benefits:**
+   - Compact binary format saves 90%+ memory vs JSON
+   - Pre-generated chunks load from disk in milliseconds
+   - LRU cache keeps frequently accessed chunks hot
+   - Transferable objects enable zero-copy between worker and main thread
+
+3. **Integration Strategy**:
+   - Phase 1: Implement Web Worker chunk generation (eliminates stuttering)
+   - Phase 2: Add RAM cache with LRU eviction
+   - Phase 3: Add disk persistence (Electron fs.promises, Web IndexedDB)
+   - Phase 4: Test and tune cache sizes and render distance limits
+
+**Technical Research Needed:**
+- THREE.js BufferGeometry creation from worker-generated vertex data
+- Transferable object patterns for ArrayBuffer/TypedArray
+- fs.promises best practices for Electron chunk caching
+- IndexedDB patterns for browser chunk persistence
+
+---
+
+1. **Complete Workbench Crafting System** (MEDIUM PRIORITY - deferred):
    - **Craft Button**: Add "Craft" button to workbench that consumes materials and creates the crafted object
    - **Inventory Integration**: Place crafted items into player inventory (hotbar or backpack)
    - **Material Consumption**: Subtract required materials from inventory when crafting
