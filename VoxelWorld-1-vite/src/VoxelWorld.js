@@ -18,16 +18,26 @@ class NebulaVoxelApp {
         this.loadedChunks = new Set();
         this.chunkSize = 8;  // Reduced from 12 for better performance
 
-        // Load render distance from benchmark cache if available
-        const benchmarkKey = 'voxelWorld_performanceBenchmark';
-        const storedBenchmark = localStorage.getItem(benchmarkKey);
-        if (storedBenchmark) {
-            const result = JSON.parse(storedBenchmark);
-            this.renderDistance = result.renderDistance;
-            console.log(`📊 Loaded cached benchmark: Render distance ${this.renderDistance}`);
+        // Load render distance from user preference first, then benchmark cache
+        const userPrefKey = 'voxelWorld_renderDistancePref';
+        const userPref = localStorage.getItem(userPrefKey);
+
+        if (userPref !== null) {
+            // User has manually set a render distance preference
+            this.renderDistance = parseInt(userPref);
+            console.log(`📊 Loaded user render distance preference: ${this.renderDistance}`);
         } else {
-            this.renderDistance = 1;  // Default for first launch
-            console.log(`📊 No benchmark found, using default render distance 1`);
+            // No user preference, use benchmark result
+            const benchmarkKey = 'voxelWorld_performanceBenchmark';
+            const storedBenchmark = localStorage.getItem(benchmarkKey);
+            if (storedBenchmark) {
+                const result = JSON.parse(storedBenchmark);
+                this.renderDistance = result.renderDistance;
+                console.log(`📊 Loaded cached benchmark: Render distance ${this.renderDistance}`);
+            } else {
+                this.renderDistance = 1;  // Default for first launch
+                console.log(`📊 No benchmark found, using default render distance 1`);
+            }
         }
 
         this.chunkCleanupRadius = 12; // Keep tracking data for chunks within this radius
@@ -7449,11 +7459,32 @@ class NebulaVoxelApp {
             z-index: 3000;
             pointer-events: auto;
         `;
+        // Get max render distance from benchmark
+        const getMaxRenderDistance = () => {
+            const benchmarkKey = 'voxelWorld_performanceBenchmark';
+            const storedResult = localStorage.getItem(benchmarkKey);
+            if (storedResult) {
+                const result = JSON.parse(storedResult);
+                return result.renderDistance || 1;
+            }
+            return 3; // Default max
+        };
+
+        // Get current render distance setting (user preference or benchmark)
+        const getCurrentRenderDistance = () => {
+            const userPref = localStorage.getItem('voxelWorld_renderDistancePref');
+            if (userPref !== null) {
+                return parseInt(userPref);
+            }
+            return this.renderDistance;
+        };
+
         modal.innerHTML = `
             <div style="background: rgba(40,40,40,0.95); border-radius: 12px; padding: 24px 32px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 18px; align-items: center; min-width: 220px;">
                 <h2 style="margin:0 0 12px 0; color: white; font-size: 20px;">Voxel World Menu</h2>
                 <button id="modal-newgame-btn" style="font-size: 16px; padding: 8px 24px; background: #FF9800; color: white; border: none; border-radius: 6px; cursor: pointer;">🎲 New Game</button>
                 <button id="modal-benchmark-btn" style="font-size: 16px; padding: 8px 24px; background: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer;">⚡ Re-run Benchmark</button>
+                <button id="modal-render-distance-btn" style="font-size: 16px; padding: 8px 24px; background: #00BCD4; color: white; border: none; border-radius: 6px; cursor: pointer;">🔭 Render Distance: ${getCurrentRenderDistance()}</button>
                 <button id="modal-enhanced-graphics-btn" style="font-size: 16px; padding: 8px 24px; background: ${this.enhancedGraphics.isEnabled ? '#4CAF50' : '#757575'}; color: white; border: none; border-radius: 6px; cursor: pointer;">${this.enhancedGraphics.isEnabled ? '🎨 Enhanced Graphics ON' : '🎨 Enhanced Graphics OFF'}</button>
                 <button id="modal-save-btn" style="font-size: 16px; padding: 8px 24px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">💾 Save Game</button>
                 <button id="modal-load-btn" style="font-size: 16px; padding: 8px 24px; background: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer;">📂 Load Game</button>
@@ -7473,6 +7504,7 @@ class NebulaVoxelApp {
         const modalDeleteBtn = modal.querySelector("#modal-delete-btn");
         const modalNewGameBtn = modal.querySelector("#modal-newgame-btn");
         const modalBenchmarkBtn = modal.querySelector("#modal-benchmark-btn");
+        const modalRenderDistanceBtn = modal.querySelector("#modal-render-distance-btn");
         const modalEnhancedGraphicsBtn = modal.querySelector("#modal-enhanced-graphics-btn");
         const modalCloseBtn = modal.querySelector("#modal-close-btn");
 
@@ -7502,7 +7534,29 @@ class NebulaVoxelApp {
             modal.style.display = 'none';
             // Clear stored benchmark result to force re-run
             localStorage.removeItem('voxelWorld_performanceBenchmark');
+            localStorage.removeItem('voxelWorld_renderDistancePref'); // Clear user preference too
             await this.runPerformanceBenchmark();
+        };
+
+        const cycleRenderDistance = () => {
+            const maxRenderDistance = getMaxRenderDistance();
+            const current = getCurrentRenderDistance();
+
+            // Cycle from 0 to max
+            const next = current >= maxRenderDistance ? 0 : current + 1;
+
+            // Save user preference
+            localStorage.setItem('voxelWorld_renderDistancePref', next.toString());
+            this.renderDistance = next;
+
+            // Update button text
+            modalRenderDistanceBtn.textContent = `🔭 Render Distance: ${next}`;
+
+            // Update status
+            this.updateStatus(`Render distance set to ${next} (max: ${maxRenderDistance})`);
+
+            // Force chunk reload with new render distance
+            this.updateChunks();
         };
 
         const toggleEnhancedGraphics = async () => {
@@ -7571,6 +7625,7 @@ class NebulaVoxelApp {
         if (modalDeleteBtn) modalDeleteBtn.onclick = deleteSave;
         if (modalNewGameBtn) modalNewGameBtn.onclick = newGame;
         if (modalBenchmarkBtn) modalBenchmarkBtn.onclick = reRunBenchmark;
+        if (modalRenderDistanceBtn) modalRenderDistanceBtn.onclick = cycleRenderDistance;
         if (modalEnhancedGraphicsBtn) modalEnhancedGraphicsBtn.onclick = toggleEnhancedGraphics;
         if (modalCloseBtn) modalCloseBtn.onclick = () => modal.style.display = 'none';
 
