@@ -12,6 +12,8 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
       webSecurity: false, // Allow loading local modules
+      sandbox: false, // Disable sandbox to allow preload script access to Node.js
+      preload: path.join(__dirname, 'electron-preload.cjs')
     },
     icon: path.join(__dirname, 'build/icon.png'), // Add icon later
     title: 'VoxelWorld',

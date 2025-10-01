@@ -21,36 +21,14 @@ export class EnhancedGraphics {
         this.timeImages = new Map();    // Map<timePeriod, HTMLImageElement>
 
         // Asset paths (relative to document root)
-        // In Electron production, assets are unpacked outside ASAR
-        const isElectron = typeof window !== 'undefined' && window.electronAPI;
-        const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
-
-        console.log('🎨 EnhancedGraphics asset detection:', {
-            isElectron,
-            isProduction,
-            hostname: window.location.hostname,
-            hasElectronAPI: !!window.electronAPI
-        });
-
-        if (isElectron && isProduction) {
-            // In Electron production, use custom assets protocol
-            // Assets are copied to dist/ by Vite's publicDir, so path is art/blocks
-            console.log('🎨 Using Electron production paths with custom protocol');
-            this.assetPaths = {
-                blocks: `assets://art/blocks`,
-                tools: `assets://art/tools`,
-                time: `assets://art/time`
-            };
-        } else {
-            // Development or web - use relative paths
-            // In web build, Vite copies assets to root of dist (publicDir setting)
-            console.log('🎨 Using relative paths (dev/web)');
-            this.assetPaths = {
-                blocks: 'art/blocks',
-                tools: 'art/tools',
-                time: 'art/time'
-            };
-        }
+        // Simple detection: use relative paths for all cases
+        // Electron will serve from dist/ folder, web will serve from dist/ folder
+        console.log('🎨 Using relative asset paths for all environments');
+        this.assetPaths = {
+            blocks: 'art/blocks',
+            tools: 'art/tools',
+            time: 'art/time'
+        };
 
         console.log('🎨 Final asset paths:', this.assetPaths);
 
