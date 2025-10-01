@@ -925,109 +925,176 @@ class ChunkCache {
 
 ---
 
-## Implementation Phases
+## Implementation Phases (REVISED - Performance-First Approach)
 
-### Phase 1: Proof of Concept (Main Thread)
-**Goal**: Validate the generation algorithm works
+### Phase 1: Web Workers + Region Noise (PRIORITY - Do First) 🚀
+**Goal**: Eliminate stuttering, smooth 60fps gameplay
 
-1. Implement Layer 1-5 generation in main thread (no workers yet)
-2. Test on small area (3×3 chunks around spawn)
-3. Verify biomes look correct and transitions are smooth
-4. Manually test temperature zones and terrain shapes
+1. **Region-Level Noise Maps** (Smart optimization)
+   - Generate temperature/moisture maps per region (not per chunk)
+   - Cache region noise in worker memory
+   - Chunks sample from pre-generated region data
+   - Result: Fewer noise calculations, smoother biome transitions
+
+2. **Web Worker Chunk Generation**
+   - Create ChunkWorker.js with transferable objects
+   - Move terrain generation to background thread
+   - Use ArrayBuffer/TypedArray for zero-copy transfers
+   - Main thread only creates THREE.Mesh from worker data
+
+3. **LRU RAM Cache**
+   - 256-chunk limit with least-recently-used eviction
+   - Instant retrieval for nearby chunks
+   - NO disk persistence yet (adds complexity/slowdown)
+
+**Files to Create:**
+- `src/workers/ChunkWorker.js` - Background chunk generation
+- `src/worldgen/RegionNoiseCache.js` - Region-level noise maps
+- `src/cache/ChunkCache.js` - LRU RAM cache
+- `src/worldgen/WorkerManager.js` - Worker communication
+
+**Success Criteria:**
+- [ ] No frame drops during chunk generation
+- [ ] Render distance 4-5 with smooth gameplay
+- [ ] Main thread stays at 60fps
+- [ ] Region noise maps load/cache correctly
+- [ ] Worker communication overhead <5ms per chunk
+
+**Estimated Time:** 4-6 hours
+**Performance Gain:** Massive (stuttering eliminated, 2x render distance)
+
+---
+
+### Phase 2: Feature Registry + Debug Tools (Polish)
+**Goal**: Clean code structure, easier biome tuning
+
+1. **Procedural Feature Hooks**
+   - Registry pattern for biome-specific features
+   - `featureRegistry['forest'] = generateForestFeatures`
+   - Easier to add new biomes and features
+
+2. **Debug Overlay** (toggle-able, disabled by default)
+   - Show current biome, elevation, moisture, temperature
+   - Display chunk/region IDs
+   - Help tune noise parameters
+
+**Files to Create:**
+- `src/worldgen/FeatureRegistry.js`
+- `src/ui/BiomeDebugOverlay.js`
+
+**Success Criteria:**
+- [ ] Easy to add new biome types
+- [ ] Debug overlay helps identify biome issues
+- [ ] No performance impact when debug mode off
+
+**Estimated Time:** 2-3 hours
+**Performance Gain:** Neutral (code organization only)
+
+---
+
+### Phase 3: Level of Detail (LOD) System (Advanced Performance)
+**Goal**: Render distance 8+ with 60fps
+
+1. **Chunk LOD Implementation**
+   - Distant chunks (>5 distance) use simplified geometry
+   - Reduce vertex count by 50-75% for far chunks
+   - Gradual transition between LOD levels
+
+2. **Frustum Culling**
+   - Don't render chunks outside camera view
+   - Integrate with Three.js frustum culling
+
+**Files to Create:**
+- `src/rendering/ChunkLOD.js`
+- `src/rendering/FrustumCuller.js`
+
+**Success Criteria:**
+- [ ] Render distance 8+ at 60fps
+- [ ] Smooth LOD transitions (no pop-in)
+- [ ] Memory usage scales efficiently
+
+**Estimated Time:** 3-4 hours
+**Performance Gain:** High (enables very high render distances)
+
+---
+
+### Phase 4: Layer 1-2 Continental Structure (Optional Enhancement)
+**Goal**: Better world structure with continents/oceans
+
+**Only do this if you want continental landmasses instead of current biome system**
+
+1. Implement Layer 1 (Land/Water mask)
+2. Implement Layer 2 (Temperature zones)
+3. Adapt current BiomeWorldGen to use Layer 1-2 data
+4. Cache Layer 1-2 (only 1.6MB total)
 
 **Files to Create:**
 - `src/worldgen/Layer1Generator.js`
 - `src/worldgen/Layer2Generator.js`
-- `src/worldgen/Layer3Generator.js`
-- `src/worldgen/TerrainBuilder.js`
-- `src/worldgen/BiomeDefinitions.js`
+- `src/cache/MacroDataCache.js`
 
 **Success Criteria:**
-- [ ] Land/water continents visible
+- [ ] Visible continents and oceans
 - [ ] Temperature zones create logical biome clusters
-- [ ] Mountains are tall, plains are flat, deserts look right
-- [ ] No snow+sand glitches
-- [ ] Smooth biome transitions
+- [ ] Smooth integration with existing system
+
+**Estimated Time:** 4-5 hours
+**Performance Gain:** Neutral (better world structure, same speed)
 
 ---
 
-### Phase 2: Caching System
-**Goal**: Persistent storage and fast loading
+### Phase 5: Advanced Features (Future - Not Urgent)
+**Goal**: Content and depth
 
-1. Implement IndexedDB cache for web
-2. Implement fs.promises cache for Electron
-3. Cache Layer 1 & 2 on world creation
-4. Load from cache on subsequent sessions
-5. Implement LRU chunk cache (CacheChunk.js)
+**Skip these for now unless specifically needed:**
+- ❌ Biome metadata index (debugging only, add if needed)
+- ❌ Versioning/modding support (premature)
+- ❌ Full disk persistence (IndexedDB is slow, RAM cache sufficient)
 
-**Files to Create:**
-- `src/cache/DBCache.js` (IndexedDB)
-- `src/cache/ElectronCache.js` (fs.promises)
-- `src/cache/CacheChunk.js` (LRU RAM cache)
-
-**Success Criteria:**
-- [ ] World loads instantly on second run
-- [ ] Cache persists across browser/app restarts
-- [ ] LRU eviction works correctly
-- [ ] Memory usage stays under 10MB
+**Do these later when performance is solved:**
+- ⏳ Cave generation (3D Perlin noise)
+- ⏳ Ore deposits (vein generation)
+- ⏳ Structures (villages, ruins)
+- ⏳ Rare biomes
 
 ---
 
-### Phase 3: Web Worker Migration
-**Goal**: Background generation, smooth gameplay
+## Friend's Suggestions - Implementation Status
 
-1. Create ChunkWorker.js
-2. Move Layer 3-5 generation to worker
-3. Implement transferable object passing
-4. Update VoxelWorld to use worker
-5. Test performance improvements
-
-**Files to Create:**
-- `src/workers/ChunkWorker.js`
-- `src/workers/noise.js` (or inline SimplexNoise)
-- `src/worldgen/WorkerManager.js`
-
-**Success Criteria:**
-- [ ] No frame drops during chunk generation
-- [ ] Render distance can increase (3 → 5+)
-- [ ] Main thread stays responsive
-- [ ] Worker communication overhead is minimal
+✅ **Region-Level Noise Maps** → Phase 1 (Do Now)
+⚠️ **Biome Metadata Index** → Skip (not needed yet)
+✅ **Feature Registry** → Phase 2 (Nice to have)
+✅ **Debug Overlay** → Phase 2 (with toggle)
+❌ **Versioning/Modding** → Skip (premature)
+✅ **LOD System** → Phase 3 (Major perf win)
 
 ---
 
-### Phase 4: Optimization & Polish
-**Goal**: Production-ready performance
+## Performance-First Implementation Order
 
-1. Implement greedy meshing (reduce vertex count)
-2. Optimize vertex building algorithm
-3. Add frustum culling for distant chunks
-4. Profile and optimize hot paths
-5. Add configuration options (render distance, cache size)
+```
+Tonight (Phase 1):
+1. Web Worker chunk generation
+2. Region-level noise maps
+3. LRU RAM cache
 
-**Optimizations:**
-- Greedy meshing (combine adjacent same-type faces)
-- Geometry instancing for repeating structures
-- Vertex deduplication
-- Chunk LOD (simpler geometry for distant chunks)
+Result: 60fps, render distance 4-5, smooth gameplay
+Time: 4-6 hours
+Risk: Low (well-tested patterns)
 
-**Success Criteria:**
-- [ ] 60fps gameplay at render distance 5+
-- [ ] <100ms per chunk generation
-- [ ] Memory usage scales linearly with render distance
-- [ ] Electron version runs smoothly
+Later (Phase 2-3):
+4. Feature registry (code cleanup)
+5. Debug overlay (tuning tool)
+6. LOD system (render distance 8+)
 
----
+Optional (Phase 4):
+7. Layer 1-2 continental structure (if you want better world generation)
 
-### Phase 5: Advanced Features (Future)
-**Goal**: Content and gameplay
-
-1. Cave generation (3D Perlin noise)
-2. Ravines (path-based negative space)
-3. Structures (villages, ruins, dungeons)
-4. Ore deposits (vein generation)
-5. Rare biomes (mushroom islands, mesas)
-
-**Not blocking for initial release**
+Skip Entirely:
+8. Biome metadata index
+9. Versioning system
+10. Disk caching (RAM is enough)
+```
 
 ---
 
