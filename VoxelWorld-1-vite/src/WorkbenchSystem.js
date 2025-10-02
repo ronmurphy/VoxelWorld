@@ -143,7 +143,7 @@ export class WorkbenchSystem {
                 description: 'Warm light source with fire effect',
                 isBasicShape: true,
                 shapes: [
-                    { type: 'cylinder', position: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 0.3, z: 1 } }
+                    { type: 'pyramid', position: { x: 0, y: 0, z: 0 }, size: { x: 0.8, y: 0.6, z: 0.8 } }
                 ],
                 effects: ['fire', 'holy']  // Fire particles + golden glow
             }

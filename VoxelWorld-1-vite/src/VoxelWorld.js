@@ -57,6 +57,7 @@ class NebulaVoxelApp {
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
+        this.waterPositions = []; // 🌊 Track water block locations for minimap
         this.exploredChunks = new Set(); // Track all visited chunks for world map
         this.worldMapModal = null; // Full-screen world map modal
 
@@ -213,6 +214,11 @@ class NebulaVoxelApp {
             }
 
             this.world[key] = { type, mesh: cube, playerPlaced, billboard };
+
+            // 🌊 Track ALL water blocks for minimap (to show rivers and lakes clearly)
+            if (type === 'water' && !playerPlaced) {
+                this.waterPositions.push({ x, y, z });
+            }
         };
 
         // 🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
@@ -287,9 +293,22 @@ class NebulaVoxelApp {
                     emissiveIntensity: material === 'campfire' ? 0.5 : 0
                 });
             }
+            
+            // 🔧 FIX: Force material to compile uniforms immediately
+            craftedMaterial.needsUpdate = true;
 
             // Create the 3D mesh
             const craftedObject = new THREE.Mesh(geometry, craftedMaterial);
+            
+            // 🔧 FIX: Ensure mesh matrices are properly initialized
+            craftedObject.matrixAutoUpdate = true;
+            craftedObject.castShadow = true;
+            craftedObject.receiveShadow = true;
+            
+            // 🔧 FIX: Initialize rotation quaternion (important for cylinders)
+            craftedObject.quaternion.set(0, 0, 0, 1);
+            
+            craftedObject.updateMatrix();
 
             // PHASE 3: Smart Floor Positioning - treat target as floor surface
             const floorY = y; // Target position becomes the floor
@@ -303,6 +322,9 @@ class NebulaVoxelApp {
             console.log(`📏 Object footprint: ${dimensions.length}x${dimensions.width}, Height: ${dimensions.height}`);
 
             craftedObject.position.set(objectX, objectY, objectZ);
+            
+            // 🔧 FIX: Update matrix world after positioning
+            craftedObject.updateMatrixWorld(true);
 
             // Set user data for identification
             craftedObject.userData = {
@@ -314,16 +336,20 @@ class NebulaVoxelApp {
                 isCraftedObject: true
             };
 
-            // Add to scene
-            this.scene.add(craftedObject);
-
-            // 🔥 Add effects if item has them (fire, glow, etc.)
+            // 🔥 Add effects BEFORE adding to scene (fire, glow, etc.)
             if (metadata.effects && metadata.effects.length > 0) {
                 this.addCraftedObjectEffects(craftedObject, metadata.effects, objectX, objectY, objectZ);
             }
 
             // 🎯 PHASE 2.1: Create physics body for collision detection
             this.createPhysicsBodyForCraftedObject(craftedObject, shapeType, dimensions, material);
+
+            // 🔧 FIX: Add to scene AFTER all setup is complete, with a frame delay
+            requestAnimationFrame(() => {
+                this.scene.add(craftedObject);
+                console.log(`✅ Created crafted object "${metadata.name}" at (${x},${y},${z})`);
+                this.updateStatus(`🎨 Placed "${metadata.name}"!`, 'craft');
+            });
 
             // PHASE 4: Track in crafted objects system
             if (!this.craftedObjects) {
@@ -337,9 +363,6 @@ class NebulaVoxelApp {
                 position: { x, y, z },
                 dimensions: dimensions
             };
-
-            console.log(`✅ Created crafted object "${metadata.name}" at (${x},${y},${z})`);
-            this.updateStatus(`🎨 Placed "${metadata.name}"!`, 'craft');
         };
 
         // Check if block type should use billboard
@@ -629,6 +652,14 @@ class NebulaVoxelApp {
                 }
 
                 delete this.world[key];
+
+                // 🌊 Remove from water positions tracking if it was water
+                if (blockData.type === 'water') {
+                    const waterIndex = this.waterPositions.findIndex(w => w.x === x && w.y === y && w.z === z);
+                    if (waterIndex !== -1) {
+                        this.waterPositions.splice(waterIndex, 1);
+                    }
+                }
 
                 // Log removal for debugging
                 // commented out due to console spam - brad
@@ -3254,6 +3285,12 @@ class NebulaVoxelApp {
                     // Create glowing point light
                     const light = new THREE.PointLight(0xffe599, 1.5, 10, 2);
                     light.position.set(x, y + 0.5, z);
+                    
+                    // 🔧 FIX: Ensure light matrix is properly initialized
+                    light.matrixAutoUpdate = true;
+                    light.updateMatrix();
+                    light.updateMatrixWorld(true);
+                    
                     this.scene.add(light);
 
                     craftedObject.userData.effectObjects.push({
@@ -4975,6 +5012,7 @@ class NebulaVoxelApp {
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
             backpack: { color: 0x8B4513, texture: 'transparent' }, // Transparent for billboard
+            water: { color: 0x1E90FF, texture: 'water', transparent: true }, // 🌊 Blue water with transparency
 
             // NEW: Biome-specific wood types
             oak_wood: { color: 0x8B4513, texture: 'oak_wood' },      // Classic brown oak
@@ -5109,6 +5147,30 @@ class NebulaVoxelApp {
                     ctx.beginPath();
                     ctx.arc(Math.random() * 64, Math.random() * 64, size, 0, Math.PI * 2);
                     ctx.fill();
+                }
+            } else if (blockType.texture === 'water') {
+                // 🌊 Water texture - wavy blue patterns
+                ctx.globalAlpha = 0.3;
+                ctx.strokeStyle = '#4682B4'; // Steel blue
+                ctx.lineWidth = 2;
+                // Create wave patterns
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    for (let x = 0; x < 64; x += 4) {
+                        const y = 16 + i * 10 + Math.sin(x * 0.1 + i) * 4;
+                        if (x === 0) {
+                            ctx.moveTo(x, y);
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                    ctx.stroke();
+                }
+                // Add light reflections
+                ctx.fillStyle = '#FFFFFF';
+                ctx.globalAlpha = 0.2;
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 3, 1);
                 }
             } else if (blockType.texture === 'shrub') {
                 // Shrub texture - brown stem with green leafy top
@@ -5316,6 +5378,14 @@ class NebulaVoxelApp {
                     map: texture,
                     transparent: true,
                     opacity: 0.6
+                });
+            } else if (blockType.texture === 'water') {
+                // 🌊 Water material - transparent blue
+                return new THREE.MeshLambertMaterial({
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.5,
+                    color: new THREE.Color(0x1E90FF)
                 });
             } else if (blockType.texture === 'glow') {
                 return new THREE.MeshLambertMaterial({
@@ -5683,11 +5753,16 @@ class NebulaVoxelApp {
 
         // 👷 WORKER CHUNK DATA HANDLER: Convert worker data to blocks
         this.handleWorkerChunkData = (chunkX, chunkZ, chunkData) => {
-            const { blockCount, positions, blockTypes, colors, flags } = chunkData;
+            const { blockCount, positions, blockTypes, colors, flags, waterBlockCount } = chunkData;
+
+            // 🌊 Debug water blocks
+            if (waterBlockCount > 0) {
+                console.log(`🌊 Chunk (${chunkX}, ${chunkZ}) has ${waterBlockCount} water blocks`);
+            }
 
             // Block type reverse mapping (must match ChunkWorker.js blockTypeMap)
             const blockTypeNames = {
-                0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow',
+                0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water',
                 10: 'oak_wood', 11: 'pine_wood', 12: 'birch_wood', 13: 'palm_wood', 14: 'dead_wood',
                 20: 'forest_leaves', 21: 'mountain_leaves', 22: 'plains_leaves',
                 23: 'desert_leaves', 24: 'tundra_leaves'
@@ -6712,6 +6787,22 @@ class NebulaVoxelApp {
                 }
             });
 
+            // 🌊 Draw water positions (blue dots)
+            this.waterPositions.forEach(water => {
+                const relX = water.x - this.player.position.x;
+                const relZ = water.z - this.player.position.z;
+
+                // Convert to minimap coordinates
+                const waterMapX = size/2 + relX / scale;
+                const waterMapZ = size/2 + relZ / scale;
+
+                // Only draw if within minimap bounds
+                if (waterMapX >= 0 && waterMapX < size && waterMapZ >= 0 && waterMapZ < size) {
+                    ctx.fillStyle = '#1E90FF'; // Dodger blue - same as water block color
+                    ctx.fillRect(waterMapX - 1, waterMapZ - 1, 2, 2); // Small 2x2 blue squares
+                }
+            });
+
             // Draw explorer pins on minimap
             if (this.explorerPins && this.explorerPins.length > 0) {
                 this.explorerPins.forEach(pin => {
@@ -7145,6 +7236,14 @@ class NebulaVoxelApp {
             // Update day/night cycle
             this.updateDayNightCycle();
 
+            // Update coordinate display
+            if (this.coordDisplay) {
+                const x = Math.floor(this.player.position.x);
+                const y = Math.floor(this.player.position.y);
+                const z = Math.floor(this.player.position.z);
+                this.coordDisplay.textContent = `X: ${x}, Y: ${y}, Z: ${z}`;
+            }
+
             // Update mini-map
             this.updateMiniMap();
 
@@ -7570,6 +7669,26 @@ class NebulaVoxelApp {
             }
         });
         this.toolMenu.appendChild(this.workbenchTool);
+
+        // Coordinate display (above minimap)
+        this.coordDisplay = document.createElement('div');
+        this.coordDisplay.style.cssText = `
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 2000;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid rgba(255,255,255,0.6);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #00ff00;
+            pointer-events: none;
+            text-shadow: 0 0 3px rgba(0,255,0,0.5);
+        `;
+        this.coordDisplay.textContent = 'X: 0, Y: 0, Z: 0';
+        contentArea.appendChild(this.coordDisplay);
 
         // Mini-map
         this.miniMap = document.createElement('canvas');
