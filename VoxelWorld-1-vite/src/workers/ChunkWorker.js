@@ -99,25 +99,44 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             const surfaceBlock = hasSnow ? 'snow' : biome.surfaceBlock;
             const surfaceBlockColor = hasSnow ? 0xFFFFFF : surfaceColor;
 
-            // 🎯 SPARSE TERRAIN GENERATION (like Minecraft)
-            // Only generate visible surface layers - underground generated on-demand when mining
+            // 🎯 OPTIMIZED SPARSE GENERATION
+            // Generate bedrock + surface + 2 support layers for solid terrain
+            // Deeper blocks generated on-demand when mining
 
-            // Bedrock layer at y=0 (unbreakable foundation)
+            // 1. Bedrock foundation (y=0) - unbreakable
             blocks.push({ x: worldX, y: 0, z: worldZ, blockType: 'bedrock', color: 0x1a1a1a, isPlayerPlaced: false });
 
-            // Surface layers (top 4 blocks visible from above)
+            // 2. Smart sparse generation - surface + 4 support layers only
             if (height >= 1) {
-                // Deep layer (stone/iron mix)
-                const deepBlockType = (height % 7 === 0) ? 'iron' : 'stone';
-                blocks.push({ x: worldX, y: height - 3, z: worldZ, blockType: deepBlockType, color: deepColor, isPlayerPlaced: false });
+                // Generate only top 5 layers for collision (much faster!)
+                const startY = Math.max(1, height - 4); // Start 4 blocks below surface (or y=1, whichever is higher)
 
-                // Sub-surface layers (biome-specific)
-                blocks.push({ x: worldX, y: height - 2, z: worldZ, blockType: biome.subBlock, color: subSurfaceColor, isPlayerPlaced: false });
-                blocks.push({ x: worldX, y: height - 1, z: worldZ, blockType: biome.subBlock, color: subSurfaceColor, isPlayerPlaced: false });
+                for (let fillY = startY; fillY <= height; fillY++) {
+                    let blockType, color;
 
-                // Surface layer (grass/sand/snow)
-                blocks.push({ x: worldX, y: height, z: worldZ, blockType: surfaceBlock, color: surfaceBlockColor, isPlayerPlaced: false });
+                    if (fillY === height) {
+                        // Surface layer (grass/sand/snow)
+                        blockType = surfaceBlock;
+                        color = surfaceBlockColor;
+                    } else if (fillY >= height - 2) {
+                        // Sub-surface layers (dirt/sand)
+                        blockType = biome.subBlock;
+                        color = subSurfaceColor;
+                    } else {
+                        // Deep layer (stone with occasional iron)
+                        if (fillY % 7 === 0) {
+                            blockType = 'iron';
+                            color = 0x808080;
+                        } else {
+                            blockType = 'stone';
+                            color = 0x696969;
+                        }
+                    }
+
+                    blocks.push({ x: worldX, y: fillY, z: worldZ, blockType, color, isPlayerPlaced: false });
+                }
             }
+            // Blocks below startY (deep underground) will be generated on-demand when player digs
 
             // NOTE: Tree generation disabled in worker - let main thread handle it
             // Trees need to be registered in VoxelWorld's tree registry for harvesting

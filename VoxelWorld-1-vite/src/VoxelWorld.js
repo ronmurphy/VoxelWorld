@@ -513,10 +513,60 @@ class NebulaVoxelApp {
             }
         };
 
-        // Get block data at world coordinates
+        // Get block data at world coordinates (with on-demand underground generation)
         this.getBlock = (x, y, z) => {
             const key = `${x},${y},${z}`;
-            return this.world[key] || null;
+
+            // If block exists, return it
+            if (this.world[key]) {
+                return this.world[key];
+            }
+
+            // 🔮 ON-DEMAND UNDERGROUND GENERATION (Minecraft-style)
+            // If block doesn't exist and is underground (y > 0 and below surface), generate it
+            if (y > 0 && y < 15) { // Underground range
+                // Check if this position is in a loaded chunk
+                const chunkX = Math.floor(x / this.chunkSize);
+                const chunkZ = Math.floor(z / this.chunkSize);
+                const chunkKey = `${chunkX},${chunkZ}`;
+
+                if (this.loadedChunks.has(chunkKey)) {
+                    // Generate underground block on-demand
+                    const terrainData = this.biomeWorldGen.generateTerrainAt(x, z);
+                    const surfaceHeight = terrainData.height;
+
+                    // Only generate if below surface
+                    if (y < surfaceHeight) {
+                        // Determine block type based on depth
+                        let blockType, blockColor;
+
+                        if (y === 0) {
+                            // Bedrock layer (should already exist, but safety check)
+                            blockType = 'bedrock';
+                            blockColor = new THREE.Color(0x1a1a1a);
+                        } else if (y < surfaceHeight - 2) {
+                            // Deep underground - stone with occasional iron
+                            if (Math.random() < 0.1) { // 10% iron chance
+                                blockType = 'iron';
+                                blockColor = new THREE.Color(0x808080);
+                            } else {
+                                blockType = 'stone';
+                                blockColor = new THREE.Color(0x696969);
+                            }
+                        } else {
+                            // Near surface - use biome sub-block
+                            blockType = terrainData.biome.subBlock;
+                            blockColor = terrainData.subSurfaceColor;
+                        }
+
+                        // Create the block
+                        this.addBlock(x, y, z, blockType, blockColor, false);
+                        return this.world[key];
+                    }
+                }
+            }
+
+            return null;
         };
 
         this.removeBlock = (x, y, z, giveItems = true) => {
@@ -4683,6 +4733,12 @@ class NebulaVoxelApp {
 
             if (!blockData) return;
 
+            // 🛡️ BEDROCK IS UNBREAKABLE
+            if (blockData.type === 'bedrock') {
+                this.updateStatus(`🛡️ Bedrock is unbreakable!`);
+                return;
+            }
+
             const harvestTime = this.getHarvestTime(blockData.type);
 
             // Check if block can be harvested with current tool
@@ -5684,17 +5740,18 @@ class NebulaVoxelApp {
                     const shouldGenerate = this.shouldGenerateTree(worldX, worldZ, biome);
 
                     if (shouldGenerate) {
-                        // 🌍 ENHANCED: Find surface height matching BiomeWorldGen terrain range
+                        // 🌍 Find ACTUAL surface (not bedrock, not underground)
                         let surfaceY = -10;
-                        for (let y = 15; y >= 0; y--) {  // 🏔️ PHASE 1: Updated range for new terrain heights (0-12)
+                        for (let y = 15; y >= 1; y--) {  // Start from y=15, stop at y=1 (skip bedrock)
                             const block = this.getBlock(worldX, y, worldZ);
-                            if (block) {
-                                surfaceY = y + 1;
+                            if (block && block.type !== 'bedrock') { // Found surface block (not bedrock)
+                                surfaceY = y + 1; // Place tree 1 block above surface
                                 break;
                             }
                         }
 
-                        if (surfaceY > -10 && surfaceY <= 16) {  // 🏔️ PHASE 1: Updated validation for new height range
+                        // Only place tree if we found a valid surface (not bedrock)
+                        if (surfaceY > 1 && surfaceY <= 16) {
                             this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
                             treesPlaced++;
                         }
@@ -6079,10 +6136,27 @@ class NebulaVoxelApp {
 
         // Generate the appropriate tree type for the biome
         this.generateTreeForBiome = (worldX, treeHeight, worldZ, biome) => {
-            // Only generate trees on appropriate ground blocks
+            // Get ground block beneath tree
             const groundBlock = this.getBlock(worldX, treeHeight - 1, worldZ);
-            if (!groundBlock || !['grass', 'dirt', 'sand'].includes(groundBlock.userData?.type)) {
-                return; // Don't generate trees on inappropriate ground
+            if (!groundBlock) {
+                return; // No ground block found
+            }
+
+            // 🌳 CONVERT STONE/SAND TO DIRT for tree base (go 2 blocks deep for roots!)
+            const groundType = groundBlock.type;
+            if (['stone', 'iron', 'sand'].includes(groundType)) {
+                // Replace ground with dirt for natural tree placement
+                this.removeBlock(worldX, treeHeight - 1, worldZ, false); // Remove without giving items
+                this.addBlock(worldX, treeHeight - 1, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+
+                // Also convert block below for deeper roots
+                const deeperBlock = this.getBlock(worldX, treeHeight - 2, worldZ);
+                if (deeperBlock && ['stone', 'iron', 'sand'].includes(deeperBlock.type)) {
+                    this.removeBlock(worldX, treeHeight - 2, worldZ, false);
+                    this.addBlock(worldX, treeHeight - 2, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+                }
+            } else if (!['grass', 'dirt'].includes(groundType)) {
+                return; // Invalid ground type (e.g., bedrock, leaves, wood)
             }
 
             // 🌿 ENHANCED: Multi-layer collision detection for trees

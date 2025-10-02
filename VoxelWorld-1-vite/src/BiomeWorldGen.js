@@ -39,10 +39,10 @@ export class BiomeWorldGen {
             forest: {
                 name: 'Forest',
                 color: 0x228B22,
-                minHeight: 6,  // 🏔️ PHASE 1: Increased from -2 to 6
-                maxHeight: 10, // 🏔️ PHASE 1: Increased from 4 to 10
+                minHeight: 2,  // 🌊 NEW SYSTEM: Base terrain y=1-3, forests slightly raised
+                maxHeight: 5,  // 🌊 Gentle hills for forest biomes
                 surfaceBlock: 'grass',
-                subBlock: 'stone',
+                subBlock: 'dirt',
                 mapColor: '#228B22',
                 heightColorRange: { min: 0.6, max: 1.2 },
                 shrubChance: 0.35,
@@ -58,8 +58,8 @@ export class BiomeWorldGen {
             desert: {
                 name: 'Desert',
                 color: 0xDEB887,
-                minHeight: 4,  // 🏔️ PHASE 1: Increased from -1 to 4
-                maxHeight: 7,  // 🏔️ PHASE 1: Increased from 2 to 7
+                minHeight: 1,  // 🌊 NEW SYSTEM: Deserts at water level (potential oases)
+                maxHeight: 4,  // 🌊 Sand dunes for mining
                 surfaceBlock: 'sand',
                 subBlock: 'sand',
                 mapColor: '#DEB887',
@@ -76,8 +76,8 @@ export class BiomeWorldGen {
             mountain: {
                 name: 'Mountain',
                 color: 0x696969,
-                minHeight: 8,  // 🏔️ PHASE 1: Increased from 2 to 8
-                maxHeight: 12, // 🏔️ PHASE 1: Increased from 8 to 12
+                minHeight: 4,  // 🌊 NEW SYSTEM: Mountains rise above water
+                maxHeight: 15, // 🌊 TALL mountains for deep mining (y=4 to y=15 = 11 blocks tall!)
                 surfaceBlock: 'stone',
                 subBlock: 'iron',
                 mapColor: '#696969',
@@ -94,10 +94,10 @@ export class BiomeWorldGen {
             plains: {
                 name: 'Plains',
                 color: 0x90EE90,
-                minHeight: 4,  // 🏔️ PHASE 1: Increased from -1 to 4
-                maxHeight: 6,  // 🏔️ PHASE 1: Increased from 1 to 6
+                minHeight: 2,  // 🌊 NEW SYSTEM: Flat plains just above water
+                maxHeight: 3,  // 🌊 Very flat, minimal hills
                 surfaceBlock: 'grass',
-                subBlock: 'stone',
+                subBlock: 'dirt',
                 mapColor: '#90EE90',
                 heightColorRange: { min: 0.65, max: 1.15 },
                 shrubChance: 0.20,
@@ -112,8 +112,8 @@ export class BiomeWorldGen {
             tundra: {
                 name: 'Tundra',
                 color: 0xF0F8FF,
-                minHeight: 3,  // 🏔️ PHASE 1: Increased from -3 to 3
-                maxHeight: 6,  // 🏔️ PHASE 1: Increased from 0 to 6
+                minHeight: 2,  // 🌊 NEW SYSTEM: Frozen tundra slightly raised
+                maxHeight: 5,  // 🌊 Icy hills
                 surfaceBlock: 'stone',
                 subBlock: 'iron',
                 mapColor: '#F0F8FF',
@@ -1256,6 +1256,30 @@ export class BiomeWorldGen {
     disableDebugMode() {
         this.DEBUG_MODE = false;
         console.log('🐛 BiomeWorldGen debug mode DISABLED - Production logging');
+    }
+
+    // 🔮 ON-DEMAND TERRAIN GENERATION - For generating single blocks underground
+    generateTerrainAt(worldX, worldZ) {
+        const biome = this.getBiomeAt(worldX, worldZ, this.worldSeed);
+        const terrainData = this.generateMultiNoiseTerrain(worldX, worldZ, this.worldSeed);
+
+        // Calculate actual terrain height
+        const biomeHeightCenter = (biome.maxHeight + biome.minHeight) / 2;
+        const biomeHeightRange = (biome.maxHeight - biome.minHeight) / 2;
+        const generatorHeight = terrainData.height * biomeHeightRange;
+        const rawHeight = biomeHeightCenter + generatorHeight;
+        const height = Math.floor(Math.max(0, Math.min(12, rawHeight + 2)));
+
+        // Get colors for layers
+        const surfaceColor = this.getHeightBasedColor(biome, height);
+        const subSurfaceColor = this.getHeightBasedColor(biome, height - 1);
+
+        return {
+            biome,
+            height,
+            surfaceColor: new THREE.Color(surfaceColor),
+            subSurfaceColor: new THREE.Color(subSurfaceColor)
+        };
     }
 
     getStats() {
