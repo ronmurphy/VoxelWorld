@@ -276,17 +276,30 @@ class NebulaVoxelApp {
                     geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
             }
 
+            console.log(`✅ Geometry created successfully:`, geometry.type, geometry);
+
             // Create material based on crafted item's material and color
             let craftedMaterial;
-            if (this.blockTypes[material] && this.materials[material]) {
-                // Use the base material type with custom color
+            
+            // 🔧 WORKAROUND: Pyramids (ConeGeometry) have issues with textured materials in THREE.js r180
+            // Force pyramids to use solid color materials only
+            if (shapeType === 'pyramid') {
+                console.log(`Creating solid color material for pyramid (no texture) with color ${color}`);
+                craftedMaterial = new THREE.MeshLambertMaterial({
+                    color: new THREE.Color(color),
+                    emissive: material === 'campfire' ? new THREE.Color(0xFF4400) : new THREE.Color(0x000000),
+                    emissiveIntensity: material === 'campfire' ? 0.5 : 0
+                });
+            } else if (this.blockTypes[material] && this.materials[material] && this.materials[material].map) {
+                // Use the base material type with custom color and texture (for non-pyramids)
+                console.log(`Creating textured material for ${material} with color ${color}`);
                 craftedMaterial = new THREE.MeshLambertMaterial({
                     map: this.materials[material].map,
                     color: new THREE.Color(color)
                 });
             } else {
-                // Fallback to basic colored material (for custom items like campfire)
-                console.log(`Creating basic material for ${material} with color ${color}`);
+                // Fallback to basic colored material (for custom items or when texture doesn't exist)
+                console.log(`Creating basic material for ${material} with color ${color} (no texture available)`);
                 craftedMaterial = new THREE.MeshLambertMaterial({
                     color: new THREE.Color(color),
                     emissive: material === 'campfire' ? new THREE.Color(0xFF4400) : new THREE.Color(0x000000),
@@ -500,6 +513,13 @@ class NebulaVoxelApp {
                 craftedMesh.userData.effectObjects.forEach(effect => {
                     if (effect.type === 'particles') {
                         particleEffectCount++;
+                        
+                        // 🔧 SAFETY CHECK: Ensure particle object and geometry are valid
+                        if (!effect.object || !effect.object.geometry || !effect.object.geometry.attributes || !effect.object.geometry.attributes.position) {
+                            console.warn('⚠️ Particle effect has invalid geometry, skipping animation');
+                            return;
+                        }
+                        
                         const positions = effect.positions;
                         const velocities = effect.velocities;
 
@@ -7249,6 +7269,25 @@ class NebulaVoxelApp {
 
             // Update harvesting progress
             this.updateHarvesting();
+
+            // 🔧 DEBUG: Check for objects with undefined matrices before rendering
+            this.scene.traverse((object) => {
+                if (object.isMesh || object.isLight || object.isSprite) {
+                    if (!object.matrix || !object.matrix.elements) {
+                        console.error('🐛 Found object with undefined matrix:', object.type, object.uuid);
+                        // Initialize matrix if missing
+                        object.matrix = new THREE.Matrix4();
+                        object.matrixAutoUpdate = true;
+                        object.updateMatrix();
+                    }
+                    if (!object.matrixWorld || !object.matrixWorld.elements) {
+                        console.error('🐛 Found object with undefined matrixWorld:', object.type, object.uuid);
+                        // Initialize matrixWorld if missing
+                        object.matrixWorld = new THREE.Matrix4();
+                        object.updateMatrixWorld(true);
+                    }
+                }
+            });
 
             this.renderer.render(this.scene, this.camera);
         };
