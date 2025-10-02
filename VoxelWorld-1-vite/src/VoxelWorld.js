@@ -522,6 +522,7 @@ class NebulaVoxelApp {
                         
                         const positions = effect.positions;
                         const velocities = effect.velocities;
+                        const maxHeight = effect.maxHeight || 1.0; // Use scaled max height or default
 
                         for (let i = 0; i < velocities.length; i++) {
                             // Update particle positions
@@ -529,14 +530,14 @@ class NebulaVoxelApp {
                             positions[i * 3 + 1] += velocities[i].y;
                             positions[i * 3 + 2] += velocities[i].z;
 
-                            // Reset particle when it gets too high
-                            if (positions[i * 3 + 1] > 1.0) {
-                                positions[i * 3] = (Math.random() - 0.5) * 0.3;
+                            // Reset particle when it gets too high (scaled by fire size)
+                            if (positions[i * 3 + 1] > maxHeight) {
+                                // Get original spread scale from first reset
+                                const spreadScale = Math.abs(velocities[i].y) / 0.05; // Estimate original scale
+                                positions[i * 3] = (Math.random() - 0.5) * 0.3 * spreadScale;
                                 positions[i * 3 + 1] = 0;
-                                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
-                                velocities[i].x = (Math.random() - 0.5) * 0.02;
-                                velocities[i].y = Math.random() * 0.05 + 0.05;
-                                velocities[i].z = (Math.random() - 0.5) * 0.02;
+                                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3 * spreadScale;
+                                // Velocities stay the same (already scaled during creation)
                             }
                         }
 
@@ -544,9 +545,10 @@ class NebulaVoxelApp {
                     }
 
                     if (effect.type === 'light') {
-                        // Flicker the light slightly
-                        const flicker = Math.sin(currentTime * 0.01) * 0.2 + 1.3;
-                        effect.object.intensity = flicker;
+                        // Flicker the light slightly using base intensity
+                        const baseIntensity = effect.baseIntensity || 1.5;
+                        const flicker = Math.sin(currentTime * 0.01) * 0.15 + 0.85; // Oscillate between 0.85 and 1.0
+                        effect.object.intensity = baseIntensity * flicker;
                     }
                 });
             });
@@ -3295,24 +3297,36 @@ class NebulaVoxelApp {
                 craftedObject.userData.effectObjects = [];
             }
 
+            // Get dimensions for scaling effects
+            const dimensions = craftedObject.userData.metadata?.shape?.dimensions || { height: 1, length: 1, width: 1 };
+            const heightScale = dimensions.height || 1;
+            const sizeScale = Math.max(dimensions.length, dimensions.width) || 1;
+            
+            console.log(`📏 Scaling effects: height=${heightScale}, size=${sizeScale}`);
+
             effects.forEach(effectType => {
                 if (effectType === 'fire') {
                     // Create fire particle system using THREE.Points (compatible with r180)
-                    console.log(`🔥 Creating fire particle effect`);
+                    console.log(`🔥 Creating fire particle effect (scaled by ${heightScale}x)`);
                     
-                    const particleCount = 20;
+                    // Scale particle count with size (more particles for bigger fires)
+                    const particleCount = Math.floor(20 * sizeScale);
                     const positions = new Float32Array(particleCount * 3);
                     const velocities = [];
 
+                    // Scale spread and velocity with dimensions
+                    const spreadScale = sizeScale * 0.3;
+                    const velocityScale = heightScale * 0.05;
+
                     // Initialize particle positions and velocities
                     for (let i = 0; i < particleCount; i++) {
-                        positions[i * 3] = (Math.random() - 0.5) * 0.3;     // x
-                        positions[i * 3 + 1] = 0;                           // y
-                        positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3; // z
+                        positions[i * 3] = (Math.random() - 0.5) * spreadScale;     // x - wider spread for bigger fires
+                        positions[i * 3 + 1] = 0;                                    // y - start at base
+                        positions[i * 3 + 2] = (Math.random() - 0.5) * spreadScale; // z - wider spread
                         
                         velocities.push({
                             x: (Math.random() - 0.5) * 0.02,
-                            y: Math.random() * 0.05 + 0.05,
+                            y: Math.random() * velocityScale + velocityScale, // Higher velocity for taller fires
                             z: (Math.random() - 0.5) * 0.02
                         });
                     }
@@ -3321,10 +3335,10 @@ class NebulaVoxelApp {
                     const particleGeometry = new THREE.BufferGeometry();
                     particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-                    // Create particle material
+                    // Create particle material - scale size with fire size
                     const particleMaterial = new THREE.PointsMaterial({
                         color: 0xff8844,
-                        size: 0.1,
+                        size: 0.1 * sizeScale, // Bigger particles for bigger fires
                         transparent: true,
                         opacity: 0.8,
                         blending: THREE.AdditiveBlending,
@@ -3346,16 +3360,20 @@ class NebulaVoxelApp {
                         type: 'particles',
                         object: particles,
                         positions: positions,
-                        velocities: velocities
+                        velocities: velocities,
+                        maxHeight: heightScale * 1.5 // Particles rise higher for taller fires
                     });
 
-                    console.log(`🔥 Added fire particles at (${x}, ${y}, ${z})`);
+                    console.log(`🔥 Added ${particleCount} fire particles at (${x}, ${y}, ${z}), max height: ${heightScale * 1.5}`);
                 }
 
                 if (effectType === 'holy' || effectType === 'glow') {
-                    // Create glowing point light
-                    const light = new THREE.PointLight(0xffe599, 1.5, 10, 2);
-                    light.position.set(x, y + 0.5, z);
+                    // Create glowing point light - scale intensity and distance with size
+                    const intensity = 1.5 * Math.pow(sizeScale, 0.7); // Intensity scales with size (but not linearly)
+                    const distance = 10 * sizeScale; // Bigger fires light up more area
+                    
+                    const light = new THREE.PointLight(0xffe599, intensity, distance, 2);
+                    light.position.set(x, y + (heightScale * 0.5), z); // Position at middle of fire height
                     
                     // 🔧 FIX: Ensure light matrix is properly initialized
                     light.matrixAutoUpdate = true;
@@ -3366,10 +3384,11 @@ class NebulaVoxelApp {
 
                     craftedObject.userData.effectObjects.push({
                         type: 'light',
-                        object: light
+                        object: light,
+                        baseIntensity: intensity // Store base intensity for flickering
                     });
 
-                    console.log(`✨ Added glow light at (${x}, ${y}, ${z})`);
+                    console.log(`✨ Added glow light at (${x}, ${y}, ${z}) - intensity: ${intensity.toFixed(2)}, distance: ${distance.toFixed(1)}`);
                 }
             });
         };

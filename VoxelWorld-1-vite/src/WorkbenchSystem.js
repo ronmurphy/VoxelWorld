@@ -1168,6 +1168,27 @@ export class WorkbenchSystem {
         if (recipe.shapes && recipe.shapes.length > 0) {
             this.selectedShape = recipe.shapes[0].type;
             console.log('🍳 Set selectedShape to:', this.selectedShape);
+            
+            // 🔥 NEW: Auto-populate sliders with recipe dimensions
+            const recipeSize = recipe.shapes[0].size;
+            if (recipeSize) {
+                // Set dimensions from recipe
+                this.shapeLength = recipeSize.x || 1;
+                this.shapeWidth = recipeSize.z || 1;
+                this.shapeHeight = recipeSize.y || 1;
+                
+                // Update slider UI elements if they exist
+                if (this.lengthSlider) this.lengthSlider.value = this.shapeLength;
+                if (this.widthSlider) this.widthSlider.value = this.shapeWidth;
+                if (this.heightSlider) this.heightSlider.value = this.shapeHeight;
+                
+                // Update slider labels
+                if (this.lengthValue) this.lengthValue.textContent = this.shapeLength.toFixed(1);
+                if (this.widthValue) this.widthValue.textContent = this.shapeWidth.toFixed(1);
+                if (this.heightValue) this.heightValue.textContent = this.shapeHeight.toFixed(1);
+                
+                console.log(`📏 Auto-set dimensions to ${this.shapeLength}×${this.shapeWidth}×${this.shapeHeight} from recipe`);
+            }
         } else {
             console.log('❌ No shapes found in recipe!');
             this.selectedShape = null;
