@@ -57,6 +57,9 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
 
     // Track tree positions for this chunk
     const treePositions = new Set();
+    
+    // 🌊 Track water blocks for debugging
+    let waterBlockCount = 0;
 
     for (let x = 0; x < chunkSize; x++) {
         for (let z = 0; z < chunkSize; z++) {
@@ -138,6 +141,18 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             }
             // Blocks below startY (deep underground) will be generated on-demand when player digs
 
+            // 🌊 WATER GENERATION: Fill empty spaces at y=1, y=2, y=3 with water blocks
+            // Only add water where terrain height is below the water level
+            const WATER_LEVEL = 4; // 🌊 Water fills up to y=4 (accounting for +2 height offset)
+            if (height < WATER_LEVEL) {
+                const waterColor = 0x1E90FF; // Dodger blue
+                // Fill from above terrain to water level
+                for (let waterY = height + 1; waterY <= WATER_LEVEL; waterY++) {
+                    blocks.push({ x: worldX, y: waterY, z: worldZ, blockType: 'water', color: waterColor, isPlayerPlaced: false });
+                    waterBlockCount++; // Track water blocks
+                }
+            }
+
             // NOTE: Tree generation disabled in worker - let main thread handle it
             // Trees need to be registered in VoxelWorld's tree registry for harvesting
             // Worker-generated trees would bypass the tree ID system
@@ -154,7 +169,7 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
 
     // Block type mapping (must match VoxelWorld.js blockTypes)
     const blockTypeMap = {
-        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5,
+        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6,
         'oak_wood': 10, 'pine_wood': 11, 'birch_wood': 12, 'palm_wood': 13, 'dead_wood': 14,
         'forest_leaves': 20, 'mountain_leaves': 21, 'plains_leaves': 22,
         'desert_leaves': 23, 'tundra_leaves': 24
@@ -177,6 +192,7 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             chunkX,
             chunkZ,
             blockCount,
+            waterBlockCount, // 🌊 Include water count for debugging
             positions,
             blockTypes,
             colors,

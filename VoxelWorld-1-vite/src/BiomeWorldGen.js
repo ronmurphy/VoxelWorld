@@ -1041,7 +1041,18 @@ export class BiomeWorldGen {
                     console.log(`✅ Placed terrain at (${worldX}, ${finalHeight}, ${worldZ}) | ${biome.name} | height: ${height} -> ${finalHeight}`);
                 }
 
-                // 🌳 FIXED: Tree generation with accurate ground detection and spacing
+                // � WATER GENERATION: Fill empty spaces at y=1, y=2, y=3 with water blocks
+                // Only add water where terrain height is below the water level
+                const WATER_LEVEL = 4; // Water fills up to y=4 (accounting for +2 height offset)
+                if (finalHeight < WATER_LEVEL) {
+                    const waterColor = new THREE.Color(0x1E90FF); // Dodger blue
+                    // Fill from above terrain to water level
+                    for (let waterY = finalHeight + 1; waterY <= WATER_LEVEL; waterY++) {
+                        addBlockFn(worldX, waterY, worldZ, 'water', false, waterColor);
+                    }
+                }
+
+                // �🌳 FIXED: Tree generation with accurate ground detection and spacing
                 if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome, this.worldSeed)) {
                     // 🌲 TREE SPACING SYSTEM - Prevent massive tree chunks
                     if (this.hasNearbyTree(worldX, worldZ)) {

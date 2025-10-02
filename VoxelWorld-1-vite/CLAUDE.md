@@ -533,3 +533,18 @@ dunes...   thought?  also, this is as 'tall' as the landscpe gets.  also, did tr
 ● Read(src/workers/ChunkWorker.js)
   ⎿  Read 40 lines (ctrl+o to expand)
   ⎿  Session limit reached ∙ resets 10pm
+
+
+  i may have gotten water mostly working.. see these logs.
+
+  🌊 Chunk (-38, -35) has 54 water blocks VoxelWorld.js:5737:25
+🌊 Chunk (-37, -35) has 28 water blocks VoxelWorld.js:5737:25
+Cleaned up tracking data for 9 distant chunks VoxelWorld.js:840:25
+🌊 Chunk (-37, -36) has 14 water blocks VoxelWorld.js:5737:25
+🌊 Chunk (-38, -36) has 64 water blocks VoxelWorld.js:5737:25
+Cleaned up tracking data for 9 distant chunks VoxelWorld.js:840:25
+🌊 Chunk (-38, -37) has 62 water blocks VoxelWorld.js:5737:25
+🌊 Chunk (-37, -37) has 2 water blocks VoxelWorld.js:5737:25
+🌊 Chunk (-39, -37) has 64 water blocks VoxelWorld.js:5737:25
+🌊 Chunk (-39, -36) has 64 water blocks VoxelWorld.js:5737:25
+🌊 Chunk (-39, -35) has 27 water blocks VoxelWorld.js:5737:25
