@@ -3297,8 +3297,59 @@ class NebulaVoxelApp {
 
             effects.forEach(effectType => {
                 if (effectType === 'fire') {
-                    // DISABLED fire particles to test if they cause shader errors
-                    console.log(`🔥 Fire effect requested but particles disabled for testing`);
+                    // Create fire particle system using THREE.Points (compatible with r180)
+                    console.log(`🔥 Creating fire particle effect`);
+                    
+                    const particleCount = 20;
+                    const positions = new Float32Array(particleCount * 3);
+                    const velocities = [];
+
+                    // Initialize particle positions and velocities
+                    for (let i = 0; i < particleCount; i++) {
+                        positions[i * 3] = (Math.random() - 0.5) * 0.3;     // x
+                        positions[i * 3 + 1] = 0;                           // y
+                        positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3; // z
+                        
+                        velocities.push({
+                            x: (Math.random() - 0.5) * 0.02,
+                            y: Math.random() * 0.05 + 0.05,
+                            z: (Math.random() - 0.5) * 0.02
+                        });
+                    }
+
+                    // Create particle geometry
+                    const particleGeometry = new THREE.BufferGeometry();
+                    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+                    // Create particle material
+                    const particleMaterial = new THREE.PointsMaterial({
+                        color: 0xff8844,
+                        size: 0.1,
+                        transparent: true,
+                        opacity: 0.8,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false
+                    });
+
+                    // Create particle system
+                    const particles = new THREE.Points(particleGeometry, particleMaterial);
+                    particles.position.set(x, y, z);
+                    
+                    // Ensure proper matrix initialization
+                    particles.matrixAutoUpdate = true;
+                    particles.updateMatrix();
+                    particles.updateMatrixWorld(true);
+                    
+                    this.scene.add(particles);
+
+                    craftedObject.userData.effectObjects.push({
+                        type: 'particles',
+                        object: particles,
+                        positions: positions,
+                        velocities: velocities
+                    });
+
+                    console.log(`🔥 Added fire particles at (${x}, ${y}, ${z})`);
                 }
 
                 if (effectType === 'holy' || effectType === 'glow') {
