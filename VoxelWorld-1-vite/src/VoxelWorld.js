@@ -395,7 +395,7 @@ class NebulaVoxelApp {
                 texture = new THREE.TextureLoader().load(enhancedImageData.path);
                 texture.magFilter = THREE.LinearFilter;
                 texture.minFilter = THREE.LinearFilter;
-                console.log(`🎨 Using enhanced billboard texture for ${type}: ${enhancedImageData.path}`);
+                // console.log(`🎨 Using enhanced billboard texture for ${type}: ${enhancedImageData.path}`);
             } else {
                 // Fall back to emoji canvas
                 const canvas = document.createElement('canvas');
@@ -4619,7 +4619,8 @@ class NebulaVoxelApp {
                 }
             }
 
-            console.log(`🎒 Backpack updated: ${filledSlots} filled slots out of ${this.inventory.backpackSlots.length} total`);
+            // Silent backpack updates - UI shows the state
+            // console.log(`🎒 Backpack updated: ${filledSlots} filled slots out of ${this.inventory.backpackSlots.length} total`);
         };
 
         // 🗑️ REMOVED: Transfer methods now handled by InventorySystem.js
@@ -4724,32 +4725,33 @@ class NebulaVoxelApp {
                 const { x, y, z } = this.harvestingTarget;
                 this.completeHarvesting(x, y, z);
             } else {
-                // Update progress display
+                // Update progress display (silently - no console spam)
                 const remaining = ((this.harvestingDuration - elapsed) / 1000).toFixed(1);
-                this.updateStatus(`Harvesting... ${remaining}s remaining`);
+                // Only update status bar, no console log
             }
         };
 
         // Complete harvesting and remove block
         this.completeHarvesting = (x, y, z) => {
-            console.log(`Harvesting completed at ${x}, ${y}, ${z}`);
+            // Silent completion - only log errors
+            // console.log(`Harvesting completed at ${x}, ${y}, ${z}`);
 
             // Get block type before removing it
             const key = `${x},${y},${z}`;
             const blockData = this.world[key];
 
-            console.log('Block data:', blockData); // Debug logging
+            // console.log('Block data:', blockData); // Debug logging
 
             if (blockData && blockData.type !== 'shrub' && blockData.type !== 'backpack') {
                 // Add the harvested block to inventory
                 const blockType = blockData.type;
 
                 // Debug: Check what we're actually harvesting
-                console.log(`Block at ${key}:`, {
-                    type: blockType,
-                    playerPlaced: blockData.playerPlaced,
-                    blockData: blockData
-                });
+                // console.log(`Block at ${key}:`, {
+                //     type: blockType,
+                //     playerPlaced: blockData.playerPlaced,
+                //     blockData: blockData
+                // });
 
                 // 🔪 MACHETE LEAF HARVESTING: Check if we're harvesting leaves with machete
                 if (this.isLeafBlock(blockType)) {
@@ -4759,19 +4761,19 @@ class NebulaVoxelApp {
                     if (hasMachete) {
                         // Machete allows leaf collection
                         this.inventory.addToInventory(blockType, 1);
-                        console.log(`🔪 Machete harvested ${blockType}!`);
+                        // console.log(`🔪 Machete harvested ${blockType}!`);
 
                         const emoji = this.getItemIcon(blockType);
                         this.updateStatus(`🔪${emoji} Machete harvested ${blockType}!`, 'harvest');
                     } else {
                         // No machete - leaves just disappear
-                        console.log(`${blockType} destroyed (need machete to collect)`);
+                        // console.log(`${blockType} destroyed (need machete to collect)`);
                         this.updateStatus(`🍃 ${blockType} destroyed (need machete to collect)`, 'harvest');
                     }
                 } else {
                     // Regular block harvesting
                     this.inventory.addToInventory(blockType, 1);
-                    console.log(`Harvested ${blockType}!`);
+                    // console.log(`Harvested ${blockType}!`);
 
                     // Use enhanced notification system with harvest type
                     const emoji = this.getItemIcon(blockType);
@@ -4902,6 +4904,7 @@ class NebulaVoxelApp {
 
         // Block types and procedural textures
         this.blockTypes = {
+            bedrock: { color: 0x1a1a1a, texture: 'bedrock', unbreakable: true }, // 🛡️ Unbreakable foundation
             grass: { color: 0x228B22, texture: 'grass' },    // Forest green with grass pattern
             dirt: { color: 0x8B4513, texture: 'dirt' },      // Brown dirt texture
             stone: { color: 0x696969, texture: 'stone' },    // Dim gray with stone pattern
@@ -4938,13 +4941,13 @@ class NebulaVoxelApp {
             if (enhancedGraphics && enhancedGraphics.isReady()) {
                 const enhancedMaterial = enhancedGraphics.getEnhancedBlockMaterial(blockType.texture, null);
                 if (enhancedMaterial && enhancedMaterial !== null) {
-                    console.log(`🎨 Using enhanced texture for ${blockType.texture}`);
+                    // console.log(`🎨 Using enhanced texture for ${blockType.texture}`);
                     return enhancedMaterial;
                 }
             }
 
             // 🎨 FALLBACK: Create procedural canvas texture
-            console.log(`🎨 Using procedural texture for ${blockType.texture}`);
+            // console.log(`🎨 Using procedural texture for ${blockType.texture}`);
             const canvas = document.createElement('canvas');
             canvas.width = canvas.height = 64;
             const ctx = canvas.getContext('2d');
@@ -5628,7 +5631,7 @@ class NebulaVoxelApp {
 
             // Block type reverse mapping (must match ChunkWorker.js blockTypeMap)
             const blockTypeNames = {
-                1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow',
+                0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow',
                 10: 'oak_wood', 11: 'pine_wood', 12: 'birch_wood', 13: 'palm_wood', 14: 'dead_wood',
                 20: 'forest_leaves', 21: 'mountain_leaves', 22: 'plains_leaves',
                 23: 'desert_leaves', 24: 'tundra_leaves'
@@ -5662,7 +5665,8 @@ class NebulaVoxelApp {
                 this.generateTreesForChunk(chunkX, chunkZ);
             }, 10);
 
-            console.log(`✅ Worker chunk (${chunkX}, ${chunkZ}) loaded: ${blockCount} blocks`);
+            // Silent chunk loading - only log on errors
+            // console.log(`✅ Worker chunk (${chunkX}, ${chunkZ}) loaded: ${blockCount} blocks`);
         };
 
         // 🌳 SEPARATED TREE GENERATION: Now a dedicated method for better timing control
@@ -5682,7 +5686,7 @@ class NebulaVoxelApp {
                     if (shouldGenerate) {
                         // 🌍 ENHANCED: Find surface height matching BiomeWorldGen terrain range
                         let surfaceY = -10;
-                        for (let y = 8; y >= -5; y--) {  // Extended range to cover BiomeWorldGen heights
+                        for (let y = 15; y >= 0; y--) {  // 🏔️ PHASE 1: Updated range for new terrain heights (0-12)
                             const block = this.getBlock(worldX, y, worldZ);
                             if (block) {
                                 surfaceY = y + 1;
@@ -5690,7 +5694,7 @@ class NebulaVoxelApp {
                             }
                         }
 
-                        if (surfaceY > -10 && surfaceY <= 10) {  // Validate reasonable tree height
+                        if (surfaceY > -10 && surfaceY <= 16) {  // 🏔️ PHASE 1: Updated validation for new height range
                             this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
                             treesPlaced++;
                         }
@@ -7727,7 +7731,7 @@ class NebulaVoxelApp {
                 if (enhancedIcon.includes('<img')) {
                     // Enhanced icon is HTML, use innerHTML
                     this.statusIcon.innerHTML = enhancedIcon;
-                    console.log(`🎨 Using enhanced status icon for ${notification.toolType}`);
+                    // console.log(`🎨 Using enhanced status icon for ${notification.toolType}`);
                 } else {
                     // Fall back to emoji
                     this.statusIcon.textContent = enhancedIcon;

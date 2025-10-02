@@ -75,8 +75,9 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             const generatorHeight = terrainData.height * biomeHeightRange;
             const rawHeight = biomeHeightCenter + generatorHeight;
 
-            // Force safe integer heights
-            const safeHeight = Math.floor(Math.max(0, Math.min(4, rawHeight + 2)));
+            // 🏔️ PHASE 1: Increased height range from 4 to 12 for better terrain variation
+            // Old: Math.min(4, ...) - New: Math.min(12, ...)
+            const safeHeight = Math.floor(Math.max(0, Math.min(12, rawHeight + 2)));
             const height = safeHeight;
 
             // Get colors for layers (as hex values, not THREE.Color)
@@ -98,21 +99,24 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             const surfaceBlock = hasSnow ? 'snow' : biome.surfaceBlock;
             const surfaceBlockColor = hasSnow ? 0xFFFFFF : surfaceColor;
 
-            // Safety: minimum ground level
-            const MINIMUM_GROUND_LEVEL = -1;
-            const finalHeight = Math.max(height, MINIMUM_GROUND_LEVEL);
+            // 🎯 SPARSE TERRAIN GENERATION (like Minecraft)
+            // Only generate visible surface layers - underground generated on-demand when mining
 
-            // Add terrain blocks
-            blocks.push({ x: worldX, y: finalHeight, z: worldZ, blockType: surfaceBlock, color: surfaceBlockColor, isPlayerPlaced: false });
-            blocks.push({ x: worldX, y: finalHeight - 1, z: worldZ, blockType: biome.subBlock, color: subSurfaceColor, isPlayerPlaced: false });
-            blocks.push({ x: worldX, y: finalHeight - 2, z: worldZ, blockType: biome.subBlock, color: deepColor, isPlayerPlaced: false });
-            blocks.push({ x: worldX, y: finalHeight - 3, z: worldZ, blockType: 'iron', color: 0x808080, isPlayerPlaced: false });
+            // Bedrock layer at y=0 (unbreakable foundation)
+            blocks.push({ x: worldX, y: 0, z: worldZ, blockType: 'bedrock', color: 0x1a1a1a, isPlayerPlaced: false });
 
-            // Emergency ground fill if needed
-            if (height < MINIMUM_GROUND_LEVEL) {
-                for (let fillY = height; fillY < MINIMUM_GROUND_LEVEL; fillY++) {
-                    blocks.push({ x: worldX, y: fillY, z: worldZ, blockType: 'stone', color: 0x808080, isPlayerPlaced: false });
-                }
+            // Surface layers (top 4 blocks visible from above)
+            if (height >= 1) {
+                // Deep layer (stone/iron mix)
+                const deepBlockType = (height % 7 === 0) ? 'iron' : 'stone';
+                blocks.push({ x: worldX, y: height - 3, z: worldZ, blockType: deepBlockType, color: deepColor, isPlayerPlaced: false });
+
+                // Sub-surface layers (biome-specific)
+                blocks.push({ x: worldX, y: height - 2, z: worldZ, blockType: biome.subBlock, color: subSurfaceColor, isPlayerPlaced: false });
+                blocks.push({ x: worldX, y: height - 1, z: worldZ, blockType: biome.subBlock, color: subSurfaceColor, isPlayerPlaced: false });
+
+                // Surface layer (grass/sand/snow)
+                blocks.push({ x: worldX, y: height, z: worldZ, blockType: surfaceBlock, color: surfaceBlockColor, isPlayerPlaced: false });
             }
 
             // NOTE: Tree generation disabled in worker - let main thread handle it
@@ -131,7 +135,7 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
 
     // Block type mapping (must match VoxelWorld.js blockTypes)
     const blockTypeMap = {
-        'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5,
+        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5,
         'oak_wood': 10, 'pine_wood': 11, 'birch_wood': 12, 'palm_wood': 13, 'dead_wood': 14,
         'forest_leaves': 20, 'mountain_leaves': 21, 'plains_leaves': 22,
         'desert_leaves': 23, 'tundra_leaves': 24

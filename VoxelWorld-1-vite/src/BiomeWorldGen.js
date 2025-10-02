@@ -39,8 +39,8 @@ export class BiomeWorldGen {
             forest: {
                 name: 'Forest',
                 color: 0x228B22,
-                minHeight: -2,
-                maxHeight: 4,
+                minHeight: 6,  // 🏔️ PHASE 1: Increased from -2 to 6
+                maxHeight: 10, // 🏔️ PHASE 1: Increased from 4 to 10
                 surfaceBlock: 'grass',
                 subBlock: 'stone',
                 mapColor: '#228B22',
@@ -58,8 +58,8 @@ export class BiomeWorldGen {
             desert: {
                 name: 'Desert',
                 color: 0xDEB887,
-                minHeight: -1,
-                maxHeight: 2,
+                minHeight: 4,  // 🏔️ PHASE 1: Increased from -1 to 4
+                maxHeight: 7,  // 🏔️ PHASE 1: Increased from 2 to 7
                 surfaceBlock: 'sand',
                 subBlock: 'sand',
                 mapColor: '#DEB887',
@@ -76,8 +76,8 @@ export class BiomeWorldGen {
             mountain: {
                 name: 'Mountain',
                 color: 0x696969,
-                minHeight: 2,
-                maxHeight: 8,
+                minHeight: 8,  // 🏔️ PHASE 1: Increased from 2 to 8
+                maxHeight: 12, // 🏔️ PHASE 1: Increased from 8 to 12
                 surfaceBlock: 'stone',
                 subBlock: 'iron',
                 mapColor: '#696969',
@@ -94,8 +94,8 @@ export class BiomeWorldGen {
             plains: {
                 name: 'Plains',
                 color: 0x90EE90,
-                minHeight: -1,
-                maxHeight: 1,
+                minHeight: 4,  // 🏔️ PHASE 1: Increased from -1 to 4
+                maxHeight: 6,  // 🏔️ PHASE 1: Increased from 1 to 6
                 surfaceBlock: 'grass',
                 subBlock: 'stone',
                 mapColor: '#90EE90',
@@ -112,8 +112,8 @@ export class BiomeWorldGen {
             tundra: {
                 name: 'Tundra',
                 color: 0xF0F8FF,
-                minHeight: -3,
-                maxHeight: 0,
+                minHeight: 3,  // 🏔️ PHASE 1: Increased from -3 to 3
+                maxHeight: 6,  // 🏔️ PHASE 1: Increased from 0 to 6
                 surfaceBlock: 'stone',
                 subBlock: 'iron',
                 mapColor: '#F0F8FF',
