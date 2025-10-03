@@ -1927,6 +1927,40 @@ export class WorkbenchSystem {
             return;
         }
 
+        // 🪵 SIMPLE ITEM: Direct inventory item (like sticks)
+        if (this.currentRecipe?.isItem) {
+            console.log('🪵 Crafting simple item:', this.currentRecipe.itemId);
+
+            // Check materials for item recipe (with material matching)
+            const recipeMaterials = this.currentRecipe.materials;
+            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+                const available = this.countAvailableMaterial(mat);  // Uses materialMatches() logic
+                if (available < qty) {
+                    this.voxelWorld.updateStatus(`⚠️ Not enough ${mat}! Need ${qty}, have ${available}`, 'error');
+                    return;
+                }
+            }
+
+            // Consume materials (using materialMatches to remove matching materials)
+            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+                this.removeMatchingMaterials(mat, qty);
+            }
+
+            // Add crafted item(s) to inventory
+            const quantity = this.currentRecipe.quantity || 1;
+            this.voxelWorld.addToInventory(this.currentRecipe.itemId, quantity);
+
+            // Update UI
+            this.voxelWorld.updateHotbarCounts();
+            this.voxelWorld.updateBackpackInventoryDisplay();
+            this.updateMaterialCostDisplay();
+
+            // Success notification
+            this.voxelWorld.updateStatus(`${this.currentRecipe.name} crafted!`, 'success');
+            console.log(`✅ Crafted ${quantity}x ${this.currentRecipe.itemId}`);
+            return;
+        }
+
         // Check if player has enough materials
         if (availableQuantity < requiredQuantity) {
             console.log(`❌ Not enough ${material}! Need ${requiredQuantity}, have ${availableQuantity}`);
