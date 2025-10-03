@@ -709,7 +709,7 @@ class NebulaVoxelApp {
             // Use seed to create consistent but different noise patterns
             const n1 = Math.sin((x * 0.05 + seed * 0.001)) * Math.cos((z * 0.05 + seed * 0.002));
             const n2 = Math.sin((x * 0.03 + seed * 0.003) + (z * 0.04 + seed * 0.004));
-            return (n1 + n2) * 0.5; // Combine for more variation
+            return (n1 + n2) * 0.5; // Combine for more variation (returns -1 to 1)
         };
 
         this.generateSeedFromString = (seedString) => {
@@ -5816,7 +5816,9 @@ class NebulaVoxelApp {
         const generateChunk = (chunkX, chunkZ) => {
             // Skip if already loaded
             const chunkKey = `${chunkX},${chunkZ}`;
-            if (this.loadedChunks.has(chunkKey)) return;
+            if (this.loadedChunks.has(chunkKey)) {
+                return;
+            }
 
             // 👷 Use Web Worker if initialized, otherwise fall back to BiomeWorldGen
             if (this.workerInitialized) {
@@ -5881,10 +5883,23 @@ class NebulaVoxelApp {
             // Mark chunk as loaded
             this.loadedChunks.add(`${chunkX},${chunkZ}`);
 
-            // Generate trees for this chunk (worker doesn't do trees to preserve tree registry)
-            setTimeout(() => {
-                this.generateTreesForChunk(chunkX, chunkZ);
-            }, 10);
+            // 🌳 RESTORE TREES: Check if we have cached trees for this chunk
+            const chunkKey = `${chunkX},${chunkZ}`;
+            const cachedTrees = this.treeCache.get(chunkKey);
+            
+            if (cachedTrees && cachedTrees.length > 0) {
+                // Restore trees from cache instead of regenerating
+                setTimeout(() => {
+                    for (const tree of cachedTrees) {
+                        this.generateTreeForBiome(tree.x, tree.y, tree.z, tree.biome);
+                    }
+                }, 10);
+            } else {
+                // No cached trees - generate trees normally (first time seeing this chunk)
+                setTimeout(() => {
+                    this.generateTreesForChunk(chunkX, chunkZ);
+                }, 10);
+            }
 
             // Silent chunk loading - only log on errors
             // console.log(`✅ Worker chunk (${chunkX}, ${chunkZ}) loaded: ${blockCount} blocks`);
@@ -5894,6 +5909,9 @@ class NebulaVoxelApp {
         this.generateTreesForChunk = (chunkX, chunkZ) => {
             // Minimal logging - only for significant issues
             let treesPlaced = 0;
+            let treesAttempted = 0;
+            let noSurfaceFound = 0;
+            
             for (let x = 0; x < this.chunkSize; x++) {
                 for (let z = 0; z < this.chunkSize; z++) {
                     const worldX = chunkX * this.chunkSize + x;
@@ -5905,6 +5923,8 @@ class NebulaVoxelApp {
                     const shouldGenerate = this.shouldGenerateTree(worldX, worldZ, biome);
 
                     if (shouldGenerate) {
+                        treesAttempted++;
+                        
                         // 🌍 Find ACTUAL surface (not bedrock, not underground)
                         let surfaceY = -10;
                         for (let y = 15; y >= 1; y--) {  // Start from y=15, stop at y=1 (skip bedrock)
@@ -5919,13 +5939,15 @@ class NebulaVoxelApp {
                         if (surfaceY > 1 && surfaceY <= 16) {
                             this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
                             treesPlaced++;
+                        } else {
+                            noSurfaceFound++;
                         }
                     }
                 }
             }
 
-            // 🚫 DISABLED: Tree placement logging
-            // if (treesPlaced > 0 || (Math.abs(chunkX) <= 1 && Math.abs(chunkZ) <= 1)) {
+            // Optionally log tree generation stats (disabled for performance)
+            // if (treesPlaced > 0) {
             //     console.log(`🌳 Chunk (${chunkX}, ${chunkZ}): ${treesPlaced} trees placed`);
             // }
         };
@@ -6266,7 +6288,12 @@ class NebulaVoxelApp {
             // Use new biome system's treeChance property if available
             if (biome.treeChance !== undefined) {
                 const treeNoise = this.seededNoise(worldX + 4000, worldZ + 4000, this.worldSeed);
-                return treeNoise > (1 - biome.treeChance);
+                
+                // Noise is -1 to 1, so we need to adjust the threshold
+                // Convert treeChance (0 to 1) to a threshold in the -1 to 1 range
+                // Higher treeChance = lower threshold = more trees
+                const threshold = 1 - (biome.treeChance * 2);
+                return treeNoise > threshold;
             }
 
             // Fallback: Define tree spawn rates based on biome name
@@ -6397,9 +6424,59 @@ class NebulaVoxelApp {
             }
         };
 
+        // 🌳 TREE CACHE: Store tree positions per chunk for persistence
+        this.treeCache = new Map(); // Map<chunkKey, Array<{x, y, z, biome}>>
+
         const unloadChunk = (chunkX, chunkZ) => {
             const chunkKey = getChunkKey(chunkX, chunkZ);
             if (!this.loadedChunks.has(chunkKey)) return;
+
+            // 🌳 SAVE TREES: Scan chunk for trees before unloading
+            const trees = [];
+            const treeIdsToRemove = new Set();
+            
+            for (let x = 0; x < this.chunkSize; x++) {
+                for (let z = 0; z < this.chunkSize; z++) {
+                    const worldX = chunkX * this.chunkSize + x;
+                    const worldZ = chunkZ * this.chunkSize + z;
+                    
+                    // Scan for tree trunks (wood blocks)
+                    for (let y = 1; y <= 20; y++) {
+                        const block = this.getBlock(worldX, y, worldZ);
+                        if (block && (block.type === 'oak_wood' || block.type === 'pine_wood' || 
+                                     block.type === 'birch_wood' || block.type === 'palm_wood' || 
+                                     block.type === 'dead_wood')) {
+                            const biome = this.biomeWorldGen.getBiomeAt(worldX, worldZ, this.worldSeed);
+                            // Save tree type, position, and biome for proper restoration
+                            trees.push({ 
+                                x: worldX, 
+                                y, 
+                                z: worldZ, 
+                                treeType: block.type, // Store wood type for re-registration
+                                biome 
+                            });
+                            
+                            // Track tree ID for registry cleanup
+                            const treeId = this.getTreeIdFromBlock(worldX, y, worldZ);
+                            if (treeId !== null) {
+                                treeIdsToRemove.add(treeId);
+                            }
+                            
+                            break; // Found trunk base, move to next column
+                        }
+                    }
+                }
+            }
+            
+            // Store trees in cache
+            if (trees.length > 0) {
+                this.treeCache.set(chunkKey, trees);
+            }
+            
+            // Clean up tree registries for this chunk
+            for (const treeId of treeIdsToRemove) {
+                this.removeTreeFromRegistry(treeId);
+            }
 
             // console.log(`Unloading chunk ${chunkKey}`); // Removed for performance
 
