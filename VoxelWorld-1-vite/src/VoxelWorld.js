@@ -7,6 +7,7 @@ import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
+import { ModificationTracker } from './serialization/ModificationTracker.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -137,6 +138,10 @@ class NebulaVoxelApp {
         this.workerManager = new WorkerManager(this);
         this.workerInitialized = false;
 
+        // 💾 Initialize ModificationTracker for chunk persistence
+        const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
+        this.modificationTracker = null; // Will be initialized after worldSeed is set
+
         // 🎒 Initialize Advanced InventorySystem
         this.inventory = new InventorySystem(this);
 
@@ -228,6 +233,12 @@ class NebulaVoxelApp {
             // 🌊 Track ALL water blocks for minimap (to show rivers and lakes clearly)
             if (type === 'water' && !playerPlaced) {
                 this.waterPositions.push({ x, y, z });
+            }
+
+            // 💾 Track player modifications for chunk persistence
+            if (playerPlaced && this.modificationTracker) {
+                const color = customColor || (mat.color ? mat.color.getHex() : 0xFFFFFF);
+                this.modificationTracker.trackModification(x, y, z, type, color, true);
             }
         };
 
@@ -823,6 +834,11 @@ class NebulaVoxelApp {
                     if (waterIndex !== -1) {
                         this.waterPositions.splice(waterIndex, 1);
                     }
+                }
+
+                // 💾 Track block removal for chunk persistence (if player harvesting)
+                if (giveItems && this.modificationTracker) {
+                    this.modificationTracker.trackModification(x, y, z, null, 0, false);
                 }
 
                 // Log removal for debugging
@@ -5138,8 +5154,33 @@ class NebulaVoxelApp {
             this.stopHarvesting();
         };
 
-        // Initialize seed system
-        this.worldSeed = this.generateInitialSeed();
+        // 🧪 DEBUG MODE: Set to true during development to persist seed across reloads
+        // ⚠️ IMPORTANT: Set to false before production release!
+        const USE_DEBUG_SEED = true;
+        const DEBUG_SEED = 12345; // Fixed seed for consistent testing
+
+        // Initialize seed system - persist across reloads
+        let storedSeed = null;
+        if (USE_DEBUG_SEED) {
+            storedSeed = localStorage.getItem('voxelWorld_debugSeed');
+        } else {
+            storedSeed = localStorage.getItem('voxelWorld_seed');
+        }
+
+        if (storedSeed) {
+            this.worldSeed = parseInt(storedSeed, 10);
+            console.log(`🌍 Loaded persistent world seed: ${this.worldSeed}${USE_DEBUG_SEED ? ' (DEBUG MODE)' : ''}`);
+        } else {
+            if (USE_DEBUG_SEED) {
+                this.worldSeed = DEBUG_SEED;
+                localStorage.setItem('voxelWorld_debugSeed', this.worldSeed.toString());
+                console.log(`🧪 DEBUG MODE: Using fixed seed: ${this.worldSeed}`);
+            } else {
+                this.worldSeed = this.generateInitialSeed();
+                localStorage.setItem('voxelWorld_seed', this.worldSeed.toString());
+                console.log(`🌍 Generated new world seed: ${this.worldSeed}`);
+            }
+        }
         this.seededRandom = this.createSeededRandom(this.worldSeed);
 
         // Hardware performance benchmark
@@ -8845,6 +8886,11 @@ export async function initVoxelWorld(container, splashScreen = null) {
             console.warn('⚠️ Falling back to main thread chunk generation');
             app.workerInitialized = false;
         }
+
+        // Initialize ModificationTracker now that worldSeed is set
+        const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
+        app.modificationTracker = new ModificationTracker(app.worldSeed, isElectron);
+        console.log('💾 ModificationTracker initialized');
 
         if (splashScreen) {
             splashScreen.setGeneratingWorld();
