@@ -8004,36 +8004,37 @@ class NebulaVoxelApp {
         });
         this.toolMenu.appendChild(this.workbenchTool);
 
-        // 🔧 Tool Bench button (unlocked after crafting tool_bench)
-        this.toolBenchButton = document.createElement('button');
+        // 🔧 Tool Bench button (initially hidden, unlocked when crafted)
+        this.toolBenchButton = document.createElement('div');
         this.toolBenchButton.style.cssText = `
-            padding: 16px 24px;
-            font-size: 18px;
-            font-weight: bold;
-            background: linear-gradient(135deg, #555, #777);
-            color: white;
-            border: 2px solid rgba(255,255,255,0.4);
-            border-radius: 8px;
+            font-size: 28px;
             cursor: pointer;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            text-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
             transition: all 0.3s ease;
-            width: 100%;
-            opacity: 0.5;
+            display: none;
+            text-align: center;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            position: relative;
         `;
-        this.toolBenchButton.addEventListener('mouseenter', () => {
-            if (this.hasToolBench) {
-                this.toolBenchButton.style.transform = 'scale(1.05)';
-                this.toolBenchButton.style.boxShadow = '0 6px 12px rgba(0,0,0,0.5)';
-            }
-        });
-        this.toolBenchButton.addEventListener('mouseleave', () => {
-            this.toolBenchButton.style.transform = 'scale(1)';
-            this.toolBenchButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-        });
+        this.toolBenchButton.textContent = '🔧';
+        this.toolBenchButton.title = 'Open tool bench crafting (T key)';
 
+        // Add hotkey label
         const toolBenchLabel = document.createElement('div');
-        toolBenchLabel.textContent = '🔧 Tool Bench [T]';
+        toolBenchLabel.textContent = 'T';
+        toolBenchLabel.style.cssText = `
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            font-size: 8px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            pointer-events: none;
+            font-family: monospace;
+        `;
         this.toolBenchButton.appendChild(toolBenchLabel);
         this.toolBenchHotkeyLabel = toolBenchLabel; // Store reference for day/night updates
 
