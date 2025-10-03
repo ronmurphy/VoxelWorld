@@ -878,7 +878,25 @@ export class ToolBenchSystem {
      * Create tool
      */
     createTool(blueprint) {
-        const itemId = `crafted_${this.selectedBlueprint}`;
+        // For tools with specific toolType (like stone_hammer), use that as itemId
+        // This allows game systems to recognize them properly
+        const itemId = blueprint.toolType || `crafted_${this.selectedBlueprint}`;
+        
+        // Store metadata for tools with special properties
+        if (blueprint.toolType) {
+            if (!this.voxelWorld.inventoryMetadata) {
+                this.voxelWorld.inventoryMetadata = {};
+            }
+            this.voxelWorld.inventoryMetadata[itemId] = {
+                name: blueprint.name,
+                type: 'crafted_tool',
+                toolType: blueprint.toolType,
+                isHarvestTool: blueprint.isHarvestTool || false,
+                canHarvest: blueprint.canHarvest || [],
+                harvestEffects: blueprint.harvestEffects || {}
+            };
+        }
+        
         this.voxelWorld.addToInventory(itemId, 1);
     }
 

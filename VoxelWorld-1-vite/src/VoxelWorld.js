@@ -1852,6 +1852,7 @@ class NebulaVoxelApp {
 
                 // NEW: Tools
                 machete: '🔪',        // For harvesting leaves and vegetation
+                stone_hammer: '🔨',   // Stone hammer for mining
                 backpack: '🎒'        // Backpack icon
             };
 
@@ -1859,7 +1860,7 @@ class NebulaVoxelApp {
 
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools
-            if (['machete', 'workbench', 'backpack'].includes(itemType)) {
+            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick'].includes(itemType)) {
                 if (context === 'status') {
                     return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
                 } else if (context === 'hotbar') {
@@ -1888,6 +1889,14 @@ class NebulaVoxelApp {
 
             // Fallback to emoji if no enhanced graphics available
             return defaultIcon;
+        };
+
+        // Format item names for display (replace underscores with spaces, capitalize each word)
+        this.formatItemName = (itemType) => {
+            return itemType
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
         };
 
         // Update hotbar visual selection
@@ -5061,7 +5070,7 @@ class NebulaVoxelApp {
                     // Has an item
                     filledSlots++;
                     const iconContent = this.getItemIcon(slotData.itemType);
-                    const name = slotData.itemType.charAt(0).toUpperCase() + slotData.itemType.slice(1);
+                    const name = this.formatItemName(slotData.itemType);
 
                     // Store item type for transfers
                     slot.dataset.itemType = slotData.itemType;
