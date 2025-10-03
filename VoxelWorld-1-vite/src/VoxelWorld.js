@@ -1690,6 +1690,7 @@ class NebulaVoxelApp {
                 coal: '⚫',
                 skull: '💀',
                 leaf: '🍃',      // Legacy leaf
+                stick: '🪵',     // Crafted from leaves - tool material
 
                 // NEW: Biome-specific wood types
                 oak_wood: '🪵',      // Classic brown oak

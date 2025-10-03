@@ -458,6 +458,8 @@ export class ToolBenchSystem {
             // Equipment
             'rustySword', 'oldPickaxe', 'ancientAmulet',
             'skull',
+            // Crafted materials
+            'stick',
             // Existing tools
             'machete'
         ];

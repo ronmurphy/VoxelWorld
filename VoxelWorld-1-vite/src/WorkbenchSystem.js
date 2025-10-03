@@ -157,6 +157,16 @@ export class WorkbenchSystem {
                     { type: 'pyramid', position: { x: 0, y: 0, z: 0 }, size: { x: 0.8, y: 0.6, z: 0.8 } }
                 ],
                 effects: ['fire', 'holy']  // Fire particles + golden glow
+            },
+
+            // Crafting Materials
+            stick: {
+                name: '🪵 Stick',
+                materials: { leaves: 3 },
+                description: 'Crafted from leaves - useful for tools',
+                isItem: true,  // This goes into inventory as an item
+                itemId: 'stick',
+                quantity: 1  // Crafts 1 stick from 3 leaves
             }
         };
     }
@@ -1315,7 +1325,8 @@ export class WorkbenchSystem {
         const craftingMaterials = [
             'wood', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
             'stone', 'iron', 'glass', 'sand', 'brick', 'glowstone',
-            'grass', 'dirt', 'coal', 'flowers', 'snow'
+            'grass', 'dirt', 'coal', 'flowers', 'snow',
+            'stick'  // Sticks can be crafted and used in tool bench
         ];
         return craftingMaterials.includes(material);
     }
@@ -1323,6 +1334,7 @@ export class WorkbenchSystem {
     /**
      * Check if player material matches recipe requirement
      * Handles "any wood type" matching (wood -> oak_wood, pine_wood, etc.)
+     * Handles "any leaves type" matching (leaves -> oak_wood-leaves, pine_wood-leaves, etc.)
      */
     materialMatches(recipeMaterial, playerMaterial) {
         // Direct match
@@ -1334,6 +1346,15 @@ export class WorkbenchSystem {
         if (recipeMaterial === 'wood') {
             const woodTypes = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood'];
             return woodTypes.includes(playerMaterial);
+        }
+
+        // "leaves" in recipe matches any specific leaf type
+        if (recipeMaterial === 'leaves') {
+            const leafTypes = [
+                'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
+                'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
+            ];
+            return leafTypes.includes(playerMaterial);
         }
 
         return false;
