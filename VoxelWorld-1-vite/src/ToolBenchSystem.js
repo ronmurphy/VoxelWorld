@@ -579,6 +579,7 @@ export class ToolBenchSystem {
             movement: [],
             upgrade: [],
             combat: [],
+            harvesting: [],
             consumable: [],
             special: []
         };

@@ -806,8 +806,8 @@ class NebulaVoxelApp {
 
                 // 🎯 Only give items if this is actual player harvesting (not chunk cleanup)
                 if (giveItems) {
-                    // Check active tool in selected slot
-                    const selectedSlot = this.inventory.slots[this.inventory.selectedSlot];
+                    // Check active tool in selected slot (with safety check)
+                    const selectedSlot = this.inventory?.slots?.[this.inventory?.selectedSlot];
                     const hasStoneHammer = selectedSlot && selectedSlot.itemType === 'stone_hammer';
 
                     // Check if it's a shrub for harvesting
