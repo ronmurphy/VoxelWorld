@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>voxelworld-1-vite</title>
+  </head>
+  <body>
+    <!-- Splash Screen (shown during loading) -->
+    <div id="splash-screen">
+      <div class="splash-content">
+        <img src="assets/art/logo.png" alt="VoxelWorld Logo" class="splash-logo">
+        <div class="splash-progress">
+          <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <p id="splash-status" class="splash-status">Initializing...</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="app">
+      <header>
+        <h1>VoxelWorld + ShapeForge</h1>
+        <nav>
+          <button id="playModeBtn">Play Mode</button>
+          <button id="workbenchBtn">Workbench</button>
+        </nav>
+      </header>
+      <main>
+        <div id="gameContainer"></div>
+        <div id="workbenchContainer" style="display:none;"></div>
+      </main>
+    </div>
+    <script type="module" src="/src/App.js"></script>
+  </body>
+</html>

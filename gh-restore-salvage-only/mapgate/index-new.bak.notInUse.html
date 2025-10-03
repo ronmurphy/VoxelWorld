@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShapeForge - 3D Geometry Editor</title>
+
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+
+  <!-- CSS - Minimal set -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/new-ui.css">
+  <link rel="stylesheet" href="css/new-rm-ui.css">
+
+  <!-- Load Shoelace components -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/themes/light.css" />
+
+  <!-- Load Shoelace JS components - minimal set -->
+  <script type="module">
+    import { setBasePath } from "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/utilities/base-path.js";
+    setBasePath("https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/");
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/button/button.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/dialog/dialog.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/drawer/drawer.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/input/input.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/select/select.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/option/option.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/range/range.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/color-picker/color-picker.js"></script>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.138.0/examples/js/controls/PointerLockControls.js"></script>
+
+  <!-- FPS Counter -->
+  <script src="js/libs/stats.min.js"></script>
+
+  <!-- Core Dependencies -->
+  <script src="js/classes/resource-manager.js"></script>
+  <script src="js/classes/ShaderEffectsManager.js"></script>
+  <script src="js/classes/Scene3DController.js"></script>
+  <script src="js/classes/ShapeForge.js"></script>
+  <script src="js/classes/ShapeForgeParser.js"></script>
+
+  <!-- Initialize Everything -->
+  <script src="js/main.js"></script>
+</head>
+
+<body class="new-ui">
+  <div class="app-container">
+    <!-- Simple Header -->
+    <header class="app-header">
+      <div class="app-logo">
+        <span class="material-icons">3d_rotation</span>
+        <span>ShapeForge</span>
+      </div>
+
+      <!-- File Operations -->
+      <div class="header-actions">
+        <sl-button size="small" variant="neutral" id="loadObjectBtn">
+          <span slot="prefix" class="material-icons">folder_open</span>
+          Load Object
+        </sl-button>
+
+        <sl-button size="small" variant="neutral" id="saveObjectBtn">
+          <span slot="prefix" class="material-icons">save</span>
+          Save Object
+        </sl-button>
+      </div>
+
+      <div class="spacer"></div>
+
+      <!-- Main Tools -->
+      <sl-button size="small" variant="primary" id="shapeForgeBtn">
+        <span slot="prefix" class="material-icons">add_box</span>
+        Create Object
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="view3DBtn">
+        <span slot="prefix" class="material-icons">view_in_ar</span>
+        3D Viewer
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="sampleObjectsBtn">
+        <span slot="prefix" class="material-icons">inventory_2</span>
+        Sample Objects
+      </sl-button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- 3D Viewer Container -->
+      <div id="viewer3d" style="position: relative; width: 100%; height: 100%; background: #1a1a1a; display: none;">
+        <div id="viewer-controls" style="position: absolute; top: 10px; left: 10px; z-index: 100; color: white;">
+          <div>WASD: Move | Mouse: Look | E: Exit</div>
+        </div>
+      </div>
+
+      <!-- Welcome Screen -->
+      <div id="welcomeScreen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div style="background: rgba(255,255,255,0.9); padding: 40px; border-radius: 12px; max-width: 500px;">
+          <h1 style="margin: 0 0 20px 0; color: #333;">
+            <span class="material-icons" style="vertical-align: middle; font-size: 48px; margin-right: 16px;">3d_rotation</span>
+            ShapeForge
+          </h1>
+          <p style="margin: 0 0 30px 0; color: #666; font-size: 18px;">
+            Create and edit 3D objects for your games and projects
+          </p>
+          
+          <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+            <sl-button variant="primary" size="large" onclick="openShapeForge()">
+              <span slot="prefix" class="material-icons">add_box</span>
+              Create New Object
+            </sl-button>
+            
+            <sl-button variant="neutral" size="large" onclick="showSampleObjects()">
+              <span slot="prefix" class="material-icons">inventory_2</span>
+              Browse Samples
+            </sl-button>
+          </div>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #888; font-size: 14px;">
+            Use the tools above or press <strong>Create New Object</strong> to start building!
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+
+</html>
