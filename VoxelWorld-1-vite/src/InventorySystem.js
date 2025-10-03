@@ -14,8 +14,8 @@ export class InventorySystem {
     constructor(voxelWorld) {
         this.voxelWorld = voxelWorld;
 
-        // Stack limit for items per slot
-        this.STACK_LIMIT = 50;
+        // Stack limit for items per slot (now dynamic - reads from voxelWorld.backpackStackSize)
+        // this.voxelWorld.backpackStackSize = 50;  // OLD: Static value
 
         // Initialize inventory slots
         this.initializeInventory();
@@ -51,7 +51,7 @@ export class InventorySystem {
 
     setHotbarSlot(index, itemType, quantity) {
         if (index >= 0 && index < this.hotbarSlots.length) {
-            this.hotbarSlots[index] = { itemType, quantity: Math.min(quantity, this.STACK_LIMIT) };
+            this.hotbarSlots[index] = { itemType, quantity: Math.min(quantity, this.voxelWorld.backpackStackSize) };
         }
     }
 
@@ -74,7 +74,7 @@ export class InventorySystem {
             const existingElement = this.backpackSlots[index].element;
             this.backpackSlots[index] = {
                 itemType,
-                quantity: Math.min(quantity, this.STACK_LIMIT),
+                quantity: Math.min(quantity, this.voxelWorld.backpackStackSize),
                 element: existingElement
             };
         }
@@ -93,13 +93,13 @@ export class InventorySystem {
     findItemInSlots(itemType) {
         // Check hotbar first (all 5 slots are item slots)
         for (let i = 0; i < this.hotbarSlots.length; i++) {
-            if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity < this.STACK_LIMIT) {
+            if (this.hotbarSlots[i].itemType === itemType && this.hotbarSlots[i].quantity < this.voxelWorld.backpackStackSize) {
                 return { location: 'hotbar', index: i };
             }
         }
         // Then check backpack
         for (let i = 0; i < this.backpackSlots.length; i++) {
-            if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity < this.STACK_LIMIT) {
+            if (this.backpackSlots[i].itemType === itemType && this.backpackSlots[i].quantity < this.voxelWorld.backpackStackSize) {
                 return { location: 'backpack', index: i };
             }
         }
@@ -188,20 +188,20 @@ export class InventorySystem {
                     this.hotbarSlots[existingStack.index] :
                     this.backpackSlots[existingStack.index];
 
-                const canAdd = Math.min(remaining, this.STACK_LIMIT - slot.quantity);
+                const canAdd = Math.min(remaining, this.voxelWorld.backpackStackSize - slot.quantity);
                 slot.quantity += canAdd;
                 remaining -= canAdd;
             } else {
                 // No existing stack with space, find empty slot
                 const emptyHotbar = this.findEmptyHotbarSlot();
                 if (emptyHotbar !== -1) {
-                    const canAdd = Math.min(remaining, this.STACK_LIMIT);
+                    const canAdd = Math.min(remaining, this.voxelWorld.backpackStackSize);
                     this.setHotbarSlot(emptyHotbar, itemType, canAdd);
                     remaining -= canAdd;
                 } else {
                     const emptyBackpack = this.findEmptyBackpackSlot();
                     if (emptyBackpack !== -1) {
-                        const canAdd = Math.min(remaining, this.STACK_LIMIT);
+                        const canAdd = Math.min(remaining, this.voxelWorld.backpackStackSize);
                         this.setBackpackSlot(emptyBackpack, itemType, canAdd);
                         remaining -= canAdd;
                     } else {
@@ -233,9 +233,9 @@ export class InventorySystem {
             // First, try to find existing slot with same item type that has space
             for (let i = 0; i < this.backpackSlots.length; i++) {
                 const slot = this.backpackSlots[i];
-                if (slot.itemType === itemType && slot.quantity < this.STACK_LIMIT) {
+                if (slot.itemType === itemType && slot.quantity < this.voxelWorld.backpackStackSize) {
                     // Check if there's enough space for the full transfer
-                    if (slot.quantity + transferAmount <= this.STACK_LIMIT) {
+                    if (slot.quantity + transferAmount <= this.voxelWorld.backpackStackSize) {
                         targetSlotIndex = i;
                         break;
                     }
@@ -288,9 +288,9 @@ export class InventorySystem {
             // First, try to find existing slot with same item type that has space
             for (let i = 0; i < this.hotbarSlots.length; i++) {
                 const slot = this.hotbarSlots[i];
-                if (slot.itemType === itemType && slot.quantity < this.STACK_LIMIT) {
+                if (slot.itemType === itemType && slot.quantity < this.voxelWorld.backpackStackSize) {
                     // Check if there's enough space for the full transfer
-                    if (slot.quantity + transferAmount <= this.STACK_LIMIT) {
+                    if (slot.quantity + transferAmount <= this.voxelWorld.backpackStackSize) {
                         targetSlotIndex = i;
                         break;
                     }
