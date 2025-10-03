@@ -4744,6 +4744,21 @@ class NebulaVoxelApp {
                 } else {
                     console.warn("🚨 Status elements not found - biome indicator not updated");
                 }
+
+                // Update the Explorer's Info Panel biome display
+                if (this.biomeDisplay) {
+                    const isTransition = currentBiome.isTransition || false;
+                    const displayText = isTransition 
+                        ? `🌐 ${currentBiome.name} (Transition)`
+                        : `${biomeInfo.icon} ${currentBiome.name}`;
+                    this.biomeDisplay.textContent = displayText;
+                    
+                    // Add subtle animation on biome change
+                    this.biomeDisplay.style.animation = 'none';
+                    setTimeout(() => {
+                        this.biomeDisplay.style.animation = 'biomeFade 0.5s ease-in-out';
+                    }, 10);
+                }
             }
         };
 
@@ -8230,42 +8245,110 @@ class NebulaVoxelApp {
         this.toolMenu.appendChild(this.toolBenchButton);
 
         // Coordinate display (above minimap)
-        this.coordDisplay = document.createElement('div');
-        this.coordDisplay.style.cssText = `
+        // 📖 Explorer's Info Panel - Unified coordinates, map, and biome display
+        const explorerPanel = document.createElement('div');
+        explorerPanel.style.cssText = `
             position: absolute;
             top: 16px;
             right: 16px;
             z-index: 2000;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid rgba(255,255,255,0.6);
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-family: monospace;
+            background: linear-gradient(180deg, rgba(139, 90, 43, 0.95), rgba(101, 67, 33, 0.95));
+            border: 3px solid #654321;
+            border-radius: 12px;
+            padding: 12px;
+            font-family: 'Georgia', serif;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 3px rgba(245, 230, 211, 0.3);
+            pointer-events: auto;
+            min-width: 144px;
+        `;
+
+        // Header with title
+        const panelTitle = document.createElement('div');
+        panelTitle.textContent = '📍 Explorer\'s Log';
+        panelTitle.style.cssText = `
+            color: #F5E6D3;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 8px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid rgba(101, 67, 33, 0.6);
+            padding-bottom: 6px;
+        `;
+        explorerPanel.appendChild(panelTitle);
+
+        // Coordinates display
+        this.coordDisplay = document.createElement('div');
+        this.coordDisplay.style.cssText = `
+            color: #FFE4B5;
             font-size: 11px;
-            color: #00ff00;
-            pointer-events: none;
-            text-shadow: 0 0 3px rgba(0,255,0,0.5);
+            font-family: monospace;
+            text-align: center;
+            margin-bottom: 10px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            text-shadow: 0 0 4px rgba(255, 228, 181, 0.6);
+            border: 1px solid rgba(101, 67, 33, 0.6);
         `;
         this.coordDisplay.textContent = 'X: 0, Y: 0, Z: 0';
-        contentArea.appendChild(this.coordDisplay);
+        explorerPanel.appendChild(this.coordDisplay);
 
-        // Mini-map
+        // Mini-map with frame
+        const mapContainer = document.createElement('div');
+        mapContainer.style.cssText = `
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #654321;
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 10px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+        `;
+
         this.miniMap = document.createElement('canvas');
         this.miniMap.width = 120;
         this.miniMap.height = 120;
         this.miniMap.style.cssText = `
-            position: absolute;
-            top: 48px;
-            right: 16px;
-            z-index: 2000;
-            border: 2px solid rgba(255,255,255,0.8);
-            border-radius: 8px;
-            background: rgba(0,0,0,0.7);
-            pointer-events: auto;
+            display: block;
+            border-radius: 6px;
+            width: 120px;
+            height: 120px;
         `;
         this.miniMap.title = 'Mini-map showing biomes and your position';
-        contentArea.appendChild(this.miniMap);
+        mapContainer.appendChild(this.miniMap);
+        explorerPanel.appendChild(mapContainer);
         this.miniMapContext = this.miniMap.getContext('2d');
+
+        // Biome information display
+        this.biomeDisplay = document.createElement('div');
+        this.biomeDisplay.className = 'biome-info';
+        this.biomeDisplay.style.cssText = `
+            color: #F5E6D3;
+            font-size: 11px;
+            text-align: center;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            border: 1px solid rgba(101, 67, 33, 0.6);
+            min-height: 20px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        `;
+        this.biomeDisplay.textContent = '🌍 Exploring...';
+        explorerPanel.appendChild(this.biomeDisplay);
+
+        contentArea.appendChild(explorerPanel);
+
+        // Add CSS animation for biome changes
+        const biomeStyle = document.createElement('style');
+        biomeStyle.textContent = `
+            @keyframes biomeFade {
+                0% { opacity: 0.6; transform: scale(0.98); }
+                50% { opacity: 1; transform: scale(1.02); }
+                100% { opacity: 1; transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(biomeStyle);
 
         // Modal menu overlay (centered)
         const modal = document.createElement('div');
