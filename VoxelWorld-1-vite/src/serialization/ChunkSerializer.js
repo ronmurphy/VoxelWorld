@@ -44,24 +44,24 @@ export class ChunkSerializer {
      * Must match the game's block type system
      */
     static BLOCK_TYPE_IDS = {
-        'air': 0,
+        'bedrock': 0,  // MUST match ChunkWorker!
         'grass': 1,
-        'dirt': 2,
+        'sand': 2,
         'stone': 3,
-        'sand': 4,
-        'iron': 5,
-        'oak_wood': 6,
-        'pine_wood': 7,
-        'birch_wood': 8,
-        'palm_wood': 9,
-        'dead_wood': 10,
-        'oak_wood-leaves': 11,
-        'pine_wood-leaves': 12,
-        'birch_wood-leaves': 13,
-        'palm_wood-leaves': 14,
-        'dead_wood-leaves': 15,
-        'water': 16,
-        'bedrock': 17
+        'iron': 4,
+        'snow': 5,
+        'water': 6,
+        'dirt': 7,
+        'oak_wood': 10,
+        'pine_wood': 11,
+        'birch_wood': 12,
+        'palm_wood': 13,
+        'dead_wood': 14,
+        'oak_wood-leaves': 20,
+        'pine_wood-leaves': 21,
+        'birch_wood-leaves': 22,
+        'palm_wood-leaves': 23,
+        'dead_wood-leaves': 24
     };
 
     static ID_TO_BLOCK_TYPE = Object.fromEntries(
