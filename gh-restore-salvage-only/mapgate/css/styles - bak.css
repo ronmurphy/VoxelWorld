@@ -1,0 +1,1604 @@
+
+:root {
+    --app-height: 100vh;
+    --header-height: 48px;
+    --sidebar-width: 280px;
+    --primary-bg: #1a1a1a;
+    --secondary-bg: #2a2a2a;
+    --border-color: #3a3a3a;
+    --hover-bg: #3a3a3a;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI";
+    background: var(--primary-bg);
+    color: #ffffff;
+}
+
+.app-container {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) 1fr;
+    grid-template-rows: var(--header-height) 1fr;
+    height: var(--app-height);
+}
+
+.header {
+    grid-column: 1 / -1;
+    background: var(--secondary-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 1000;
+    position: relative;
+    height: var(--header-height);
+}
+
+.header-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-right: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar {
+    background: var(--secondary-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1000;
+    position: relative;
+    height: 100%;
+}
+
+.sidebar-content {
+    flex: 0 0 auto;
+    overflow-y: auto;
+    padding: 16px;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.tool-section {
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.tool-section-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 4px;
+    padding: 0 8px;
+}
+
+.tool-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 0 8px;
+}
+
+.tool-button {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    height: 32px;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    width: 32px;
+    position: relative;
+}
+
+.tool-button:hover {
+    background: var(--hover-bg);
+}
+
+.tool-button.active {
+    background: var(--sl-color-primary-600);
+    border-color: var(--sl-color-primary-400);
+}
+
+.tool-button sl-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.tool-button-label {
+    font-size: 0.8rem;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.layers-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--secondary-bg);
+    flex: 0 0 auto;
+}
+
+.layers-panel {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+    border-right: 1px solid #444;
+    height: 100%;
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: var(--secondary-bg);
+}
+
+.layer-item {
+    background: var(--secondary-bg);
+    border-radius: 3px;
+    padding: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+}
+
+.layer-item:hover {
+    background: #468e2c;
+    border-color: rgb(255, 255, 255);
+}
+
+.layer-item.selected {
+    background: #505050;
+    border: 1px solid #666;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.layer-item.editing {
+    background: #ffffff44;
+}
+
+.layer-content {
+    display: grid;
+    align-items: center;
+    gap: 4px;
+    grid-template-columns: auto auto 1fr auto;
+}
+
+.layer-thumbnail {
+    width: 32px;
+    height: 32px;
+    background: #333;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.layer-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.layer-info {
+    flex: 1;
+    min-width: 0;
+    padding: 0 4px;
+}
+
+.layer-name {
+    font-weight: 500;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.layer-dimensions {
+    font-size: 0.8em;
+    color: #e6e6e6;
+}
+
+.layer-controls {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.layer-item:hover .layer-controls {
+    opacity: 1;
+}
+
+.canvas-container {
+    position: relative;
+    overflow: hidden;
+    background: var(--primary-bg);
+    z-index: 1;
+}
+
+#mainCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.room-block {
+    position: absolute;
+    background: rgba(128, 128, 128, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    transition: all 0.2s ease;
+}
+
+.room-block.highlighted {
+    background: rgba(128, 128, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.9);
+}
+
+.room-block.editing {
+    background: rgba(0, 255, 0, 0.2);
+    border-color: #4caf50;
+}
+
+.room-block .resize-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border: 1px solid #333;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+}
+
+.tool-button .material-icons {
+    font-size: 20px;
+    margin-bottom: 0;
+    color: #fff;
+    margin-right: 8px;
+}
+
+.tool-button:hover .material-icons {
+    color: var(--sl-color-primary-400);
+}
+
+.tool-button.active .material-icons {
+    color: white;
+}
+
+.tool-button.active .tool-button-label {
+    color: white;
+}
+
+.room-block.circle-room {
+    border-radius: 50%;
+}
+
+.room-block .resize-handle.nw {
+    top: 0;
+    left: 0;
+    cursor: nw-resize;
+}
+
+.room-block .resize-handle.ne {
+    top: 0;
+    left: 100%;
+    cursor: ne-resize;
+}
+
+.room-block .resize-handle.sw {
+    top: 100%;
+    left: 0;
+    cursor: sw-resize;
+}
+
+.room-block .resize-handle.se {
+    top: 100%;
+    left: 100%;
+    cursor: se-resize;
+}
+
+.room-controls {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.room-block:hover .room-controls {
+    opacity: 1;
+}
+
+.room-controls .material-icons {
+    user-select: none;
+    transition: transform 0.2s ease;
+}
+
+.room-controls .material-icons:hover {
+    transform: scale(1.1);
+}
+
+sl-dialog::part(base) {
+    --sl-panel-background-color: white;
+    color: black;
+}
+
+sl-input::part(form-control-label) {
+    color: black;
+}
+
+.polygon-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.polygon-point {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: white;
+    border: 1px solid #333;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.polygon-point:first-child {
+    background: #4caf50;
+    width: 10px;
+    height: 10px;
+}
+
+.room-block.polygon-room {
+    background: none !important;
+    border: none !important;
+    position: absolute;
+    overflow: visible !important;
+}
+
+.room-block.polygon-room svg path {
+    transition: all 0.2s ease;
+}
+
+.room-block.polygon-room:hover svg path {
+    fill: rgba(128, 128, 255, 0.4);
+    stroke: rgba(255, 255, 255, 0.9);
+}
+
+.room-block.polygon-room .polygon-fill {
+    transition: all 0.2s ease;
+}
+
+.room-block.polygon-room .polygon-hover {
+    transition: opacity 0.2s ease;
+}
+
+.room-block.polygon-room.highlighted .polygon-hover {
+    opacity: 1 !important;
+}
+
+.room-block.polygon-room.editing .polygon-fill {
+    fill: rgba(0, 255, 0, 0.2);
+    stroke: #4caf50;
+}
+
+.polygon-vertex {
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: white;
+    border: 1px solid #333;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+}
+
+.room-block.polygon-room.highlighted .polygon-vertex {
+    opacity: 1;
+}
+
+.room-block.polygon-room .polygon-base {
+    transition: all 0.2s ease;
+    vector-effect: non-scaling-stroke;
+}
+
+.room-block.polygon-room .polygon-highlight {
+    transition: opacity 0.2s ease;
+}
+
+.room-block.polygon-room.highlighted .polygon-highlight {
+    opacity: 1 !important;
+}
+
+.room-block.polygon-room.editing .polygon-base {
+    fill: rgba(0, 255, 0, 0.2);
+    stroke: #4caf50;
+}
+
+.room-block.polygon-room .polygon-vertex {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: white;
+    border: 1px solid #333;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.room-block.polygon-room:hover .polygon-base {
+    fill: rgba(128, 128, 255, 0.4);
+    stroke: rgba(255, 255, 255, 0.9);
+}
+
+.room-block.polygon-room.highlighted .polygon-base {
+    fill: rgba(128, 128, 255, 0.4);
+    stroke: rgba(255, 255, 255, 0.9);
+}
+
+.room-block .room-background {
+    transition: all 0.2s ease;
+}
+
+.room-block.highlighted .room-background {
+    background: rgba(128, 128, 255, 0.4) !important;
+    border-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.room-block.circle-room .room-background {
+    border-radius: 50%;
+}
+
+.room-block.editing .room-background {
+    background: rgba(0, 255, 0, 0.2) !important;
+    border-color: #4caf50 !important;
+}
+
+.map-marker {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    pointer-events: all !important;
+}
+
+.map-marker .material-icons {
+    font-size: 32px;
+    filter: drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.5));
+}
+
+.map-marker:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.marker-player-start .material-icons {
+    color: #4caf50;
+}
+
+.marker-encounter .material-icons {
+    color: #f44336;
+}
+
+.marker-treasure .material-icons {
+    color: #ffd700;
+}
+
+.marker-trap .material-icons {
+    color: #ff5722;
+}
+
+.marker-tooltip {
+    position: fixed;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 10000;
+    white-space: pre-line;
+    transform: translate(-50%, -100%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    min-width: 150px;
+    text-align: center;
+}
+
+.map-marker.marker-teleport .material-icons {
+    color: #9c27b0;
+}
+
+.map-marker.highlighted {
+    transform: translate(-50%, -50%) scale(1.2);
+    filter: brightness(1.3);
+}
+
+.map-marker[data-teleport-point="a"] .material-icons {
+    color: #2196f3;
+}
+
+.map-marker[data-teleport-point="b"] .material-icons {
+    color: #ff9800 !important;
+}
+
+.map-marker.editing {
+    outline: 2px solid #4caf50;
+    outline-offset: 2px;
+    z-index: 1000;
+}
+
+.map-marker.editing .material-icons {
+    color: #4caf50;
+}
+
+#editMarkerTool.active {
+    background: var(--sl-color-primary-600);
+    border-color: var(--sl-color-primary-400);
+}
+
+#editMarkerTool.active .tool-button-label {
+    color: white;
+}
+
+.teleport-connection {
+    position: absolute;
+    height: 2px;
+    background: linear-gradient(to right, #2196f3, #ff9800);
+    transform-origin: left center;
+    pointer-events: none;
+    opacity: 0.6;
+    z-index: 90;
+}
+
+.teleport-connection::after {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    right: -3px;
+    top: -2px;
+    background: #ff9800;
+}
+
+.teleport-connection::before {
+    left: -3px;
+    top: -2px;
+    background: #2196f3;
+}
+
+.map-marker[data-teleport-point="a"]:hover .material-icons {
+    color: #64b5f6;
+}
+
+.map-marker[data-teleport-point="b"]:hover .material-icons {
+    color: #ffb74d;
+}
+
+.map-marker[data-teleport-point].highlighted .material-icons {
+    filter: brightness(1.2);
+}
+
+.room-block.polygon-room svg {
+    pointer-events: none;
+    overflow: visible;
+}
+
+.map-marker .monster-token {
+    transition: all 0.2s ease;
+}
+
+.map-marker:hover .monster-token {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+    border-color: #ff9800;
+    transition: all 0.2s ease;
+}
+
+.map-marker[title] {
+    position: relative;
+    display: inline-block;
+}
+
+.map-marker[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: pre;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.marker-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid rgba(0, 0, 0, 0.9);
+}
+
+.monster-token {
+    pointer-events: all !important;
+    z-index: 100;
+}
+
+.layers-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 4px;
+    min-height: 0;
+    position: relative;
+    overflow-x: hidden;
+    margin: 0;
+    background: var(--secondary-bg);
+}
+
+#layersList {
+    height: calc(100vh - var(--header-height) - 200px);
+    overflow-y: auto;
+    padding: 10px;
+    flex: 1;
+}
+
+.layers-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.layers-list::-webkit-scrollbar-track {
+    background: var(--secondary-bg);
+}
+
+.layers-list::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+.layers-list::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 20px;
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        var(--secondary-bg)
+      );
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.layers-list:hover::after {
+    opacity: 1;
+}
+
+#layersList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#layersList::-webkit-scrollbar-track {
+    background: var(--secondary-bg);
+}
+
+#layersList::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+.layers-panel::-webkit-scrollbar {
+    width: 8px;
+}
+
+.layers-panel::-webkit-scrollbar-track {
+    background: var(--secondary-bg);
+}
+
+.layers-panel::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+.drawer-3d-view::part(body) {
+    padding: 0;
+}
+
+.drawer-3d-view::part(panel) {
+    background-color: #1a1a1a;
+}
+
+.layer-visibility {
+    display: flex;
+    align-items: center;
+    padding: 0 2px;
+}
+
+.visibility-toggle {
+    font-size: 20px;
+    transition: color 0.2s ease;
+}
+
+.visibility-toggle:hover {
+    color: #2196f3 !important;
+}
+
+.tool-button::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    font-size: 12px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    margin-bottom: 4px;
+}
+
+.tool-button:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+.tool-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 8px 8px;
+    opacity: 0.5;
+}
+
+.marker-tools {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.room-block.wall-room {
+    background: rgba(70, 70, 70, 0.3);
+    border: 2px dashed #666;
+}
+
+.room-block.wall-room.highlighted {
+    background: rgba(70, 70, 70, 0.5) !important;
+    border: 2px dashed #888 !important;
+}
+
+.room-block.wall-room.editing {
+    background: rgba(70, 70, 70, 0.4) !important;
+    border: 2px dashed #4caf50 !important;
+}
+
+.layer-item.wall-room .layer-name {
+    color: #fff;
+}
+
+.layer-item.wall-room .layer-name::before {
+    content: "🧱";
+    margin-right: 4px;
+}
+
+.room-block.room-room {
+    background: rgba(128, 128, 255, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.room-block[data-texture-room="true"] {
+    border: 2px dashed #4caf50;
+    background: rgba(76, 175, 80, 0.2);
+}
+
+.layer-item .layer-name::before {
+    margin-right: 8px;
+    font-family: "Material Icons";
+    font-size: 20px;
+    vertical-align: middle;
+}
+
+.layer-item .layer-name {
+    display: flex;
+    align-items: center;
+}
+
+.layer-item[data-room-type="wall"] .layer-name::before {
+    content: "grid_4x4";
+    color: #757575;
+}
+
+.layer-item[data-room-type="room"] .layer-name::before {
+    content: "meeting_room";
+    color: #2196f3;
+}
+
+.layer-item[data-texture-room="true"] .layer-name::before {
+    content: "texture";
+    color: #4caf50;
+}
+
+.layer-item:hover .layer-name::before {
+    opacity: 0.8;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+.room-block.circle-room.room-room {
+    background: rgba(128, 128, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.room-block.circle-room.room-room.highlighted {
+    background: rgba(128, 128, 255, 0.4);
+    border: 2px solid rgba(255, 255, 255, 1);
+    box-shadow: 0 0 5px rgba(128, 128, 255, 0.5);
+}
+
+.room-block.circle-room.wall-room {
+    background: rgba(255, 152, 0, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.room-block.circle-room.wall-room.highlighted {
+    background: rgba(255, 152, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 1);
+    box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+}
+
+.room-block.polygon-room.room-room .polygon-base {
+    fill: rgba(128, 128, 255, 0.2);
+    stroke: rgba(255, 255, 255, 0.7);
+    stroke-dasharray: 5,5;
+    stroke-width: 2;
+}
+
+.room-block.polygon-room.room-room.highlighted .polygon-base {
+    fill: rgba(128, 128, 255, 0.4);
+    stroke: rgba(255, 255, 255, 1);
+    stroke-width: 3;
+    filter: drop-shadow(0 0 3px rgba(128, 128, 255, 0.5));
+}
+
+.room-block.polygon-room.wall-room .polygon-base {
+    fill: rgba(255, 152, 0, 0.2);
+    stroke: rgba(255, 255, 255, 0.7);
+    stroke-width: 2;
+}
+
+.room-block.polygon-room.wall-room.highlighted .polygon-base {
+    fill: rgba(255, 152, 0, 0.4);
+    stroke: rgba(255, 255, 255, 1);
+    stroke-width: 3;
+    filter: drop-shadow(0 0 3px rgba(255, 152, 0, 0.5));
+}
+
+.map-marker[data-teleport-point="a"] {
+    outline: 2px solid #2196f3;
+}
+
+.map-marker[data-teleport-point="b"] {
+    outline: 2px solid #ff9800;
+}
+
+.layer-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.layer-item.drag-over {
+    border-bottom: 2px solid var(--sl-color-primary-600);
+}
+
+.layer-folder {
+    margin-bottom: 2px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.folder-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.folder-header:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.folder-toggle {
+    margin-right: 4px;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.folder-icon {
+    margin-right: 8px;
+    color: #2196F3;
+}
+
+.folder-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.folder-controls {
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.folder-header:hover .folder-controls {
+    opacity: 1;
+}
+
+.folder-content {
+    padding-left: 24px;
+    min-height: 10px;
+    padding: 2px 0 2px 12px;
+    transition: background-color 0.2s;
+}
+
+.folder-content.drag-over {
+    background: rgba(33, 150, 243, 0.1);
+}
+
+.folder-header.drag-over {
+    background: rgba(33, 150, 243, 0.2);
+}
+
+.folder-header .visibility-toggle {
+    transition: color 0.2s ease;
+}
+
+.folder-hidden {
+    opacity: 0.7;
+}
+
+.folder-hidden .folder-content {
+    opacity: 0.5;
+}
+
+.folder-controls, .layer-controls {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.material-icons {
+    font-size: 18px;
+}
+
+.thumbnail-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.thumbnail-placeholder::after {
+    content: 'No Preview';
+    font-size: 8px;
+    color: #666;
+}
+
+.layer-item.locked {
+    position: relative;
+}
+
+.layer-item.locked::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.1);
+    pointer-events: none;
+}
+
+.layer-item.locked .delete-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.lock-toggle {
+    transition: color 0.2s ease;
+}
+
+.lock-toggle:hover {
+    color: #f44336 !important;
+}
+
+.header sl-button-group {
+    min-width: 300px;
+    display: flex;
+    gap: 4px;
+}
+
+/* Make header buttons more compact if needed */
+.header sl-button-group sl-button::part(base) {
+    padding: 0.3rem;
+    width: 48px;
+    height: 48px;
+  }
+  
+  .header sl-button-group sl-button .material-icons {
+    font-size: 24px;
+  }
+
+.header-title:hover {
+    color: var(--sl-color-primary-500);
+}
+
+.header-title-edit {
+    opacity: 0.5;
+    font-size: 16px;
+}
+
+.header-title:hover .header-title-edit {
+    opacity: 1;
+}
+
+.door {
+    position: absolute;
+    pointer-events: all;
+    cursor: pointer;
+}
+
+.door-frame {
+    border: 2px solid #666;
+    background: rgba(102, 102, 102, 0.2);
+}
+
+.door-panel {
+    position: absolute;
+    background: #8b4513;
+    transition: transform 0.3s;
+}
+
+.door.open .door-panel {
+    transform: rotateY(90deg);
+}
+
+.map-marker[data-type="door"] {
+    width: 24px;
+    height: 24px;
+    background: #8b4513;
+    border: 2px solid #666;
+    border-radius: 2px;
+    transform-origin: left;
+    transition: transform 0.3s;
+}
+
+.map-marker[data-type="door"].open {
+    transform: rotateY(90deg);
+}
+
+.room-block.docked {
+    border: 2px solid #ae33c7;
+    position: relative;
+}
+
+.room-block.docked::after {
+    content: "Shift + Drag to dock";
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.room-block.docked:hover::after {
+    opacity: 1;
+}
+
+.dock-point {
+            position: absolute;
+            width: 16px;  
+            height: 16px;
+            background: #666;
+            border: 2px solid #888;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dock-point:hover {
+            background: var(--sl-color-primary-600);
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .dock-point.active {
+            background: var(--sl-color-primary-600);
+            box-shadow: 0 0 0 4px rgba(var(--sl-color-primary-600), 0.3);
+        }
+
+        .room-option {
+            transition: all 0.2s;
+        }
+
+        .room-option:hover {
+            background: #444;
+        }
+
+        .room-option.selected {
+            border-color: var(--sl-color-primary-600);
+            background: #333;
+        }
+
+        .dock-preview {
+    border: 1px solid #444;
+    position: relative;
+    min-height: 500px;
+    background: #2a2a2a;
+    border-radius: 4px;
+}
+
+.dock-positions {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+}
+
+.room-option {
+    cursor: pointer;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid #666;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.room-option:hover {
+    background: #444;
+}
+
+.room-option.selected {
+    border-color: var(--sl-color-primary-600);
+    background: #333;
+}
+
+.room-option img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 2px;
+}
+
+sl-radio {
+    --sl-input-border-color: #666;
+    --sl-input-border-color-hover: #888;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+sl-radio:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+sl-radio[checked] {
+    background-color: rgba(var(--sl-color-primary-500), 0.1);
+}
+
+.docked {
+    border: 2px solid var(--sl-color-primary-500);
+    position: relative;
+}
+
+.docked::after {
+    content: "Docked";
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--sl-color-primary-500);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.docked:hover::after {
+    opacity: 1;
+}
+
+.dock-grid {
+    aspect-ratio: 1;
+    background: #2a2a2a;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.dock-button {
+    all: unset;
+    aspect-ratio: 1;
+    background: #444;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    transition: all 0.2s;
+}
+
+.dock-button:hover {
+    background: #666;
+}
+
+.dock-button.selected {
+    background: var(--sl-color-primary-600);
+}
+
+.dock-spacer {
+    aspect-ratio: 1;
+}
+
+.room-preview {
+    aspect-ratio: 1;
+    border: 2px solid #666;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Update the sidebar-content z-index */
+.sidebar-content {
+    flex: 0 0 auto;
+    overflow-y: auto;
+    padding: 16px;
+    flex-shrink: 0;
+    overflow: hidden;
+    z-index: 10; /* Lower z-index */
+}
+
+/* Add or update tooltip z-index */
+sl-tooltip {
+    --z-index: 100; /* Higher z-index */
+}
+
+/* Style for prop markers */
+.marker-prop {
+    position: absolute;
+    z-index: 50;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    pointer-events: all;
+  }
+  
+  .marker-prop:hover .prop-visual {
+    border-color: #2196F3 !important;
+    box-shadow: 0 0 8px rgba(33, 150, 243, 0.6);
+  }
+  
+  .marker-prop.editing {
+    z-index: 100;
+  }
+  
+  .marker-prop.editing .prop-visual {
+    border: 2px dashed #f44336 !important;
+  }
+  
+  .prop-visual {
+    transition: all 0.2s ease;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 2px solid #4CAF50;
+    border-radius: 4px;
+    pointer-events: all;
+  }
+  
+  /* Add this to existing CSS for context menu */
+  .prop-texture-option {
+    cursor: pointer;
+    border: 2px solid transparent;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .prop-texture-option:hover {
+    background-color: rgba(33, 150, 243, 0.1);
+  }
+  
+  .prop-texture-option.selected {
+    border-color: var(--sl-color-primary-600);
+  }
+  
+  .prop-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin-top: 12px;
+  }
+  
+  .prop-control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .prop-control-row label {
+    min-width: 80px;
+  }
+
+  /* Add to your CSS for props */
+.prop-visual.horizontal-prop {
+    /* Add a subtle indicator to show it's horizontal */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    border-color: #2196F3 !important;
+    border-style: dashed !important;
+  }
+  
+  /* Add small horizontal icon */
+  .prop-visual.horizontal-prop::after {
+    content: "";
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 12px;
+    height: 12px;
+    background-color: #2196F3;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+
+  .teleport-prompt {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 5px;
+    font-family: Arial, sans-serif;
+    pointer-events: none;
+    z-index: 1000;
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+  
+  .teleport-flash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 9999;
+  }
+
+ .selected-in-canvas {
+   outline: 3px solid rgba(66, 135, 245, 0.7) !important;
+   outline-offset: 2px;
+   z-index: 100 !important;
+}
+
+.layer-item {
+    transition: background-color 0.2s, border-left 0.2s;
+    border-left: 3px solid transparent;
+  }
+  
+  .layer-item:hover {
+    background-color: rgba(180, 180, 180, 0.25) !important;
+    border-left: 3px solid #aaa !important;
+  }
+  
+  .layer-item.selected {
+    background-color: rgba(66, 135, 245, 0.15) !important;
+    border-left: 3px solid #4287f5 !important;
+  }
+  
+  /* Alternating row colors for better visual separation */
+  .layer-item:nth-child(even) {
+    background-color: rgba(0, 0, 0, 0.03);
+  }
+  
+  .layer-item:nth-child(odd) {
+    background-color: rgba(0, 0, 0, 0.01);
+  }
+  
+  .folder-header {
+    transition: background-color 0.2s;
+  }
+  
+  .folder-header:hover {
+    background-color: rgba(180, 180, 180, 0.2);
+  }
+  
+  /* Improved folder styling */
+  .layer-folder {
+    margin-bottom: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  
+  .layer-folder:hover {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .folder-content {
+    padding-left: 8px;
+    border-left: 1px solid #eee;
+    margin-left: 12px;
+  }
+
+ /* First, ensure the header has position: relative */
+.header {
+  position: relative;
+  /* Keep your existing header styles */
+}
+
+/* Now position the title absolutely in the center */
+.header-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* Other existing styles for the title */
+}
+
+/* More compact and balanced tool grid */
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;  /* Equal gap in both directions */
+  padding: 0 4px; /* Reduced horizontal padding */
+  margin-bottom: 4px; /* Add bottom margin for separation */
+}
+
+/* Make tools more compact */
+.tool-button {
+  height: 36px;
+  width: 36px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* For the marker tools specifically, use a more compact layout */
+.marker-tools {
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: min-content;
+}
+
+/* Make the icons slightly smaller but maintain visibility */
+.tool-button .material-icons {
+  font-size: 18px;
+  margin-right: 0;
+}
+
+/* Add proper section spacing */
+.tool-section {
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+}
+
+/* Make the section titles more compact */
+.tool-section-title {
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Better divider */
+.tool-divider {
+  margin: 6px 4px;
+  opacity: 0.3;
+}
+
+/* Better centering for header buttons */
+.header sl-button-group sl-button::part(base) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 48px;
+  height: 48px;
+}
+
+/* Remove any margins from the material icons in header buttons */
+.header sl-button-group sl-button .material-icons {
+  font-size: 24px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fix for any potential vertical alignment issues in the icon */
+.header sl-button-group sl-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quality-level {
+	position: absolute;
+	top: 48px;
+	right: 0px;
+	background: rgba(0, 0, 0, 0.5);
+	color: rgb(76, 175, 80);
+	padding: 2px 5px;
+	font-size: 10px;
+	border-radius: 0px 0px 0px 3px;
+}

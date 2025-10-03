@@ -1,0 +1,40 @@
+/* Basic styles for unified app */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #222;
+  color: #eee;
+}
+header {
+  background: #333;
+  padding: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+nav button {
+  margin-right: 1em;
+  padding: 0.5em 1em;
+  background: #444;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+nav button:last-child {
+  margin-right: 0;
+}
+main {
+  display: flex;
+  height: 90vh;
+}
+#gameContainer {
+  flex: 2;
+  background: #181818;
+  border-right: 2px solid #333;
+}
+#workbenchContainer {
+  flex: 1;
+  background: #232323;
+  padding: 1em;
+}

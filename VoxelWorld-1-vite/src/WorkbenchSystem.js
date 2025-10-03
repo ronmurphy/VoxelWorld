@@ -1339,6 +1339,62 @@ export class WorkbenchSystem {
         return false;
     }
 
+    /**
+     * Count total available materials that match a recipe requirement
+     * Handles "wood" matching any wood type (oak_wood, pine_wood, etc.)
+     */
+    countAvailableMaterial(recipeMaterial) {
+        let totalCount = 0;
+
+        // Get all slots (hotbar + backpack)
+        const allSlots = [
+            ...this.voxelWorld.inventorySystem.hotbar,
+            ...this.voxelWorld.inventorySystem.backpack
+        ];
+
+        // Count materials that match the recipe requirement
+        for (const slot of allSlots) {
+            if (slot && slot.type && this.materialMatches(recipeMaterial, slot.type)) {
+                totalCount += slot.count || 0;
+            }
+        }
+
+        return totalCount;
+    }
+
+    /**
+     * Remove specified quantity of materials that match a recipe requirement
+     * Handles removing from any wood type when recipe needs "wood"
+     */
+    removeMatchingMaterials(recipeMaterial, quantity) {
+        let remaining = quantity;
+
+        // Get all slots (hotbar + backpack)
+        const allSlots = [
+            ...this.voxelWorld.inventorySystem.hotbar,
+            ...this.voxelWorld.inventorySystem.backpack
+        ];
+
+        // Remove materials proportionally from matching slots
+        for (const slot of allSlots) {
+            if (remaining <= 0) break;
+            
+            if (slot && slot.type && this.materialMatches(recipeMaterial, slot.type)) {
+                const toRemove = Math.min(remaining, slot.count);
+                slot.count -= toRemove;
+                remaining -= toRemove;
+
+                // Clean up empty slots
+                if (slot.count <= 0) {
+                    slot.type = null;
+                    slot.count = 0;
+                }
+            }
+        }
+
+        console.log(`🗑️ Removed ${quantity} ${recipeMaterial} (${remaining} remaining debt)`);
+    }
+
 
     /**
      * Toggle material selection
@@ -1808,19 +1864,19 @@ export class WorkbenchSystem {
         if (this.currentRecipe?.isToolBench) {
             console.log('🔧 Crafting tool bench (UI unlock)');
 
-            // Check materials for tool bench recipe
+            // Check materials for tool bench recipe (with wood type matching)
             const recipeMaterials = this.currentRecipe.materials;
             for (const [mat, qty] of Object.entries(recipeMaterials)) {
-                const available = this.voxelWorld.countItemInSlots(mat);
+                const available = this.countAvailableMaterial(mat);  // Uses materialMatches() logic
                 if (available < qty) {
                     this.voxelWorld.updateStatus(`⚠️ Not enough ${mat}! Need ${qty}, have ${available}`, 'error');
                     return;
                 }
             }
 
-            // Consume materials
+            // Consume materials (using materialMatches to remove from any wood type)
             for (const [mat, qty] of Object.entries(recipeMaterials)) {
-                this.voxelWorld.removeFromInventory(mat, qty);
+                this.removeMatchingMaterials(mat, qty);
             }
 
             // Unlock tool bench UI

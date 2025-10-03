@@ -1,0 +1,77 @@
+/* ShapeForge Standalone Layout Fixes */
+
+/* Override the grid layout for standalone mode */
+body.new-ui .app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+/* Header should be full width */
+body.new-ui .app-header {
+    width: 100%;
+    justify-content: space-between;
+    position: static;
+}
+
+/* Main content should fill remaining space */
+body.new-ui .main-content {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* Welcome screen centering */
+#welcomeScreen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    text-align: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* When 3D viewer is active, hide welcome screen */
+#viewer3d.active ~ #welcomeScreen,
+#welcomeScreen.hidden {
+    display: none !important;
+}
+
+/* Ensure 3D viewer fills the space */
+#viewer3d {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #1a1a1a;
+}
+
+/* Ensure header actions are properly spaced */
+body.new-ui .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.new-ui .spacer {
+    flex: 1;
+}
+
+/* Button styling fixes for Shoelace integration */
+sl-button {
+    margin: 0 4px;
+}
+
+/* Make sure welcome content is properly sized */
+#welcomeScreen > div {
+    max-width: 600px;
+    width: 90%;
+    margin: 0 auto;
+}
