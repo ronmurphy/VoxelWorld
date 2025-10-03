@@ -1326,7 +1326,10 @@ export class WorkbenchSystem {
             'wood', 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
             'stone', 'iron', 'glass', 'sand', 'brick', 'glowstone',
             'grass', 'dirt', 'coal', 'flowers', 'snow',
-            'stick'  // Sticks can be crafted and used in tool bench
+            'stick',  // Sticks can be crafted and used in tool bench
+            // All leaf types (can be used to craft sticks)
+            'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
+            'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
         ];
         return craftingMaterials.includes(material);
     }
