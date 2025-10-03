@@ -1316,7 +1316,7 @@ class NebulaVoxelApp {
             this.updateBackpackInventoryDisplay();
 
             // Success notification with custom name
-            const icon = this.getItemIcon(itemId);
+            const icon = this.getItemIcon(itemId, 'status');
             this.updateStatus(`${icon} Harvested "${originalName}"!`, 'harvest');
             console.log(`✅ Successfully harvested crafted object "${originalName}" → returned ${itemId} to inventory`);
         };
@@ -1535,7 +1535,7 @@ class NebulaVoxelApp {
                 itemIcon.className = 'item-icon';
                 // Use innerHTML for crafted items (HTML icons), textContent for emojis
                 if (itemName) {
-                    const iconContent = this.getItemIcon(itemName);
+                    const iconContent = this.getItemIcon(itemName, 'hotbar');
                     if (iconContent.includes('<span') || iconContent.includes('<img')) {
                         itemIcon.innerHTML = iconContent;
                     } else {
@@ -1629,7 +1629,7 @@ class NebulaVoxelApp {
             return `<span class="material-icons crafted-item-icon" style="color: ${color}; font-size: 16px;" title="${material} ${shape} ${size}">${icon}</span>`;
         };
 
-        this.getItemIcon = (itemType) => {
+        this.getItemIcon = (itemType, context = 'inventory') => {
             // Check if this is a crafted item (starts with "crafted_")
             if (itemType.startsWith('crafted_')) {
                 // Parse crafted item format: "crafted_wood_cube_3x2x4"
@@ -1657,7 +1657,7 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Default emoji icons for base materials
+            // Default emoji icons for base materials (FALLBACK ONLY)
             const icons = {
                 grass: '🌱',
                 stone: '🪨',
@@ -1693,12 +1693,18 @@ class NebulaVoxelApp {
                 backpack: '🎒'        // Backpack icon
             };
 
-            // Check for enhanced graphics first
             const defaultIcon = icons[itemType] || '❓';
 
+            // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools
             if (['machete', 'workbench', 'backpack'].includes(itemType)) {
-                return this.enhancedGraphics.getInventoryToolIcon(itemType, defaultIcon);
+                if (context === 'status') {
+                    return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
+                } else if (context === 'hotbar') {
+                    return this.enhancedGraphics.getHotbarToolIcon(itemType, defaultIcon);
+                } else {
+                    return this.enhancedGraphics.getInventoryToolIcon(itemType, defaultIcon);
+                }
             }
 
             // Try to get enhanced icon for materials that have block textures
@@ -1709,9 +1715,16 @@ class NebulaVoxelApp {
                 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
             ];
             if (materialsWithAssets.includes(itemType)) {
-                return this.enhancedGraphics.getInventoryMaterialIcon(itemType, defaultIcon);
+                if (context === 'status') {
+                    return this.enhancedGraphics.getStatusMaterialIcon(itemType, defaultIcon);
+                } else if (context === 'hotbar') {
+                    return this.enhancedGraphics.getHotbarMaterialIcon(itemType, defaultIcon);
+                } else {
+                    return this.enhancedGraphics.getInventoryMaterialIcon(itemType, defaultIcon);
+                }
             }
 
+            // Fallback to emoji if no enhanced graphics available
             return defaultIcon;
         };
 
@@ -3024,7 +3037,13 @@ class NebulaVoxelApp {
             this.workbenchCamera.position.set(3, 3, 3);
             this.workbenchCamera.lookAt(0, 0, 0);
 
-            this.workbenchRenderer = new THREE.WebGLRenderer({ antialias: true });
+            // 🎮 Use same GPU preference as main renderer (defaults to low-power)
+            const gpuPreference = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
+
+            this.workbenchRenderer = new THREE.WebGLRenderer({
+                antialias: true,
+                powerPreference: gpuPreference // 🎮 User-selected GPU preference
+            });
             this.workbenchRenderer.setSize(400, 300); // Will resize based on container
             this.workbenchRenderer.shadowMap.enabled = true;
             this.workbenchRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3414,7 +3433,7 @@ class NebulaVoxelApp {
             this.updateBackpackInventoryDisplay();
 
             // Use enhanced notification system with craft type
-            const craftedEmoji = this.getItemIcon(objectName);
+            const craftedEmoji = this.getItemIcon(objectName, 'status');
             this.updateStatus(`${craftedEmoji} Created ${objectName}! Added to inventory.`, 'craft');
 
             // TODO: Later we'll implement actual 3D object creation and placement
@@ -4222,7 +4241,7 @@ class NebulaVoxelApp {
                     });
 
                     // Show collection notification
-                    const macheteIcon = this.getItemIcon('machete');
+                    const macheteIcon = this.getItemIcon('machete', 'status');
                     this.updateStatus(`${macheteIcon} Machete collected ${collectedLeaves} leaves from fallen tree!`, 'discovery');
                     console.log(`🔪 Machete collected ${collectedLeaves} leaves:`, leafTypes);
                 }, leafBlocks.length * 25 + 100); // After all leaves have been processed
@@ -5088,7 +5107,7 @@ class NebulaVoxelApp {
                         this.inventory.addToInventory(blockType, 1);
                         // console.log(`🔪 Machete harvested ${blockType}!`);
 
-                        const emoji = this.getItemIcon(blockType);
+                        const emoji = this.getItemIcon(blockType, 'status');
                         this.updateStatus(`🔪${emoji} Machete harvested ${blockType}!`, 'harvest');
                     } else {
                         // No machete - leaves just disappear
@@ -5101,7 +5120,7 @@ class NebulaVoxelApp {
                     // console.log(`Harvested ${blockType}!`);
 
                     // Use enhanced notification system with harvest type
-                    const emoji = this.getItemIcon(blockType);
+                    const emoji = this.getItemIcon(blockType, 'status');
                     this.updateStatus(`${emoji} Harvested ${blockType}!`, 'harvest');
                 }
 
@@ -5124,30 +5143,48 @@ class NebulaVoxelApp {
         this.seededRandom = this.createSeededRandom(this.worldSeed);
 
         // Hardware performance benchmark
+        // Hardware performance benchmark - DUAL MODE SYSTEM
         this.runPerformanceBenchmark = async () => {
             const benchmarkKey = 'voxelWorld_performanceBenchmark';
+            const gpuPreference = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
             const storedResult = localStorage.getItem(benchmarkKey);
 
+            // Check if we have a valid cached benchmark for current GPU mode
             if (storedResult) {
                 const result = JSON.parse(storedResult);
-                this.renderDistance = result.renderDistance;
-                this.updateStatus(`Performance benchmark loaded: Render distance ${this.renderDistance}`);
-                return;
+                // Only use cached result if it matches current GPU preference
+                if (result.gpuMode === gpuPreference) {
+                    this.renderDistance = result.renderDistance;
+                    this.updateStatus(`Performance benchmark loaded: Render distance ${this.renderDistance} (${gpuPreference} mode)`);
+                    return;
+                }
+                // If GPU mode changed, re-run benchmark
+                console.log(`🎮 GPU mode changed from ${result.gpuMode} to ${gpuPreference}, re-running benchmark...`);
             }
 
-            this.updateStatus('Running performance benchmark...');
+            // 🎮 Choose benchmark based on GPU preference
+            if (gpuPreference === 'high-performance') {
+                return await this.runHighPerformanceBenchmark();
+            } else {
+                return await this.runLowPowerBenchmark();
+            }
+        };
 
-            // Create a small test scene to measure performance
+        // 🔋 LOW POWER BENCHMARK - Conservative thresholds for iGPU
+        this.runLowPowerBenchmark = async () => {
+            const benchmarkKey = 'voxelWorld_performanceBenchmark';
+            this.updateStatus('Running low-power benchmark (iGPU optimized)...');
+
+            // Smaller test scene for iGPU
             const testBlockPositions = [];
-            const testSize = 8; // 8x8x8 test area
-            const testOffset = 1000; // Place far away from player
+            const testSize = 8; // 8x8x8 test area (same as before)
+            const testOffset = 1000;
 
-            // Generate test blocks far from player spawn
             for (let x = -testSize/2; x < testSize/2; x++) {
                 for (let y = 0; y < 4; y++) {
                     for (let z = -testSize/2; z < testSize/2; z++) {
                         const worldX = x + testOffset;
-                        const worldY = y + 100; // High in the air
+                        const worldY = y + 100;
                         const worldZ = z + testOffset;
                         this.addBlock(worldX, worldY, worldZ, 'stone', false);
                         testBlockPositions.push({x: worldX, y: worldY, z: worldZ});
@@ -5155,7 +5192,6 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Measure rendering performance over 2 seconds
             const frames = [];
             const startTime = performance.now();
             let frameCount = 0;
@@ -5165,34 +5201,104 @@ class NebulaVoxelApp {
                     const currentTime = performance.now();
                     frameCount++;
 
-                    if (currentTime - startTime >= 2000) { // 2 second test
+                    if (currentTime - startTime >= 2000) {
                         const avgFPS = frameCount / ((currentTime - startTime) / 1000);
                         frames.push(avgFPS);
 
-                        // Clean up test blocks using removeBlock
                         testBlockPositions.forEach(pos => {
-                            this.removeBlock(pos.x, pos.y, pos.z, false); // Don't give items
+                            this.removeBlock(pos.x, pos.y, pos.z, false);
                         });
 
-                        // Calculate performance score and set render distance
                         const finalAvgFPS = frames.reduce((a, b) => a + b) / frames.length;
                         let renderDistance;
 
-                        if (finalAvgFPS >= 50) renderDistance = 3;      // High-end devices
-                        else if (finalAvgFPS >= 30) renderDistance = 2; // Mid-range devices
-                        else if (finalAvgFPS >= 15) renderDistance = 1; // Low-end devices
-                        else renderDistance = 0;                   // Very low-end devices
+                        // 🔋 CONSERVATIVE THRESHOLDS - Better for iGPU
+                        if (finalAvgFPS >= 45) renderDistance = 3;      // Very smooth iGPU
+                        else if (finalAvgFPS >= 30) renderDistance = 2; // Smooth iGPU (most common)
+                        else if (finalAvgFPS >= 20) renderDistance = 1; // Playable iGPU
+                        else renderDistance = 1;                        // Minimum playable
 
-                        // Store result
                         const result = {
                             avgFPS: Math.round(finalAvgFPS),
                             renderDistance: renderDistance,
+                            gpuMode: 'low-power',
                             timestamp: Date.now()
                         };
                         localStorage.setItem(benchmarkKey, JSON.stringify(result));
 
                         this.renderDistance = renderDistance;
-                        this.updateStatus(`Benchmark complete: ${Math.round(avgFPS)} FPS, Render distance: ${renderDistance}`);
+                        this.updateStatus(`Low-power benchmark complete: ${Math.round(avgFPS)} FPS, Render distance: ${renderDistance}`);
+                        console.log('🔋 iGPU Benchmark Result:', result);
+                        resolve(result);
+                    } else {
+                        requestAnimationFrame(measureFrame);
+                    }
+                };
+
+                requestAnimationFrame(measureFrame);
+            });
+        };
+
+        // ⚡ HIGH PERFORMANCE BENCHMARK - Aggressive thresholds for dGPU
+        this.runHighPerformanceBenchmark = async () => {
+            const benchmarkKey = 'voxelWorld_performanceBenchmark';
+            this.updateStatus('Running high-performance benchmark (dGPU optimized)...');
+
+            // Larger test scene for dGPU
+            const testBlockPositions = [];
+            const testSize = 10; // 10x10x10 test area (more demanding)
+            const testOffset = 1000;
+
+            for (let x = -testSize/2; x < testSize/2; x++) {
+                for (let y = 0; y < 5; y++) { // More vertical layers
+                    for (let z = -testSize/2; z < testSize/2; z++) {
+                        const worldX = x + testOffset;
+                        const worldY = y + 100;
+                        const worldZ = z + testOffset;
+                        this.addBlock(worldX, worldY, worldZ, 'stone', false);
+                        testBlockPositions.push({x: worldX, y: worldY, z: worldZ});
+                    }
+                }
+            }
+
+            const frames = [];
+            const startTime = performance.now();
+            let frameCount = 0;
+
+            return new Promise((resolve) => {
+                const measureFrame = () => {
+                    const currentTime = performance.now();
+                    frameCount++;
+
+                    if (currentTime - startTime >= 2000) {
+                        const avgFPS = frameCount / ((currentTime - startTime) / 1000);
+                        frames.push(avgFPS);
+
+                        testBlockPositions.forEach(pos => {
+                            this.removeBlock(pos.x, pos.y, pos.z, false);
+                        });
+
+                        const finalAvgFPS = frames.reduce((a, b) => a + b) / frames.length;
+                        let renderDistance;
+
+                        // ⚡ AGGRESSIVE THRESHOLDS - Push dGPU to limits
+                        if (finalAvgFPS >= 55) renderDistance = 4;      // Ultra high-end (RTX 4060+)
+                        else if (finalAvgFPS >= 45) renderDistance = 3; // High-end dGPU
+                        else if (finalAvgFPS >= 30) renderDistance = 2; // Mid-range dGPU
+                        else if (finalAvgFPS >= 15) renderDistance = 1; // Low-end dGPU
+                        else renderDistance = 1;                        // Minimum playable
+
+                        const result = {
+                            avgFPS: Math.round(finalAvgFPS),
+                            renderDistance: renderDistance,
+                            gpuMode: 'high-performance',
+                            timestamp: Date.now()
+                        };
+                        localStorage.setItem(benchmarkKey, JSON.stringify(result));
+
+                        this.renderDistance = renderDistance;
+                        this.updateStatus(`High-performance benchmark complete: ${Math.round(avgFPS)} FPS, Render distance: ${renderDistance}`);
+                        console.log('⚡ dGPU Benchmark Result:', result);
                         resolve(result);
                     } else {
                         requestAnimationFrame(measureFrame);
@@ -5804,8 +5910,30 @@ class NebulaVoxelApp {
         const height = window.innerHeight;
         this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
         this.camera.position.set(0, 10, 20);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+
+        // 🎮 Get user's GPU preference (default to low-power for broader compatibility)
+        const gpuPreference = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
+
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            powerPreference: gpuPreference // 🎮 User-selected GPU preference
+        });
         this.renderer.setSize(width, height);
+
+        // 🎮 Detect and log GPU information
+        const gl = this.renderer.getContext();
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+            const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+
+            // Store detected GPU info for display in menu
+            this.detectedGPU = { vendor, renderer, preference: gpuPreference };
+            console.log('🎮 GPU INFO:', this.detectedGPU);
+        } else {
+            this.detectedGPU = { vendor: 'Unknown', renderer: 'Unknown', preference: gpuPreference };
+        }
+
         this.raycaster = new THREE.Raycaster();
         container.appendChild(this.renderer.domElement);
 
@@ -8118,11 +8246,61 @@ class NebulaVoxelApp {
             return this.renderDistance;
         };
 
+        // 🎮 Get GPU preference label
+        const getGPUPreferenceLabel = () => {
+            const pref = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
+            const labels = {
+                'high-performance': '⚡ High Performance (dGPU)',
+                'low-power': '🔋 Low Power (iGPU)',
+                'default': '🎯 Auto (Browser Choice)'
+            };
+            return labels[pref] || labels['low-power'];
+        };
+
+        // 🎮 Get benchmark mode label
+        const getBenchmarkLabel = () => {
+            const pref = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
+            const labels = {
+                'high-performance': '⚡ Re-run Benchmark (dGPU)',
+                'low-power': '🔋 Re-run Benchmark (iGPU)',
+                'default': '⚡ Re-run Benchmark'
+            };
+            return labels[pref] || labels['low-power'];
+        };
+
+        // 🎮 Format GPU info for display
+        const getGPUDisplayName = () => {
+            if (!this.detectedGPU) return 'Unknown GPU';
+            const { vendor, renderer } = this.detectedGPU;
+
+            // Simplify long GPU names
+            let name = renderer;
+            if (name.includes('NVIDIA')) {
+                name = name.replace(/^.*?(GeForce|RTX|GTX|Quadro|Tesla)/, '$1').trim();
+            } else if (name.includes('AMD') || name.includes('Radeon')) {
+                name = name.replace(/^.*?(Radeon|RX)/, '$1').trim();
+            } else if (name.includes('Intel')) {
+                name = name.replace(/^.*?(Intel|Iris|UHD|HD Graphics)/, '$1').trim();
+            }
+
+            // Limit length
+            if (name.length > 30) {
+                name = name.substring(0, 27) + '...';
+            }
+
+            return name;
+        };
+
         modal.innerHTML = `
             <div style="background: rgba(40,40,40,0.95); border-radius: 12px; padding: 24px 32px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 18px; align-items: center; min-width: 220px;">
                 <h2 style="margin:0 0 12px 0; color: white; font-size: 20px;">Voxel World Menu</h2>
+                <div style="width: 100%; text-align: center; margin-bottom: 8px;">
+                    <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">Current GPU:</div>
+                    <div style="font-size: 13px; color: #4CAF50; font-family: monospace;" id="gpu-display">${getGPUDisplayName()}</div>
+                </div>
+                <button id="modal-gpu-btn" style="font-size: 16px; padding: 8px 24px; background: #FF5722; color: white; border: none; border-radius: 6px; cursor: pointer;">${getGPUPreferenceLabel()}</button>
                 <button id="modal-newgame-btn" style="font-size: 16px; padding: 8px 24px; background: #FF9800; color: white; border: none; border-radius: 6px; cursor: pointer;">🎲 New Game</button>
-                <button id="modal-benchmark-btn" style="font-size: 16px; padding: 8px 24px; background: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer;">⚡ Re-run Benchmark</button>
+                <button id="modal-benchmark-btn" style="font-size: 16px; padding: 8px 24px; background: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer;">${getBenchmarkLabel()}</button>
                 <button id="modal-render-distance-btn" style="font-size: 16px; padding: 8px 24px; background: #00BCD4; color: white; border: none; border-radius: 6px; cursor: pointer;">🔭 Render Distance: ${getCurrentRenderDistance()}</button>
                 <button id="modal-enhanced-graphics-btn" style="font-size: 16px; padding: 8px 24px; background: ${this.enhancedGraphics.isEnabled ? '#4CAF50' : '#757575'}; color: white; border: none; border-radius: 6px; cursor: pointer;">${this.enhancedGraphics.isEnabled ? '🎨 Enhanced Graphics ON' : '🎨 Enhanced Graphics OFF'}</button>
                 <button id="modal-save-btn" style="font-size: 16px; padding: 8px 24px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">💾 Save Game</button>
@@ -8145,7 +8323,9 @@ class NebulaVoxelApp {
         const modalBenchmarkBtn = modal.querySelector("#modal-benchmark-btn");
         const modalRenderDistanceBtn = modal.querySelector("#modal-render-distance-btn");
         const modalEnhancedGraphicsBtn = modal.querySelector("#modal-enhanced-graphics-btn");
+        const modalGPUBtn = modal.querySelector("#modal-gpu-btn");
         const modalCloseBtn = modal.querySelector("#modal-close-btn");
+        const gpuDisplay = modal.querySelector("#gpu-display");
 
         const saveWorld = () => {
             this.saveWorld();
@@ -8196,6 +8376,28 @@ class NebulaVoxelApp {
 
             // Force chunk reload with new render distance
             this.updateChunks();
+        };
+
+        // 🎮 GPU Preference Cycling
+        const cycleGPUPreference = () => {
+            const preferences = ['high-performance', 'low-power', 'default'];
+            const current = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
+            const currentIndex = preferences.indexOf(current);
+            const next = preferences[(currentIndex + 1) % preferences.length];
+
+            // Save preference
+            localStorage.setItem('voxelWorld_gpuPreference', next);
+
+            // Update button text
+            modalGPUBtn.textContent = getGPUPreferenceLabel();
+
+            // Show message that reload is required
+            this.updateStatus('🎮 GPU preference saved! Reload page (F5) to apply changes.', 'info', false);
+
+            // Add visual indicator that reload is needed
+            modalGPUBtn.style.border = '2px solid #FFC107';
+
+            console.log(`🎮 GPU preference changed to: ${next}`);
         };
 
         const toggleEnhancedGraphics = async () => {
@@ -8266,6 +8468,7 @@ class NebulaVoxelApp {
         if (modalBenchmarkBtn) modalBenchmarkBtn.onclick = reRunBenchmark;
         if (modalRenderDistanceBtn) modalRenderDistanceBtn.onclick = cycleRenderDistance;
         if (modalEnhancedGraphicsBtn) modalEnhancedGraphicsBtn.onclick = toggleEnhancedGraphics;
+        if (modalGPUBtn) modalGPUBtn.onclick = cycleGPUPreference;
         if (modalCloseBtn) modalCloseBtn.onclick = () => modal.style.display = 'none';
 
         // Update status bar reference
@@ -8312,7 +8515,12 @@ class NebulaVoxelApp {
                 this.statusIcon.textContent = notification.icon;
             }
 
-            this.statusText.textContent = message;
+            // Use innerHTML if message contains HTML tags (for enhanced graphics icons in message)
+            if (message.includes('<img') || message.includes('<span')) {
+                this.statusText.innerHTML = message;
+            } else {
+                this.statusText.textContent = message;
+            }
 
             // Update styling
             this.statusBar.style.borderLeftColor = notification.borderColor;
