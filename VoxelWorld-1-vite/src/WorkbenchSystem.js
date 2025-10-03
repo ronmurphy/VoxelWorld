@@ -1348,14 +1348,14 @@ export class WorkbenchSystem {
 
         // Get all slots (hotbar + backpack)
         const allSlots = [
-            ...this.voxelWorld.inventorySystem.hotbar,
-            ...this.voxelWorld.inventorySystem.backpack
+            ...this.voxelWorld.inventory.hotbarSlots,
+            ...this.voxelWorld.inventory.backpackSlots
         ];
 
         // Count materials that match the recipe requirement
         for (const slot of allSlots) {
-            if (slot && slot.type && this.materialMatches(recipeMaterial, slot.type)) {
-                totalCount += slot.count || 0;
+            if (slot && slot.itemType && this.materialMatches(recipeMaterial, slot.itemType)) {
+                totalCount += slot.quantity || 0;
             }
         }
 
@@ -1371,23 +1371,23 @@ export class WorkbenchSystem {
 
         // Get all slots (hotbar + backpack)
         const allSlots = [
-            ...this.voxelWorld.inventorySystem.hotbar,
-            ...this.voxelWorld.inventorySystem.backpack
+            ...this.voxelWorld.inventory.hotbarSlots,
+            ...this.voxelWorld.inventory.backpackSlots
         ];
 
         // Remove materials proportionally from matching slots
         for (const slot of allSlots) {
             if (remaining <= 0) break;
             
-            if (slot && slot.type && this.materialMatches(recipeMaterial, slot.type)) {
-                const toRemove = Math.min(remaining, slot.count);
-                slot.count -= toRemove;
+            if (slot && slot.itemType && this.materialMatches(recipeMaterial, slot.itemType)) {
+                const toRemove = Math.min(remaining, slot.quantity);
+                slot.quantity -= toRemove;
                 remaining -= toRemove;
 
                 // Clean up empty slots
-                if (slot.count <= 0) {
-                    slot.type = null;
-                    slot.count = 0;
+                if (slot.quantity <= 0) {
+                    slot.itemType = null;
+                    slot.quantity = 0;
                 }
             }
         }
