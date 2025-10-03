@@ -76,10 +76,10 @@ export class BiomeWorldGen {
             mountain: {
                 name: 'Mountain',
                 color: 0x696969,
-                minHeight: 4,  // 🌊 NEW SYSTEM: Mountains rise above water
-                maxHeight: 15, // 🌊 TALL mountains for deep mining (y=4 to y=15 = 11 blocks tall!)
-                surfaceBlock: 'stone',
-                subBlock: 'iron',
+                minHeight: 8,  // 🏔️ Mountains start higher
+                maxHeight: 25, // 🏔️ TALL mountains (8 to 25 = 17 blocks tall!)
+                surfaceBlock: 'grass',  // 🌿 Grass on mountains (snow added by height check)
+                subBlock: 'stone',      // 🪨 Stone underground
                 mapColor: '#696969',
                 heightColorRange: { min: 0.8, max: 1.4 },
                 shrubChance: 0.08,
@@ -112,10 +112,10 @@ export class BiomeWorldGen {
             tundra: {
                 name: 'Tundra',
                 color: 0xF0F8FF,
-                minHeight: 2,  // 🌊 NEW SYSTEM: Frozen tundra slightly raised
-                maxHeight: 5,  // 🌊 Icy hills
-                surfaceBlock: 'stone',
-                subBlock: 'iron',
+                minHeight: 3,  // ❄️ Frozen tundra slightly raised
+                maxHeight: 8,  // ❄️ Icy hills
+                surfaceBlock: 'grass',  // 🌿 Grass (will be covered by snow)
+                subBlock: 'dirt',       // 🪨 Dirt underground
                 mapColor: '#F0F8FF',
                 heightColorRange: { min: 0.5, max: 1.0 },
                 shrubChance: 0.01,
@@ -709,8 +709,78 @@ export class BiomeWorldGen {
         return hash;
     }
 
-    // 🌍 Revolutionary Biome Generation with Transitions
+    // 🌍 Climate-Based Biome Generation (Temperature + Moisture)
     getBiomeAt(x, z, seed = this.worldSeed) {
+        // Generate climate values using large-scale noise
+        const temperature = this.getTemperature(x, z, seed);
+        const moisture = this.getMoisture(x, z, seed);
+
+        // Select base biome from climate grid
+        let baseBiome = this.selectBiomeFromClimate(temperature, moisture);
+
+        // Apply biome variants for variety
+        return this.applyBiomeVariant(baseBiome, x, z, seed);
+    }
+
+    // 🌡️ Temperature Map: -1 (cold/north) to +1 (hot/south)
+    getTemperature(x, z, seed) {
+        // Large-scale north-south gradient
+        const latitudeGradient = z * 0.003; // North is negative Z (cold), South is positive Z (hot)
+
+        // Add large-scale noise variation (climate zones)
+        const temperatureNoise = this.multiOctaveNoise(
+            x * 0.5,
+            z * 0.5,
+            { scale: 0.002, octaves: 3, persistence: 0.5 },
+            seed + 1000
+        );
+
+        // Combine gradient + noise, then clamp
+        const temperature = latitudeGradient + temperatureNoise * 0.3;
+        return Math.max(-1, Math.min(1, temperature));
+    }
+
+    // 💧 Moisture Map: -1 (dry) to +1 (wet)
+    getMoisture(x, z, seed) {
+        // Large-scale moisture noise (independent of temperature)
+        const moistureNoise = this.multiOctaveNoise(
+            x * 0.7,
+            z * 0.7,
+            { scale: 0.003, octaves: 4, persistence: 0.6 },
+            seed + 2000
+        );
+
+        return Math.max(-1, Math.min(1, moistureNoise));
+    }
+
+    // 🗺️ Select Biome from Temperature + Moisture Grid
+    selectBiomeFromClimate(temperature, moisture) {
+        // Climate-based biome selection
+        // Temperature: -1 = cold (north), 0 = temperate, +1 = hot (south)
+        // Moisture: -1 = dry, 0 = moderate, +1 = wet
+
+        // COLD regions (temperature < -0.3)
+        if (temperature < -0.3) {
+            if (moisture < -0.2) return this.biomes.tundra;      // Cold + Dry = Tundra
+            if (moisture > 0.3) return this.biomes.forest;       // Cold + Wet = Forest
+            return this.biomes.plains;                            // Cold + Moderate = Plains
+        }
+
+        // HOT regions (temperature > 0.3)
+        if (temperature > 0.3) {
+            if (moisture < 0) return this.biomes.desert;          // Hot + Dry = Desert
+            if (moisture > 0.4) return this.biomes.forest;        // Hot + Wet = Forest
+            return this.biomes.plains;                             // Hot + Moderate = Plains
+        }
+
+        // TEMPERATE regions (temperature between -0.3 and 0.3)
+        if (moisture < -0.3) return this.biomes.plains;           // Temperate + Dry = Plains
+        if (moisture > 0.2) return this.biomes.forest;            // Temperate + Wet = Forest
+        return this.biomes.plains;                                 // Temperate + Moderate = Plains
+    }
+
+    // 🗺️ Legacy: Keep old biome generation for compatibility
+    getBiomeAt_OLD(x, z, seed = this.worldSeed) {
         const cacheKey = `${Math.floor(x / 16)},${Math.floor(z / 16)}`;
 
         // Generate biome cell information

@@ -5154,6 +5154,18 @@ class NebulaVoxelApp {
             this.stopHarvesting();
         };
 
+        // 🧹 GLOBAL UTILITY: Clear all data and reload
+        // Can be called from browser console: clearAllData()
+        window.clearAllData = () => {
+            console.log('🧹 Clearing all localStorage and IndexedDB data...');
+            localStorage.clear();
+            indexedDB.deleteDatabase('VoxelWorld').onsuccess = () => {
+                console.log('✅ All data cleared! Reloading page...');
+                location.reload();
+            };
+        };
+        console.log('💡 Utility available: clearAllData() - clears localStorage + IndexedDB and reloads');
+
         // 🧪 DEBUG MODE: Set to true during development to persist seed across reloads
         // ⚠️ IMPORTANT: Set to false before production release!
         const USE_DEBUG_SEED = true;

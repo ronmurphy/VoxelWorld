@@ -175,12 +175,12 @@ export class WorkerManager {
         const { blockCount, positions, blockTypes, colors, flags } = chunkData;
         const blocks = [];
 
-        // Block type ID to string mapping (must match ChunkSerializer)
+        // Block type ID to string mapping (must match ChunkSerializer & ChunkWorker!)
         const idToBlockType = {
-            0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water',
+            0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water', 7: 'dirt',
             10: 'oak_wood', 11: 'pine_wood', 12: 'birch_wood', 13: 'palm_wood', 14: 'dead_wood',
-            20: 'forest_leaves', 21: 'mountain_leaves', 22: 'plains_leaves',
-            23: 'desert_leaves', 24: 'tundra_leaves'
+            20: 'oak_wood-leaves', 21: 'pine_wood-leaves', 22: 'birch_wood-leaves',
+            23: 'palm_wood-leaves', 24: 'dead_wood-leaves'
         };
 
         for (let i = 0; i < blockCount; i++) {
@@ -319,12 +319,12 @@ export class WorkerManager {
         const colors = new Uint32Array(blockCount);
         const flags = new Uint8Array(blockCount);
 
-        // Block type string to ID mapping (must match ChunkSerializer)
+        // Block type string to ID mapping (must match ChunkSerializer & ChunkWorker!)
         const blockTypeToId = {
-            'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6,
+            'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6, 'dirt': 7,
             'oak_wood': 10, 'pine_wood': 11, 'birch_wood': 12, 'palm_wood': 13, 'dead_wood': 14,
-            'forest_leaves': 20, 'mountain_leaves': 21, 'plains_leaves': 22,
-            'desert_leaves': 23, 'tundra_leaves': 24
+            'oak_wood-leaves': 20, 'pine_wood-leaves': 21, 'birch_wood-leaves': 22,
+            'palm_wood-leaves': 23, 'dead_wood-leaves': 24
         };
 
         for (let i = 0; i < blockCount; i++) {

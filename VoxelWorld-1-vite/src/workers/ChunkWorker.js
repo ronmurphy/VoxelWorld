@@ -102,19 +102,16 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             const surfaceBlock = hasSnow ? 'snow' : biome.surfaceBlock;
             const surfaceBlockColor = hasSnow ? 0xFFFFFF : surfaceColor;
 
-            // 🎯 OPTIMIZED SPARSE GENERATION
-            // Generate bedrock + surface + 2 support layers for solid terrain
-            // Deeper blocks generated on-demand when mining
+            // 🎯 GROUND CONNECTION SYSTEM
+            // Always fill from bedrock to surface to prevent gaps between biomes
+            // Keeps hollow mountains but prevents accidental bedrock exposure
 
             // 1. Bedrock foundation (y=0) - unbreakable
             blocks.push({ x: worldX, y: 0, z: worldZ, blockType: 'bedrock', color: 0x1a1a1a, isPlayerPlaced: false });
 
-            // 2. Smart sparse generation - surface + 4 support layers only
+            // 2. Ground connection - fill from y=1 to surface
             if (height >= 1) {
-                // Generate only top 5 layers for collision (much faster!)
-                const startY = Math.max(1, height - 4); // Start 4 blocks below surface (or y=1, whichever is higher)
-
-                for (let fillY = startY; fillY <= height; fillY++) {
+                for (let fillY = 1; fillY <= height; fillY++) {
                     let blockType, color;
 
                     if (fillY === height) {
@@ -139,7 +136,6 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
                     blocks.push({ x: worldX, y: fillY, z: worldZ, blockType, color, isPlayerPlaced: false });
                 }
             }
-            // Blocks below startY (deep underground) will be generated on-demand when player digs
 
             // 🌊 WATER GENERATION: Fill empty spaces at y=1, y=2, y=3 with water blocks
             // Only add water where terrain height is below the water level
@@ -167,12 +163,12 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
     const colors = new Uint32Array(blockCount); // Color as hex
     const flags = new Uint8Array(blockCount); // isPlayerPlaced, etc.
 
-    // Block type mapping (must match VoxelWorld.js blockTypes)
+    // Block type mapping (must match ChunkSerializer, WorkerManager, VoxelWorld.js!)
     const blockTypeMap = {
-        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6,
+        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6, 'dirt': 7,
         'oak_wood': 10, 'pine_wood': 11, 'birch_wood': 12, 'palm_wood': 13, 'dead_wood': 14,
-        'forest_leaves': 20, 'mountain_leaves': 21, 'plains_leaves': 22,
-        'desert_leaves': 23, 'tundra_leaves': 24
+        'oak_wood-leaves': 20, 'pine_wood-leaves': 21, 'birch_wood-leaves': 22,
+        'palm_wood-leaves': 23, 'dead_wood-leaves': 24
     };
 
     for (let i = 0; i < blockCount; i++) {
