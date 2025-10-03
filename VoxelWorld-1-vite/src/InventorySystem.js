@@ -332,6 +332,15 @@ export class InventorySystem {
     }
 
     // 🖼️ UI UPDATE FUNCTIONS
+    // Helper function to format item names for display
+    formatItemName(itemType) {
+        // Replace underscores with spaces and capitalize each word
+        return itemType
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
     updateHotbarCounts() {
         if (!this.hotbarElement) return;
 
@@ -345,7 +354,7 @@ export class InventorySystem {
             if (slotData.itemType && slotData.quantity > 0) {
                 const iconContent = this.voxelWorld.getItemIcon ?
                     this.voxelWorld.getItemIcon(slotData.itemType) : '❓';
-                const name = slotData.itemType.charAt(0).toUpperCase() + slotData.itemType.slice(1);
+                const name = this.formatItemName(slotData.itemType);
 
                 // Create item icon
                 const itemIcon = document.createElement('div');
@@ -413,7 +422,7 @@ export class InventorySystem {
                 filledSlots++;
                 const iconContent = this.voxelWorld.getItemIcon ?
                     this.voxelWorld.getItemIcon(slotData.itemType) : '❓';
-                const name = slotData.itemType.charAt(0).toUpperCase() + slotData.itemType.slice(1);
+                const name = this.formatItemName(slotData.itemType);
 
                 // Store item type for transfers
                 slot.dataset.itemType = slotData.itemType;
