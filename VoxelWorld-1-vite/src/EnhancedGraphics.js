@@ -237,7 +237,7 @@ export class EnhancedGraphics {
                     'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
                 ],
-                tools: ['backpack', 'machete', 'stick', 'workbench'],
+                tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench'],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun']
             };
 
