@@ -709,6 +709,38 @@ class NebulaVoxelApp {
             if (particleEffectCount > 0 && currentTime % 120 === 0) {
                 console.log(`🔥 Animating ${particleEffectCount} particle effects`);
             }
+
+            // 💥 Animate explosion effects from stone hammer
+            if (this.explosionEffects && this.explosionEffects.length > 0) {
+                for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+                    const explosion = this.explosionEffects[i];
+                    explosion.lifetime++;
+
+                    // Update particle positions
+                    const positions = explosion.geometry.attributes.position.array;
+                    for (let j = 0; j < explosion.velocities.length; j++) {
+                        positions[j * 3] += explosion.velocities[j].x;
+                        positions[j * 3 + 1] += explosion.velocities[j].y;
+                        positions[j * 3 + 2] += explosion.velocities[j].z;
+
+                        // Apply gravity
+                        explosion.velocities[j].y -= 0.01;
+                    }
+                    explosion.geometry.attributes.position.needsUpdate = true;
+
+                    // Fade out particles
+                    const fadeProgress = explosion.lifetime / explosion.maxLifetime;
+                    explosion.material.opacity = 1.0 - fadeProgress;
+
+                    // Remove expired explosions
+                    if (explosion.lifetime >= explosion.maxLifetime) {
+                        this.scene.remove(explosion.particles);
+                        explosion.geometry.dispose();
+                        explosion.material.dispose();
+                        this.explosionEffects.splice(i, 1);
+                    }
+                }
+            }
         };
 
         // Get block data at world coordinates (with on-demand underground generation)
@@ -774,6 +806,10 @@ class NebulaVoxelApp {
 
                 // 🎯 Only give items if this is actual player harvesting (not chunk cleanup)
                 if (giveItems) {
+                    // Check active tool in selected slot
+                    const selectedSlot = this.inventory.slots[this.inventory.selectedSlot];
+                    const hasStoneHammer = selectedSlot && selectedSlot.itemType === 'stone_hammer';
+
                     // Check if it's a shrub for harvesting
                     if (blockData.type === 'shrub') {
                         this.inventory.addToInventory('oak_wood', 1); // Add 1 oak wood to inventory using slot system
@@ -792,7 +828,33 @@ class NebulaVoxelApp {
                         console.log(`Found backpack! Hotbar unlocked!`);
                         this.updateStatus(`🎒 Found backpack! Inventory system unlocked!`, 'discovery');
                     }
-                    // Random drop system for regular blocks
+                    // 🔨 Stone Hammer: Special harvesting for stone blocks
+                    else if (hasStoneHammer && blockData.type === 'stone') {
+                        // Create explosion particle effect
+                        this.createExplosionEffect(x, y, z, blockData.type);
+                        
+                        // 20% chance for iron OR 10% chance for coal
+                        const roll = Math.random();
+                        if (roll < 0.20) {
+                            this.inventory.addToInventory('iron', 1);
+                            this.updateStatus(`⛏️ Iron ore discovered!`, 'discovery');
+                        } else if (roll < 0.30) { // 20% + 10% = 30% total
+                            this.inventory.addToInventory('coal', 1);
+                            this.updateStatus(`⛏️ Coal found!`, 'discovery');
+                        }
+                    }
+                    // 🔨 Stone Hammer: Special harvesting for iron blocks
+                    else if (hasStoneHammer && blockData.type === 'iron') {
+                        // Create explosion particle effect
+                        this.createExplosionEffect(x, y, z, blockData.type);
+                        
+                        // 15% chance to get iron from iron block
+                        if (Math.random() < 0.15) {
+                            this.inventory.addToInventory('iron', 1);
+                            this.updateStatus(`⛏️ Iron extracted!`, 'discovery');
+                        }
+                    }
+                    // Random drop system for regular blocks (without stone hammer)
                     else if (blockData.type === 'grass') {
                         // 10% chance to get dirt when harvesting grass
                         if (Math.random() < 0.1) {
@@ -801,7 +863,7 @@ class NebulaVoxelApp {
                         }
                     }
                     else if (blockData.type === 'stone') {
-                        // 5% chance to get coal when harvesting stone
+                        // 5% chance to get coal when harvesting stone (without stone hammer)
                         if (Math.random() < 0.05) {
                             this.inventory.addToInventory('coal', 1);
                             this.updateStatus(`⚫ Found coal!`, 'discovery');
@@ -845,6 +907,89 @@ class NebulaVoxelApp {
                 // commented out due to console spam - brad
                 //console.log(`Removed block ${blockData.type} at (${x},${y},${z})`);
             }
+        };
+
+        // 💥 Create explosion particle effect for stone hammer
+        this.createExplosionEffect = (x, y, z, blockType) => {
+            const particleCount = 20;
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = [];
+            const colors = new Float32Array(particleCount * 3);
+
+            // Determine particle color based on block type
+            let baseColor = { r: 0.5, g: 0.5, b: 0.5 }; // Default grey for stone
+            if (blockType === 'iron') {
+                baseColor = { r: 0.7, g: 0.7, b: 0.8 }; // Silvery for iron
+            } else if (blockType === 'stone') {
+                baseColor = { r: 0.4, g: 0.4, b: 0.4 }; // Dark grey for stone
+            }
+
+            // Create explosion particles
+            for (let i = 0; i < particleCount; i++) {
+                // Start all particles at block center
+                positions[i * 3] = 0;
+                positions[i * 3 + 1] = 0;
+                positions[i * 3 + 2] = 0;
+
+                // Random explosion velocities (outward in all directions)
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const speed = 0.1 + Math.random() * 0.15;
+                
+                velocities.push({
+                    x: Math.sin(phi) * Math.cos(theta) * speed,
+                    y: Math.sin(phi) * Math.sin(theta) * speed + 0.05, // Slight upward bias
+                    z: Math.cos(phi) * speed
+                });
+
+                // Add color variation
+                colors[i * 3] = baseColor.r + (Math.random() - 0.5) * 0.2;
+                colors[i * 3 + 1] = baseColor.g + (Math.random() - 0.5) * 0.2;
+                colors[i * 3 + 2] = baseColor.b + (Math.random() - 0.5) * 0.2;
+            }
+
+            // Create particle geometry
+            const particleGeometry = new THREE.BufferGeometry();
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // Create particle material
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.15,
+                vertexColors: true,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.NormalBlending,
+                depthWrite: false
+            });
+
+            // Create particle system
+            const particles = new THREE.Points(particleGeometry, particleMaterial);
+            particles.position.set(x, y, z);
+            particles.matrixAutoUpdate = true;
+            particles.updateMatrix();
+            particles.updateMatrixWorld(true);
+            
+            this.scene.add(particles);
+
+            // Store particle data for animation
+            const explosionData = {
+                particles: particles,
+                velocities: velocities,
+                geometry: particleGeometry,
+                material: particleMaterial,
+                lifetime: 0,
+                maxLifetime: 30 // Frames until particles disappear
+            };
+
+            // Initialize explosion effects array if it doesn't exist
+            if (!this.explosionEffects) {
+                this.explosionEffects = [];
+            }
+
+            this.explosionEffects.push(explosionData);
+            
+            console.log(`💥 Created explosion effect at (${x}, ${y}, ${z}) for ${blockType}`);
         };
 
         // Seed system functions

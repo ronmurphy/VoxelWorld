@@ -106,6 +106,37 @@ export class ToolBenchSystem {
                 isTool: true
             },
 
+            // 🔨 HARVESTING TOOLS
+            stone_hammer: {
+                name: '🔨 Stone Hammer',
+                items: { stone: 3, stick: 2 },
+                description: 'Smash stone for iron or coal! Breaks iron blocks.',
+                clues: {
+                    stone: 'Three pieces of the earth, hard and grey...',
+                    stick: 'Two handles from leaves, crafted today...'
+                },
+                category: 'harvesting',
+                isTool: true,
+                isHarvestTool: true,
+                toolType: 'stone_hammer',
+                canHarvest: ['stone', 'iron'],
+                harvestEffects: {
+                    stone: {
+                        animation: 'explosion',
+                        drops: [
+                            { item: 'iron', chance: 0.20, message: '⛏️ Iron ore discovered!' },
+                            { item: 'coal', chance: 0.10, message: '⛏️ Coal found!' }
+                        ]
+                    },
+                    iron: {
+                        animation: 'explosion',
+                        drops: [
+                            { item: 'iron', chance: 0.15, message: '⛏️ Iron extracted!' }
+                        ]
+                    }
+                }
+            },
+
             machete_upgrade: {
                 name: '🔪 Enhanced Machete',
                 items: { machete: 1, crystal: 2, skull: 1 },
