@@ -105,6 +105,17 @@ export class WorkbenchSystem {
                 isBasicShape: true,
                 shapes: [{ type: 'hollow_cube', position: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 2, z: 2 } }]
             },
+            tool_bench: {
+                name: '🔧 Tool Bench',
+                materials: { wood: 3, stone: 3 },
+                description: 'Unlocks tool crafting interface (Press T)',
+                isBasicShape: true,
+                isToolBench: true,  // Special flag for tool bench
+                category: 'special',
+                shapes: [
+                    { type: 'cube', position: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }
+                ]
+            },
 
             // Complex Structures
             castle_wall: {
@@ -1792,6 +1803,45 @@ export class WorkbenchSystem {
 
         console.log(`🔨 Preparing to craft ${shape} ${length}×${width}×${height} using ${requiredQuantity} ${material}`);
         console.log(`📦 Available: ${availableQuantity}, Required: ${requiredQuantity}`);
+
+        // 🔧 TOOL BENCH: UI unlock (no inventory item)
+        if (this.currentRecipe?.isToolBench) {
+            console.log('🔧 Crafting tool bench (UI unlock)');
+
+            // Check materials for tool bench recipe
+            const recipeMaterials = this.currentRecipe.materials;
+            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+                const available = this.voxelWorld.countItemInSlots(mat);
+                if (available < qty) {
+                    this.voxelWorld.updateStatus(`⚠️ Not enough ${mat}! Need ${qty}, have ${available}`, 'error');
+                    return;
+                }
+            }
+
+            // Consume materials
+            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+                this.voxelWorld.removeFromInventory(mat, qty);
+            }
+
+            // Unlock tool bench UI
+            this.voxelWorld.hasToolBench = true;
+
+            // Show tool bench button
+            if (this.voxelWorld.toolBenchButton) {
+                this.voxelWorld.toolBenchButton.style.display = 'block';
+                console.log('🔧 Tool bench button enabled');
+            }
+
+            // Update UI
+            this.voxelWorld.updateHotbarCounts();
+            this.voxelWorld.updateBackpackInventoryDisplay();
+            this.updateMaterialCostDisplay();
+
+            // Success notification
+            this.voxelWorld.updateStatus(`🔧 Tool Bench unlocked! Press T to open.`, 'discovery');
+            console.log(`🔧 Tool Bench successfully unlocked!`);
+            return;
+        }
 
         // Check if player has enough materials
         if (availableQuantity < requiredQuantity) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
+import { ToolBenchSystem } from './ToolBenchSystem.js';
 import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
@@ -120,6 +121,15 @@ class NebulaVoxelApp {
         // Initialize new WorkbenchSystem
         this.workbenchSystem = new WorkbenchSystem(this);
 
+        // 🔧 Initialize ToolBenchSystem
+        this.toolBenchSystem = new ToolBenchSystem(this);
+        this.hasToolBench = false;  // Unlocked when tool_bench is crafted
+
+        // 🎯 Player upgrades (modifiable through ToolBench)
+        this.backpackStackSize = 50;  // Can upgrade to 75, 100
+        this.movementSpeed = 1.0;     // Can upgrade to 1.5 (speed boots)
+        this.harvestSpeed = 1.0;      // Can upgrade to 1.5 (machete upgrade)
+
         // 🌍 Initialize Advanced BiomeWorldGen System (reverted for performance)
         this.biomeWorldGen = new BiomeWorldGen(this);
 
@@ -230,6 +240,11 @@ class NebulaVoxelApp {
             if (!metadata) {
                 console.error(`❌ No metadata found for crafted item: ${itemId}`);
                 return;
+            }
+
+            // 🪜 SPECIAL HANDLING: Ladders use auto-stacking placement logic
+            if (metadata.isLadder) {
+                return this.placeLadderAutoStack(x, y, z, itemId, metadata);
             }
 
             console.log('📊 Crafted item metadata:', metadata);
@@ -376,6 +391,133 @@ class NebulaVoxelApp {
                 position: { x, y, z },
                 dimensions: dimensions
             };
+        };
+
+        // 🪜 AUTO-STACKING LADDER PLACEMENT SYSTEM
+        this.placeLadderAutoStack = (x, y, z, itemId, metadata) => {
+            console.log(`🪜 Auto-stacking ladder placement at (${x},${y},${z})`);
+
+            // Determine facing direction (towards nearest solid block)
+            const facingDir = this.getLadderFacingDirection(x, y, z);
+            if (!facingDir) {
+                console.warn('🪜 No wall found for ladder placement');
+                this.updateStatus('❌ Ladders need a wall to attach to!');
+                return;
+            }
+
+            // Get quantity from height slider (already in metadata.shape.dimensions.height)
+            const quantity = Math.floor(metadata.shape.dimensions.height);
+            console.log(`🪜 Placing ${quantity} ladder(s) in ${facingDir.name} direction`);
+
+            // Track how many ladders we actually place
+            let laddersPlaced = 0;
+            let currentY = y;
+
+            // Auto-stack loop
+            for (let i = 0; i < quantity; i++) {
+                // Check if space above is empty
+                const aboveBlock = this.getBlock(x, currentY + 1, z);
+                if (aboveBlock && aboveBlock.type !== 'water') {
+                    console.log(`🪜 Blocked at Y=${currentY + 1}, stopping`);
+                    break; // Space occupied, stop stacking
+                }
+
+                // Check if wall behind is still solid
+                const wallX = x + facingDir.offset.x;
+                const wallZ = z + facingDir.offset.z;
+                const wallBlock = this.getBlock(wallX, currentY + 1, wallZ);
+
+                if (!wallBlock || wallBlock.type === 'water') {
+                    console.log(`🪜 No wall at (${wallX}, ${currentY + 1}, ${wallZ}), stopping`);
+                    break; // No wall support, stop stacking
+                }
+
+                // Place ladder at current height
+                this.placeSingleLadder(x, currentY + 1, z, itemId, metadata, facingDir);
+                laddersPlaced++;
+                currentY++; // Move up for next ladder
+
+                // Consume from inventory
+                this.removeFromInventory(itemId, 1);
+
+                // Check if we're out of ladders
+                const remaining = this.countItemInSlots(itemId);
+                if (remaining <= 0) {
+                    console.log(`🪜 Ran out of ladders after placing ${laddersPlaced}`);
+                    break;
+                }
+            }
+
+            console.log(`✅ Placed ${laddersPlaced} auto-stacking ladder(s)`);
+            this.updateStatus(`🪜 Placed ${laddersPlaced} ladder(s)!`, 'craft');
+        };
+
+        // 🪜 Place a single ladder piece
+        this.placeSingleLadder = (x, y, z, itemId, metadata, facingDir) => {
+            const dimensions = metadata.shape.dimensions;
+            const shapeType = 'wall'; // Ladders use wall geometry
+            const color = metadata.appearance.color;
+            const material = metadata.material.type;
+
+            // Create thin wall geometry for ladder
+            const geometry = new THREE.BoxGeometry(1, 1, 0.1);
+
+            // Create material
+            const ladderMaterial = new THREE.MeshLambertMaterial({
+                color: new THREE.Color(color)
+            });
+
+            const ladderMesh = new THREE.Mesh(geometry, ladderMaterial);
+            ladderMesh.position.set(x, y, z);
+
+            // Rotate ladder to face the wall
+            if (facingDir.name === 'north') ladderMesh.rotation.y = 0;
+            else if (facingDir.name === 'south') ladderMesh.rotation.y = Math.PI;
+            else if (facingDir.name === 'east') ladderMesh.rotation.y = -Math.PI / 2;
+            else if (facingDir.name === 'west') ladderMesh.rotation.y = Math.PI / 2;
+
+            ladderMesh.userData = {
+                type: 'ladder',
+                isLadder: true,
+                itemId: itemId,
+                metadata: metadata
+            };
+
+            this.scene.add(ladderMesh);
+
+            // Track in crafted objects
+            if (!this.craftedObjects) this.craftedObjects = {};
+            const objectKey = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+            this.craftedObjects[objectKey] = {
+                mesh: ladderMesh,
+                itemId: itemId,
+                metadata: metadata,
+                position: { x, y, z },
+                dimensions: dimensions
+            };
+        };
+
+        // 🪜 Determine which direction ladder should face (towards nearest wall)
+        this.getLadderFacingDirection = (x, y, z) => {
+            const directions = [
+                { name: 'north', offset: { x: 0, z: 1 } },
+                { name: 'south', offset: { x: 0, z: -1 } },
+                { name: 'east', offset: { x: 1, z: 0 } },
+                { name: 'west', offset: { x: -1, z: 0 } }
+            ];
+
+            // Check each direction for a solid block
+            for (const dir of directions) {
+                const checkX = x + dir.offset.x;
+                const checkZ = z + dir.offset.z;
+                const block = this.getBlock(checkX, y, checkZ);
+
+                if (block && block.type !== 'water') {
+                    return dir; // Found wall in this direction
+                }
+            }
+
+            return null; // No wall found
         };
 
         // Check if block type should use billboard
@@ -7532,6 +7674,12 @@ class NebulaVoxelApp {
                 this.toggleBackpackInventory();
                 e.preventDefault();
             }
+
+            // T key: Open tool bench
+            if (key === 't' && this.hasToolBench) {
+                this.toolBenchSystem.open();
+                e.preventDefault();
+            }
         };
         
         const keyupHandler = (e) => {
@@ -7855,6 +8003,49 @@ class NebulaVoxelApp {
             }
         });
         this.toolMenu.appendChild(this.workbenchTool);
+
+        // 🔧 Tool Bench button (unlocked after crafting tool_bench)
+        this.toolBenchButton = document.createElement('button');
+        this.toolBenchButton.style.cssText = `
+            padding: 16px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #555, #777);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            width: 100%;
+            opacity: 0.5;
+        `;
+        this.toolBenchButton.addEventListener('mouseenter', () => {
+            if (this.hasToolBench) {
+                this.toolBenchButton.style.transform = 'scale(1.05)';
+                this.toolBenchButton.style.boxShadow = '0 6px 12px rgba(0,0,0,0.5)';
+            }
+        });
+        this.toolBenchButton.addEventListener('mouseleave', () => {
+            this.toolBenchButton.style.transform = 'scale(1)';
+            this.toolBenchButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+        });
+
+        const toolBenchLabel = document.createElement('div');
+        toolBenchLabel.textContent = '🔧 Tool Bench [T]';
+        this.toolBenchButton.appendChild(toolBenchLabel);
+        this.toolBenchHotkeyLabel = toolBenchLabel; // Store reference for day/night updates
+
+        this.toolBenchButton.addEventListener('click', () => {
+            // Open tool bench if unlocked
+            if (this.hasToolBench) {
+                this.toolBenchSystem.open();
+            } else {
+                this.updateStatus('⚠️ Craft a tool bench first to unlock tool crafting!', 'warning');
+            }
+        });
+        this.toolMenu.appendChild(this.toolBenchButton);
 
         // Coordinate display (above minimap)
         this.coordDisplay = document.createElement('div');
