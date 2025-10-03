@@ -166,7 +166,11 @@ export class WorkbenchSystem {
                 description: 'Crafted from leaves - useful for tools',
                 isItem: true,  // This goes into inventory as an item
                 itemId: 'stick',
-                quantity: 1  // Crafts 1 stick from 3 leaves
+                quantity: 1,  // Crafts 1 stick from 3 leaves
+                isBasicShape: true,
+                shapes: [
+                    { type: 'cylinder', position: { x: 0, y: 0, z: 0 }, size: { x: 0.1, y: 1.0, z: 0.1 } }  // Thin, tall stick
+                ]
             }
         };
     }
