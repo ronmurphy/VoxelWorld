@@ -7226,7 +7226,7 @@ class NebulaVoxelApp {
             if (!this.miniMap || !this.miniMapContext) return;
 
             const ctx = this.miniMapContext;
-            const size = 120;
+            const size = 100;
             const scale = 0.5; // How many world units per pixel
             const viewRadius = size * scale / 2;
 
@@ -8249,89 +8249,89 @@ class NebulaVoxelApp {
         const explorerPanel = document.createElement('div');
         explorerPanel.style.cssText = `
             position: absolute;
-            top: 16px;
-            right: 16px;
+            top: 12px;
+            right: 12px;
             z-index: 2000;
             background: linear-gradient(180deg, rgba(139, 90, 43, 0.95), rgba(101, 67, 33, 0.95));
-            border: 3px solid #654321;
-            border-radius: 12px;
-            padding: 12px;
+            border: 2px solid #654321;
+            border-radius: 8px;
+            padding: 8px;
             font-family: 'Georgia', serif;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 3px rgba(245, 230, 211, 0.3);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(245, 230, 211, 0.3);
             pointer-events: auto;
-            min-width: 144px;
+            min-width: 110px;
         `;
 
-        // Header with title
+        // Header with title (more compact)
         const panelTitle = document.createElement('div');
-        panelTitle.textContent = '📍 Explorer\'s Log';
+        panelTitle.textContent = '📍 Log';
         panelTitle.style.cssText = `
             color: #F5E6D3;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: bold;
             text-align: center;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
             letter-spacing: 0.5px;
-            border-bottom: 2px solid rgba(101, 67, 33, 0.6);
-            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(101, 67, 33, 0.6);
+            padding-bottom: 4px;
         `;
         explorerPanel.appendChild(panelTitle);
 
-        // Coordinates display
+        // Coordinates display (more compact)
         this.coordDisplay = document.createElement('div');
         this.coordDisplay.style.cssText = `
             color: #FFE4B5;
-            font-size: 11px;
+            font-size: 9px;
             font-family: monospace;
             text-align: center;
-            margin-bottom: 10px;
-            padding: 4px 8px;
+            margin-bottom: 6px;
+            padding: 3px 6px;
             background: rgba(0, 0, 0, 0.4);
-            border-radius: 6px;
-            text-shadow: 0 0 4px rgba(255, 228, 181, 0.6);
+            border-radius: 4px;
+            text-shadow: 0 0 3px rgba(255, 228, 181, 0.6);
             border: 1px solid rgba(101, 67, 33, 0.6);
         `;
         this.coordDisplay.textContent = 'X: 0, Y: 0, Z: 0';
         explorerPanel.appendChild(this.coordDisplay);
 
-        // Mini-map with frame
+        // Mini-map with frame (smaller)
         const mapContainer = document.createElement('div');
         mapContainer.style.cssText = `
             background: rgba(0, 0, 0, 0.5);
             border: 2px solid #654321;
-            border-radius: 8px;
-            padding: 4px;
-            margin-bottom: 10px;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+            border-radius: 6px;
+            padding: 3px;
+            margin-bottom: 6px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
         `;
 
         this.miniMap = document.createElement('canvas');
-        this.miniMap.width = 120;
-        this.miniMap.height = 120;
+        this.miniMap.width = 100;
+        this.miniMap.height = 100;
         this.miniMap.style.cssText = `
             display: block;
-            border-radius: 6px;
-            width: 120px;
-            height: 120px;
+            border-radius: 4px;
+            width: 100px;
+            height: 100px;
         `;
         this.miniMap.title = 'Mini-map showing biomes and your position';
         mapContainer.appendChild(this.miniMap);
         explorerPanel.appendChild(mapContainer);
         this.miniMapContext = this.miniMap.getContext('2d');
 
-        // Biome information display
+        // Biome information display (more compact)
         this.biomeDisplay = document.createElement('div');
         this.biomeDisplay.className = 'biome-info';
         this.biomeDisplay.style.cssText = `
             color: #F5E6D3;
-            font-size: 11px;
+            font-size: 10px;
             text-align: center;
-            padding: 6px 8px;
+            padding: 4px 6px;
             background: rgba(0, 0, 0, 0.4);
-            border-radius: 6px;
+            border-radius: 4px;
             border: 1px solid rgba(101, 67, 33, 0.6);
-            min-height: 20px;
+            min-height: 16px;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
         `;
         this.biomeDisplay.textContent = '🌍 Exploring...';
