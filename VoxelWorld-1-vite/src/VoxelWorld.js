@@ -317,11 +317,47 @@ class NebulaVoxelApp {
                     emissiveIntensity: material === 'campfire' ? 0.5 : 0
                 });
             } else if (this.blockTypes[material] && this.materials[material]) {
-                // Use solid color only for crafted objects (textures cause shader errors in THREE.js r180)
-                console.log(`Creating solid color material for ${material} with color ${color}`);
-                craftedMaterial = new THREE.MeshLambertMaterial({
-                    color: new THREE.Color(color)
-                });
+                // Materials can be either a single material or an array of materials (for cube faces)
+                console.log(`Creating textured material for ${material} with color ${color}`);
+
+                let sourceMaterial = this.materials[material];
+
+                // If it's an array (multi-face materials), use the first one
+                if (Array.isArray(sourceMaterial)) {
+                    console.log(`  Material is array of ${sourceMaterial.length}, using first element`);
+                    sourceMaterial = sourceMaterial[0];
+                }
+
+                console.log(`  Source material:`, sourceMaterial);
+                console.log(`  Has map:`, !!sourceMaterial.map);
+                console.log(`  Map type:`, sourceMaterial.map?.constructor.name);
+                console.log(`  Map.image:`, sourceMaterial.map?.image);
+
+                if (sourceMaterial.map && sourceMaterial.map.image) {
+                    // Create a new CanvasTexture from the source canvas
+                    const newTexture = new THREE.CanvasTexture(sourceMaterial.map.image);
+                    newTexture.magFilter = THREE.NearestFilter;
+                    newTexture.generateMipmaps = true;
+                    newTexture.minFilter = THREE.LinearMipmapLinearFilter;
+                    newTexture.anisotropy = 4;
+                    newTexture.needsUpdate = true;
+
+                    // 🎨 Reduce tint strength by interpolating color toward white (30% tint, 70% texture)
+                    const tintColor = new THREE.Color(color);
+                    const white = new THREE.Color(0xFFFFFF);
+                    const lighterTint = tintColor.clone().lerp(white, 0.7); // 70% white = subtle tint
+
+                    console.log(`  ✓ Created fresh texture copy for ${material} with lighter tint`);
+                    craftedMaterial = new THREE.MeshBasicMaterial({
+                        map: newTexture,
+                        color: lighterTint
+                    });
+                } else {
+                    console.log(`  ✗ No texture source for ${material}, using solid color`);
+                    craftedMaterial = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(color)
+                    });
+                }
             } else {
                 // Fallback to basic colored material (for custom items or when texture doesn't exist)
                 console.log(`Creating basic material for ${material} with color ${color} (no texture available)`);

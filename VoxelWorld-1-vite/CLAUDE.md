@@ -99,6 +99,41 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Specific Wood Types**: Replaced legacy 'wood' with oak_wood, pine_wood, birch_wood, palm_wood, dead_wood
 - **Campfire Recipe**: Crafted from 3x any wood type, creates glowing light source (particles disabled due to THREE.js r180 compatibility)
 
+### ✅ COMPLETED: Textured Crafted Objects with Subtle Color Tinting
+
+**Status: FULLY IMPLEMENTED**
+
+Successfully fixed textured crafted objects that were causing THREE.js r180 shader errors:
+
+1. **Fixed Material Array Handling** (VoxelWorld.js:319-360):
+   - Discovered `this.materials[material]` returns array of 6 materials (cube faces)
+   - Extract first material with `Array.isArray()` check
+   - Prevents JavaScript `.map` method confusion with THREE.js texture map
+
+2. **Fresh Texture Creation**:
+   - Create new `CanvasTexture` for each crafted object instead of reusing shared references
+   - Proper texture configuration (NearestFilter, mipmaps, anisotropy)
+   - Eliminates `uvundefined` shader errors caused by shared texture instances
+
+3. **Subtle Color Tinting** (VoxelWorld.js:345-348):
+   - Interpolate selected color 70% toward white (30% tint, 70% texture visibility)
+   - Uses `tintColor.clone().lerp(white, 0.7)` for lighter tint
+   - Textures now clearly visible with subtle color overlay
+   - Adjustable tint strength for future ArtBench feature
+
+4. **MeshBasicMaterial Usage**:
+   - Switched from MeshLambertMaterial to MeshBasicMaterial for crafted objects
+   - Simpler shader without lighting calculations
+   - More stable with fresh texture instances
+
+**Result:** Crafted objects (spheres, cylinders, cubes, pyramids) display with proper textures and subtle color tints. Foundation prepared for ArtBench feature to recolor items with exploration materials.
+
+**Code Locations:**
+- VoxelWorld.js:319-360 - Material creation with array handling and texture copying
+- VoxelWorld.js:345-348 - Color tint interpolation (adjustable from 0.0 to 1.0)
+
+---
+
 ### Latest Session - Dead Trees, Wood Types, and Campfire System
 1. **Dead Trees with Treasure Loot**:
    - 5% spawn chance in any biome during tree generation
