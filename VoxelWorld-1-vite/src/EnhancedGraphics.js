@@ -237,7 +237,7 @@ export class EnhancedGraphics {
                     'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
                 ],
-                tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin'],
+                tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 'compass', 'toolbench', 'tool_bench'],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun']
             };
 
@@ -316,8 +316,8 @@ export class EnhancedGraphics {
     async _loadMultiFaceTextures(blockType) {
         const basePath = this.assetPaths.blocks;
 
-        // Define which blocks have multi-face textures (wood blocks only, not leaves)
-        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood'];
+        // Define which blocks have multi-face textures (wood blocks, pumpkin, etc - not leaves)
+        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'pumpkin'];
         const isMultiFace = multiFaceBlocks.includes(blockType);
 
         const faceTextures = {
@@ -355,10 +355,19 @@ export class EnhancedGraphics {
 
         // Load textures based on block type
         if (isMultiFace) {
-            // For wood blocks: try sides and top-bottom
+            // Try sides texture
             faceTextures.sides = await tryLoadTexture(`${blockType}-sides`);
+
+            // Try combined top-bottom texture first
             faceTextures.topBottom = await tryLoadTexture(`${blockType}-top-bottom`);
-            if (faceTextures.sides || faceTextures.topBottom) {
+
+            // If no combined texture, try separate top and bottom
+            if (!faceTextures.topBottom) {
+                faceTextures.top = await tryLoadTexture(`${blockType}-top`);
+                faceTextures.bottom = await tryLoadTexture(`${blockType}-bottom`);
+            }
+
+            if (faceTextures.sides || faceTextures.topBottom || faceTextures.top || faceTextures.bottom) {
                 console.log(`🎨 Loaded ${blockType} multi-face textures`);
             }
         }

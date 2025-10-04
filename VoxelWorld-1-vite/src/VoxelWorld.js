@@ -1930,14 +1930,41 @@ class NebulaVoxelApp {
                 // NEW: Tools
                 machete: '🔪',        // For harvesting leaves and vegetation
                 stone_hammer: '🔨',   // Stone hammer for mining
-                backpack: '🎒'        // Backpack icon
+                backpack: '🎒',       // Backpack icon
+                compass: '🧭',        // Navigation compass
+                compass_upgrade: '🧭', // Crystal compass (reassignable)
+                tool_bench: '🔧',     // Tool bench for advanced crafting
+
+                // Tree types for compass tracking
+                oak_tree: '🌳',
+                pine_tree: '🌲',
+                palm_tree: '🌴',
+                birch_tree: '🌿',
+                dead_tree: '💀',
+
+                // Exploring collectibles
+                skull: '💀',
+                mushroom: '🍄',
+                flower: '🌸',
+                berry: '🍓',
+                crystal: '💎',
+                oreNugget: '⛰️',
+                wheat: '🌾',
+                feather: '🪶',
+                bone: '🦴',
+                shell: '🐚',
+                fur: '🐻‍❄️',
+                iceShard: '❄️',
+                rustySword: '⚔️',
+                oldPickaxe: '⛏️',
+                ancientAmulet: '📿'
             };
 
             const defaultIcon = icons[itemType] || '❓';
 
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools
-            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick'].includes(itemType)) {
+            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 'tool_bench'].includes(itemType)) {
                 if (context === 'status') {
                     return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
                 } else if (context === 'hotbar') {
@@ -1954,13 +1981,20 @@ class NebulaVoxelApp {
                 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
                 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
             ];
-            if (materialsWithAssets.includes(itemType)) {
+
+            // Map dead_tree to dead_wood texture
+            const textureMap = {
+                'dead_tree': 'dead_wood'
+            };
+            const mappedType = textureMap[itemType] || itemType;
+
+            if (materialsWithAssets.includes(mappedType)) {
                 if (context === 'status') {
-                    return this.enhancedGraphics.getStatusMaterialIcon(itemType, defaultIcon);
+                    return this.enhancedGraphics.getStatusMaterialIcon(mappedType, defaultIcon);
                 } else if (context === 'hotbar') {
-                    return this.enhancedGraphics.getHotbarMaterialIcon(itemType, defaultIcon);
+                    return this.enhancedGraphics.getHotbarMaterialIcon(mappedType, defaultIcon);
                 } else {
-                    return this.enhancedGraphics.getInventoryMaterialIcon(itemType, defaultIcon);
+                    return this.enhancedGraphics.getInventoryMaterialIcon(mappedType, defaultIcon);
                 }
             }
 
@@ -2833,6 +2867,195 @@ class NebulaVoxelApp {
                 }
             }, 300);
             console.log('🗺️ World map closed');
+        };
+
+        // 🧭 Open compass target selector modal
+        this.openCompassTargetSelector = (compassType, compassSlot) => {
+            // Check if compass is already locked
+            const isUpgrade = compassType === 'compass_upgrade';
+            const compassMetadata = compassSlot.metadata || {};
+            const currentTarget = compassMetadata.lockedTarget;
+
+            if (currentTarget && !isUpgrade) {
+                // Basic compass is locked - show current target
+                this.updateStatus(`🧭 Compass locked to: ${currentTarget}`, 'info');
+                console.log(`🧭 Compass already tracking: ${currentTarget}`);
+                return;
+            }
+
+            // Release pointer lock
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+
+            // Disable controls
+            this.controlsEnabled = false;
+
+            // Create modal
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+            `;
+
+            const panel = document.createElement('div');
+            panel.style.cssText = `
+                background: #2a1810;
+                border: 3px solid #8B4513;
+                border-radius: 12px;
+                padding: 20px;
+                max-width: 600px;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            `;
+
+            const title = document.createElement('h2');
+            title.textContent = isUpgrade ? '🧭 Crystal Compass - Select Target' : '🧭 Compass - Select Target (Permanent)';
+            title.style.cssText = `
+                color: #FFD700;
+                text-align: center;
+                margin-bottom: 10px;
+            `;
+
+            const subtitle = document.createElement('p');
+            subtitle.textContent = isUpgrade ? 'You can change this target anytime' : 'Warning: This choice is permanent!';
+            subtitle.style.cssText = `
+                color: ${isUpgrade ? '#90EE90' : '#FF6B6B'};
+                text-align: center;
+                margin-bottom: 20px;
+                font-style: italic;
+            `;
+
+            const itemGrid = document.createElement('div');
+            itemGrid.style.cssText = `
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+                gap: 10px;
+                margin-bottom: 20px;
+            `;
+
+            // Define trackable items (exploring collectibles)
+            const trackableItems = [
+                // Trees
+                { type: 'oak_tree', name: 'Oak Tree', emoji: '🌳' },
+                { type: 'pine_tree', name: 'Pine Tree', emoji: '🌲' },
+                { type: 'palm_tree', name: 'Palm Tree', emoji: '🌴' },
+                { type: 'birch_tree', name: 'Birch Tree', emoji: '🌿' },
+                { type: 'dead_tree', name: 'Dead Tree', emoji: '💀' },
+                { type: 'pumpkin', name: 'Pumpkin', emoji: '🎃' },
+
+                // Desert items
+                { type: 'skull', name: 'Skull', emoji: '💀' },
+
+                // Forest items
+                { type: 'mushroom', name: 'Mushroom', emoji: '🍄' },
+                { type: 'flower', name: 'Flower', emoji: '🌸' },
+                { type: 'berry', name: 'Berry', emoji: '🍓' },
+
+                // Mountain items
+                { type: 'crystal', name: 'Crystal', emoji: '💎' },
+                { type: 'oreNugget', name: 'Ore Nugget', emoji: '⛰️' },
+
+                // Plains items
+                { type: 'wheat', name: 'Wheat', emoji: '🌾' },
+                { type: 'feather', name: 'Feather', emoji: '🪶' },
+                { type: 'bone', name: 'Bone', emoji: '🦴' },
+
+                // Tundra items
+                { type: 'shell', name: 'Shell', emoji: '🐚' },
+                { type: 'fur', name: 'Fur', emoji: '🐻‍❄️' },
+                { type: 'iceShard', name: 'Ice Shard', emoji: '❄️' },
+
+                // Rare equipment
+                { type: 'rustySword', name: 'Rusty Sword', emoji: '⚔️' },
+                { type: 'oldPickaxe', name: 'Old Pickaxe', emoji: '⛏️' },
+                { type: 'ancientAmulet', name: 'Ancient Amulet', emoji: '📿' }
+            ];
+
+            trackableItems.forEach(item => {
+                const itemBtn = document.createElement('button');
+                const icon = this.getItemIcon(item.type, 'hotbar');
+                // Use innerHTML if icon contains HTML (img tag), otherwise textContent
+                if (icon.includes('<img')) {
+                    itemBtn.innerHTML = icon;
+                } else {
+                    itemBtn.textContent = icon;
+                }
+                itemBtn.title = item.name;
+                itemBtn.style.cssText = `
+                    background: #3a2810;
+                    border: 2px solid #8B4513;
+                    border-radius: 8px;
+                    padding: 20px;
+                    font-size: 32px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                `;
+                itemBtn.onmouseover = () => {
+                    itemBtn.style.background = '#4a3820';
+                    itemBtn.style.transform = 'scale(1.1)';
+                };
+                itemBtn.onmouseout = () => {
+                    itemBtn.style.background = '#3a2810';
+                    itemBtn.style.transform = 'scale(1)';
+                };
+                itemBtn.onclick = () => {
+                    this.setCompassTarget(compassSlot, item.type, item.name);
+                    document.body.removeChild(modal);
+                    this.controlsEnabled = true;
+                    setTimeout(() => {
+                        this.renderer.domElement.requestPointerLock();
+                    }, 100);
+                };
+                itemGrid.appendChild(itemBtn);
+            });
+
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Cancel';
+            closeBtn.style.cssText = `
+                background: #8B4513;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 20px;
+                font-size: 16px;
+                cursor: pointer;
+                display: block;
+                margin: 0 auto;
+            `;
+            closeBtn.onclick = () => {
+                document.body.removeChild(modal);
+                this.controlsEnabled = true;
+                setTimeout(() => {
+                    this.renderer.domElement.requestPointerLock();
+                }, 100);
+            };
+
+            panel.appendChild(title);
+            panel.appendChild(subtitle);
+            panel.appendChild(itemGrid);
+            panel.appendChild(closeBtn);
+            modal.appendChild(panel);
+            document.body.appendChild(modal);
+        };
+
+        // 🧭 Set compass target
+        this.setCompassTarget = (compassSlot, targetType, targetName) => {
+            if (!compassSlot.metadata) {
+                compassSlot.metadata = {};
+            }
+            compassSlot.metadata.lockedTarget = targetType;
+            this.updateStatus(`🧭 Compass now tracking: ${targetName}`, 'discovery');
+            console.log(`🧭 Compass locked to target: ${targetType}`);
         };
 
         // 🗺️ Render the full world map showing explored chunks
@@ -5423,9 +5646,9 @@ class NebulaVoxelApp {
             // Valid items (tools, crafted items, special items)
             const validItems = [
                 // Tools from ToolBench
-                'stone_hammer', 'machete', 'stick',
+                'stone_hammer', 'machete', 'stick', 'compass', 'compass_upgrade',
                 // Workbench items
-                'workbench', 'backpack',
+                'workbench', 'backpack', 'tool_bench',
                 // Crafted items start with 'crafted_' prefix (allow any)
             ];
 
@@ -8324,10 +8547,17 @@ class NebulaVoxelApp {
                             'machete', 'stone_hammer', 'workbench', 'backpack',
                             'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
                             'healing_potion', 'light_orb', 'magic_amulet',
-                            'backpack_upgrade_1', 'backpack_upgrade_2', 'machete_upgrade'
+                            'backpack_upgrade_1', 'backpack_upgrade_2', 'machete_upgrade',
+                            'compass', 'compass_upgrade'
                         ];
 
                         if (nonPlaceableItems.includes(selectedBlock)) {
+                            // 🧭 COMPASS SPECIAL HANDLING: Right-click opens target selection
+                            if (selectedBlock === 'compass' || selectedBlock === 'compass_upgrade') {
+                                this.openCompassTargetSelector(selectedBlock, selectedSlot);
+                                return;
+                            }
+
                             console.log(`🚫 Cannot place ${selectedBlock} - this is a tool/item, not a block!`);
                             this.updateStatus(`🚫 ${selectedBlock} is a tool, not a placeable block!`, 'warning');
                             return;
@@ -8577,7 +8807,9 @@ class NebulaVoxelApp {
             line-height: 32px;
             position: relative;
         `;
-        this.toolBenchButton.textContent = '🔧';
+        // Use enhanced graphics icon or emoji fallback
+        const toolBenchIcon = this.getItemIcon('tool_bench', 'hotbar');
+        this.toolBenchButton.textContent = toolBenchIcon;
         this.toolBenchButton.title = 'Open tool bench crafting (T key)';
 
         // Add hotkey label

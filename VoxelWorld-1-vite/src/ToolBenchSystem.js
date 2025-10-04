@@ -172,6 +172,36 @@ export class ToolBenchSystem {
                 description: 'Mysterious powers (TBD)',
                 category: 'special',
                 isTool: true
+            },
+
+            // 🧭 NAVIGATION TOOLS
+            compass: {
+                name: '🧭 Compass',
+                items: { iron: 3, stick: 1 },
+                description: 'Track one item type forever. Right-click to set target.',
+                clues: {
+                    iron: 'Three pieces of metal, forged with care...',
+                    stick: 'A handle to hold, to point you there...'
+                },
+                category: 'navigation',
+                isTool: true,
+                isCompass: true,
+                canReassign: false
+            },
+
+            compass_upgrade: {
+                name: '🧭 Crystal Compass',
+                items: { compass: 1, crystal: 2 },
+                description: 'Reassign target anytime. Right-click to change.',
+                clues: {
+                    compass: 'Your trusty guide, now worn and old...',
+                    crystal: 'Two shards of sight, to break the hold...'
+                },
+                category: 'navigation',
+                isTool: true,
+                isCompass: true,
+                canReassign: true,
+                isUpgrade: true
             }
         };
     }
@@ -577,6 +607,7 @@ export class ToolBenchSystem {
         // Group blueprints by category
         const categories = {
             movement: [],
+            navigation: [],
             upgrade: [],
             combat: [],
             harvesting: [],
@@ -879,8 +910,9 @@ export class ToolBenchSystem {
      */
     createTool(blueprint) {
         // For tools with specific toolType (like stone_hammer), use that as itemId
+        // For compass tools, use the blueprint ID directly (compass/compass_upgrade)
         // This allows game systems to recognize them properly
-        const itemId = blueprint.toolType || `crafted_${this.selectedBlueprint}`;
+        const itemId = blueprint.toolType || (blueprint.isCompass ? this.selectedBlueprint : `crafted_${this.selectedBlueprint}`);
         
         // Store metadata for tools with special properties
         if (blueprint.toolType) {
