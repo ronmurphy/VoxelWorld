@@ -177,11 +177,11 @@ export class ToolBenchSystem {
             // 🧭 NAVIGATION TOOLS
             compass: {
                 name: '🧭 Compass',
-                items: { iron: 3, stick: 1 },
+                items: { gold: 3, stick: 1 },
                 description: 'Track one item type forever. Right-click to set target.',
                 clues: {
-                    iron: 'Three pieces of metal, forged with care...',
-                    stick: 'A handle to hold, to point you there...'
+                    gold: 'Three pieces of precious metal, gleaming bright...',
+                    stick: 'A handle to hold, to guide you right...'
                 },
                 category: 'navigation',
                 isTool: true,

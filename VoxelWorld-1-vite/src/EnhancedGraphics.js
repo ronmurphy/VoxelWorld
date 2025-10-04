@@ -233,7 +233,7 @@ export class EnhancedGraphics {
 
             const candidates = {
                 blocks: [
-                    'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone', 'pumpkin',
+                    'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone', 'pumpkin', 'iron', 'gold',
                     'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
                 ],
@@ -316,8 +316,8 @@ export class EnhancedGraphics {
     async _loadMultiFaceTextures(blockType) {
         const basePath = this.assetPaths.blocks;
 
-        // Define which blocks have multi-face textures (wood blocks, pumpkin, etc - not leaves)
-        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'pumpkin'];
+        // Define which blocks have multi-face textures (wood blocks, pumpkin, ores, etc - not leaves)
+        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'pumpkin', 'iron', 'gold'];
         const isMultiFace = multiFaceBlocks.includes(blockType);
 
         const faceTextures = {

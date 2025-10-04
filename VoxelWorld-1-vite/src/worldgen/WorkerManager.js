@@ -177,7 +177,7 @@ export class WorkerManager {
 
         // Block type ID to string mapping (must match ChunkSerializer & ChunkWorker!)
         const idToBlockType = {
-            0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water', 7: 'dirt', 8: 'pumpkin',
+            0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water', 7: 'dirt', 8: 'pumpkin', 9: 'gold',
             10: 'oak_wood', 11: 'pine_wood', 12: 'birch_wood', 13: 'palm_wood', 14: 'dead_wood',
             20: 'oak_wood-leaves', 21: 'pine_wood-leaves', 22: 'birch_wood-leaves',
             23: 'palm_wood-leaves', 24: 'dead_wood-leaves'

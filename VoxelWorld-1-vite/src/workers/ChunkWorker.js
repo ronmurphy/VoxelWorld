@@ -123,10 +123,14 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
                         blockType = biome.subBlock;
                         color = subSurfaceColor;
                     } else {
-                        // Deep layer (stone with occasional iron)
+                        // Deep layer (stone with occasional iron and rare gold)
                         if (fillY % 7 === 0) {
                             blockType = 'iron';
                             color = 0x808080;
+                        } else if (fillY % 13 === 0) {
+                            // Gold is rarer than iron (every 13 blocks instead of 7)
+                            blockType = 'gold';
+                            color = 0xFFD700;
                         } else {
                             blockType = 'stone';
                             color = 0x696969;
@@ -165,7 +169,7 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
 
     // Block type mapping (must match ChunkSerializer, WorkerManager, VoxelWorld.js!)
     const blockTypeMap = {
-        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6, 'dirt': 7, 'pumpkin': 8,
+        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6, 'dirt': 7, 'pumpkin': 8, 'gold': 9,
         'oak_wood': 10, 'pine_wood': 11, 'birch_wood': 12, 'palm_wood': 13, 'dead_wood': 14,
         'oak_wood-leaves': 20, 'pine_wood-leaves': 21, 'birch_wood-leaves': 22,
         'palm_wood-leaves': 23, 'dead_wood-leaves': 24

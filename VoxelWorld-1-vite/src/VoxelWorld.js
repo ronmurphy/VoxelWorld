@@ -918,11 +918,22 @@ class NebulaVoxelApp {
                     else if (hasStoneHammer && blockData.type === 'iron') {
                         // Create explosion particle effect
                         this.createExplosionEffect(x, y, z, blockData.type);
-                        
+
                         // 15% chance to get iron from iron block
                         if (Math.random() < 0.15) {
                             this.inventory.addToInventory('iron', 1);
                             this.updateStatus(`⛏️ Iron extracted!`, 'discovery');
+                        }
+                    }
+                    // 🔨 Stone Hammer: Special harvesting for gold blocks (rarer than iron)
+                    else if (hasStoneHammer && blockData.type === 'gold') {
+                        // Create explosion particle effect
+                        this.createExplosionEffect(x, y, z, blockData.type);
+
+                        // 12% chance to get gold from gold block (slightly rarer than iron)
+                        if (Math.random() < 0.12) {
+                            this.inventory.addToInventory('gold', 1);
+                            this.updateStatus(`✨ Gold extracted!`, 'discovery');
                         }
                     }
                     // Random drop system for regular blocks (without stone hammer)
@@ -1914,7 +1925,8 @@ class NebulaVoxelApp {
                 glass: '💎',
                 brick: '🧱',
                 glowstone: '✨',
-                iron: '⚙️',
+                iron: '⚙️',      // Iron ore/nugget (temporary - needs icon)
+                gold: '🟡',      // Gold ore/nugget (temporary - needs icon)
                 flowers: '🌸',
                 snow: '❄️',
                 dirt: '🪨',
@@ -5533,6 +5545,7 @@ class NebulaVoxelApp {
                 workbench: 800,
                 brick: 2000,
                 iron: 3000, // Very hard without proper tools
+                gold: 3500, // Even harder than iron
                 glass: 800,
                 glowstone: 1200,
                 flowers: 200
@@ -5554,10 +5567,11 @@ class NebulaVoxelApp {
                     leaf: 0.2, forest_leaves: 0.2, mountain_leaves: 0.2,
                     desert_leaves: 0.2, plains_leaves: 0.2, tundra_leaves: 0.2
                 },
-                // 🔨 STONE HAMMER: Excellent for stone and iron harvesting
+                // 🔨 STONE HAMMER: Excellent for stone, iron, and gold harvesting
                 stone_hammer: {
                     stone: 0.4, // 1500ms * 0.4 = 600ms (fast!)
                     iron: 0.5,  // 3000ms * 0.5 = 1500ms (reasonable)
+                    gold: 0.6,  // 3500ms * 0.6 = 2100ms (slower than iron)
                     brick: 0.6, // Also good for brick
                     wood: 1.8,  // Inefficient for wood
                     grass: 2.0  // Very inefficient for soft materials
@@ -5569,8 +5583,12 @@ class NebulaVoxelApp {
             const efficiency = toolEfficiency[currentTool]?.[blockType] || 1.5; // Default slow
 
             // Some blocks require specific tools
-            if (blockType === 'iron' && !['iron', 'stone'].includes(currentTool)) {
-                return -1; // Cannot harvest without proper tool
+            if (blockType === 'iron' && !['iron', 'stone_hammer'].includes(currentTool)) {
+                return -1; // Cannot harvest iron without stone hammer or iron tool
+            }
+
+            if (blockType === 'gold' && !['iron', 'stone_hammer'].includes(currentTool)) {
+                return -1; // Cannot harvest gold without stone hammer or iron tool
             }
 
             return Math.floor(baseTime * efficiency);
@@ -5710,7 +5728,135 @@ class NebulaVoxelApp {
                 location.reload();
             };
         };
+
+        // 🧨 NUCLEAR OPTION: Clear absolutely everything (RAM caches, disk caches, localStorage, IndexedDB, worker caches)
+        window.nuclearClear = () => {
+            console.log('🧨💥 NUCLEAR CLEAR - WIPING EVERYTHING...');
+
+            // 1. Clear all localStorage
+            console.log('🧹 Clearing localStorage...');
+            localStorage.clear();
+
+            // 2. Clear all sessionStorage
+            console.log('🧹 Clearing sessionStorage...');
+            sessionStorage.clear();
+
+            // 3. Clear RAM chunk cache if it exists
+            if (this.workerManager && this.workerManager.cache) {
+                console.log('🧹 Clearing RAM chunk cache...');
+                this.workerManager.cache.clear();
+            }
+
+            // 4. Clear BiomeWorldGen cache
+            if (this.biomeWorldGen) {
+                console.log('🧹 Clearing BiomeWorldGen cache...');
+                this.biomeWorldGen.clearCache();
+            }
+
+            // 5. Clear worker cache (send message to worker)
+            if (this.workerManager && this.workerManager.worker) {
+                console.log('🧹 Clearing Web Worker cache...');
+                this.workerManager.worker.postMessage({ type: 'CLEAR_CACHE' });
+            }
+
+            // 6. Clear all IndexedDB databases
+            console.log('🧹 Clearing IndexedDB databases...');
+            indexedDB.deleteDatabase('VoxelWorld').onsuccess = () => {
+                console.log('✅ VoxelWorld database deleted');
+            };
+            indexedDB.deleteDatabase('ChunkPersistence').onsuccess = () => {
+                console.log('✅ ChunkPersistence database deleted');
+            };
+
+            // 7. Clear in-memory world data
+            if (this.world) {
+                console.log('🧹 Clearing in-memory world data...');
+                this.world = {};
+            }
+
+            // 8. Clear loaded chunks tracking
+            if (this.loadedChunks) {
+                console.log('🧹 Clearing loaded chunks set...');
+                this.loadedChunks.clear();
+            }
+
+            // 9. Clear tree caches
+            if (this.treeCache) {
+                console.log('🧹 Clearing tree cache...');
+                this.treeCache.clear();
+            }
+            if (this.treePositions) {
+                console.log('🧹 Clearing tree positions...');
+                this.treePositions = [];
+            }
+
+            // 10. Clear pumpkin and world item positions
+            if (this.pumpkinPositions) {
+                console.log('🧹 Clearing pumpkin positions...');
+                this.pumpkinPositions = [];
+            }
+            if (this.worldItemPositions) {
+                console.log('🧹 Clearing world item positions...');
+                this.worldItemPositions = [];
+            }
+
+            console.log('🧨💥 NUCLEAR CLEAR COMPLETE! Reloading page in 1 second...');
+            setTimeout(() => {
+                location.reload(true); // Hard reload (bypass cache)
+            }, 1000);
+        };
+
+        // 🧹 CACHE CLEAR: Clear all caches but keep saved games
+        window.clearCaches = () => {
+            console.log('🧹 CLEARING CACHES (preserving saved games)...');
+
+            // 1. Clear sessionStorage (temporary data only)
+            console.log('🧹 Clearing sessionStorage...');
+            sessionStorage.clear();
+
+            // 2. Clear RAM chunk cache if it exists
+            if (this.workerManager && this.workerManager.cache) {
+                console.log('🧹 Clearing RAM chunk cache...');
+                this.workerManager.cache.clear();
+            }
+
+            // 3. Clear BiomeWorldGen cache
+            if (this.biomeWorldGen) {
+                console.log('🧹 Clearing BiomeWorldGen cache...');
+                this.biomeWorldGen.clearCache();
+            }
+
+            // 4. Clear worker cache (send message to worker)
+            if (this.workerManager && this.workerManager.worker) {
+                console.log('🧹 Clearing Web Worker cache...');
+                this.workerManager.worker.postMessage({ type: 'CLEAR_CACHE' });
+            }
+
+            // 5. Clear ChunkPersistence IndexedDB (terrain cache) but keep VoxelWorld (saved games)
+            console.log('🧹 Clearing ChunkPersistence database (terrain cache)...');
+            indexedDB.deleteDatabase('ChunkPersistence').onsuccess = () => {
+                console.log('✅ ChunkPersistence database deleted');
+            };
+
+            // 6. Clear performance benchmarks (not game data)
+            console.log('🧹 Clearing performance benchmarks...');
+            localStorage.removeItem('voxelWorld_performanceBenchmark');
+            localStorage.removeItem('voxelWorld_renderDistancePref');
+
+            // 7. Clear tutorial flags (you can see tutorials again)
+            console.log('🧹 Clearing tutorial flags...');
+            localStorage.removeItem('voxelworld_workbench_tutorial_seen');
+
+            console.log('🧹✅ CACHE CLEAR COMPLETE! Reloading page in 1 second...');
+            console.log('💾 Your saved game (NebulaWorld) has been preserved!');
+            setTimeout(() => {
+                location.reload(true); // Hard reload (bypass browser cache)
+            }, 1000);
+        };
+
         console.log('💡 Utility available: clearAllData() - clears localStorage + IndexedDB and reloads');
+        console.log('💡 Utility available: clearCaches() - 🧹 clears caches but KEEPS saved games');
+        console.log('💡 Utility available: nuclearClear() - 🧨 WIPES EVERYTHING (RAM, disk, caches, workers)');
 
         // 🎁 DEBUG UTILITY: Give item to inventory
         // Can be called from browser console: giveItem("stone_hammer")
@@ -6000,7 +6146,8 @@ class NebulaVoxelApp {
             glass: { color: 0x87CEEB, texture: 'glass' },    // Sky blue, translucent
             brick: { color: 0xB22222, texture: 'brick' },    // Fire brick with mortar lines
             glowstone: { color: 0xFFD700, texture: 'glow' }, // Gold with glowing effect
-            iron: { color: 0x708090, texture: 'metal' },     // Slate gray with metallic shine
+            iron: { color: 0x708090, texture: 'iron' },     // Slate gray iron ore
+            gold: { color: 0xFFD700, texture: 'gold' },     // Gold ore with golden shine
             flowers: { color: 0xFF69B4, texture: 'flower' }, // Hot pink with flower pattern
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
@@ -6800,7 +6947,7 @@ class NebulaVoxelApp {
 
             // Block type reverse mapping (must match ChunkWorker.js blockTypeMap)
             const blockTypeNames = {
-                0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water',
+                0: 'bedrock', 1: 'grass', 2: 'sand', 3: 'stone', 4: 'iron', 5: 'snow', 6: 'water', 7: 'dirt', 8: 'pumpkin', 9: 'gold',
                 10: 'oak_wood', 11: 'pine_wood', 12: 'birch_wood', 13: 'palm_wood', 14: 'dead_wood',
                 20: 'forest_leaves', 21: 'mountain_leaves', 22: 'plains_leaves',
                 23: 'desert_leaves', 24: 'tundra_leaves'
