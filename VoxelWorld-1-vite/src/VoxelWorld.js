@@ -316,11 +316,10 @@ class NebulaVoxelApp {
                     emissive: material === 'campfire' ? new THREE.Color(0xFF4400) : new THREE.Color(0x000000),
                     emissiveIntensity: material === 'campfire' ? 0.5 : 0
                 });
-            } else if (this.blockTypes[material] && this.materials[material] && this.materials[material].map) {
-                // Use the base material type with custom color and texture (for non-pyramids)
-                console.log(`Creating textured material for ${material} with color ${color}`);
+            } else if (this.blockTypes[material] && this.materials[material]) {
+                // Use solid color only for crafted objects (textures cause shader errors in THREE.js r180)
+                console.log(`Creating solid color material for ${material} with color ${color}`);
                 craftedMaterial = new THREE.MeshLambertMaterial({
-                    map: this.materials[material].map,
                     color: new THREE.Color(color)
                 });
             } else {
