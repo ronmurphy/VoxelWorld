@@ -60,6 +60,8 @@ class NebulaVoxelApp {
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
         this.waterPositions = []; // 🌊 Track water block locations for minimap
+        this.pumpkinPositions = []; // 🎃 Track pumpkin locations for compass
+        this.worldItemPositions = []; // 🔍 Track world item locations (collectibles) for compass
         this.exploredChunks = new Set(); // Track all visited chunks for world map
         this.worldMapModal = null; // Full-screen world map modal
 
@@ -233,6 +235,11 @@ class NebulaVoxelApp {
             // 🌊 Track ALL water blocks for minimap (to show rivers and lakes clearly)
             if (type === 'water' && !playerPlaced) {
                 this.waterPositions.push({ x, y, z });
+            }
+
+            // 🎃 Track pumpkins for compass navigation
+            if (type === 'pumpkin' && !playerPlaced) {
+                this.pumpkinPositions.push({ x, y, z });
             }
 
             // 💾 Track player modifications for chunk persistence
@@ -1418,6 +1425,9 @@ class NebulaVoxelApp {
                 collisionBox: collisionBox,
                 harvestable: true
             };
+
+            // 🔍 Track world item for compass navigation
+            this.worldItemPositions.push({ x, y, z, itemType });
         };
 
         this.harvestWorldItem = (target) => {
@@ -3054,8 +3064,70 @@ class NebulaVoxelApp {
                 compassSlot.metadata = {};
             }
             compassSlot.metadata.lockedTarget = targetType;
-            this.updateStatus(`🧭 Compass now tracking: ${targetName}`, 'discovery');
+            compassSlot.metadata.targetName = targetName;
+
+            // Check if any targets exist
+            const nearest = this.findNearestTarget(targetType);
+            if (!nearest) {
+                this.updateStatus(`🧭 Compass set to ${targetName}, but you have not passed by any yet`, 'info');
+            } else {
+                const distance = Math.floor(nearest.distance);
+                this.updateStatus(`🧭 Compass locked to ${targetName} (${distance}m away)`, 'discovery');
+            }
             console.log(`🧭 Compass locked to target: ${targetType}`);
+        };
+
+        // 🔍 Find nearest target of specified type
+        this.findNearestTarget = (targetType) => {
+            const playerX = this.player.position.x;
+            const playerZ = this.player.position.z;
+            let nearest = null;
+            let minDistance = Infinity;
+
+            // Search different tracking arrays based on target type
+            if (targetType === 'pumpkin') {
+                this.pumpkinPositions.forEach(pos => {
+                    const dist = Math.sqrt(
+                        Math.pow(pos.x - playerX, 2) +
+                        Math.pow(pos.z - playerZ, 2)
+                    );
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearest = { ...pos, distance: dist };
+                    }
+                });
+            } else if (targetType.includes('_tree')) {
+                // Tree types: oak_tree, pine_tree, etc.
+                const treeType = targetType.replace('_tree', ''); // oak, pine, palm, birch, dead
+                this.treePositions.forEach(tree => {
+                    if (tree.type === treeType) {
+                        const dist = Math.sqrt(
+                            Math.pow(tree.x - playerX, 2) +
+                            Math.pow(tree.z - playerZ, 2)
+                        );
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearest = { ...tree, distance: dist };
+                        }
+                    }
+                });
+            } else {
+                // World items (collectibles)
+                this.worldItemPositions.forEach(item => {
+                    if (item.itemType === targetType) {
+                        const dist = Math.sqrt(
+                            Math.pow(item.x - playerX, 2) +
+                            Math.pow(item.z - playerZ, 2)
+                        );
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearest = { ...item, distance: dist };
+                        }
+                    }
+                });
+            }
+
+            return nearest;
         };
 
         // 🗺️ Render the full world map showing explored chunks
@@ -7925,6 +7997,67 @@ class NebulaVoxelApp {
                 if (distance < 5) {
                     this.activeNavigation = null;
                     this.updateStatus('🎯 Destination reached!', 'success');
+                }
+            }
+
+            // 🧭 Draw compass target indicator
+            const compassSlot = this.getHotbarSlot(this.selectedSlot);
+            if (compassSlot && (compassSlot.itemType === 'compass' || compassSlot.itemType === 'compass_upgrade')) {
+                const targetType = compassSlot.metadata?.lockedTarget;
+                if (targetType) {
+                    const nearest = this.findNearestTarget(targetType);
+                    if (nearest) {
+                        const relX = nearest.x - this.player.position.x;
+                        const relZ = nearest.z - this.player.position.z;
+                        const targetMapX = size/2 + relX / scale;
+                        const targetMapZ = size/2 + relZ / scale;
+                        const distance = nearest.distance;
+
+                        // Draw target indicator
+                        if (targetMapX >= 0 && targetMapX < size && targetMapZ >= 0 && targetMapZ < size) {
+                            // Target is on screen - draw pulsing marker
+                            const pulseSize = 4 + Math.sin(Date.now() / 200) * 2;
+                            ctx.fillStyle = '#FFD700';
+                            ctx.strokeStyle = '#FF6B6B';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(targetMapX, targetMapZ, pulseSize, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.stroke();
+
+                            // Draw distance
+                            ctx.font = 'bold 8px Arial';
+                            ctx.fillStyle = '#FFD700';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(`${Math.floor(distance)}m`, targetMapX, targetMapZ - 8);
+                        } else {
+                            // Target is off screen - draw directional arrow at edge
+                            const angle = Math.atan2(relZ, relX);
+                            const edgeX = size/2 + Math.cos(angle) * (size/2 - 15);
+                            const edgeZ = size/2 + Math.sin(angle) * (size/2 - 15);
+
+                            ctx.fillStyle = '#FFD700';
+                            ctx.strokeStyle = '#FF6B6B';
+                            ctx.lineWidth = 2;
+                            ctx.save();
+                            ctx.translate(edgeX, edgeZ);
+                            ctx.rotate(angle);
+                            ctx.beginPath();
+                            ctx.moveTo(8, 0);
+                            ctx.lineTo(-4, -6);
+                            ctx.lineTo(-4, 6);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.stroke();
+                            ctx.restore();
+
+                            // Draw distance next to arrow
+                            ctx.font = 'bold 8px Arial';
+                            ctx.fillStyle = '#FFD700';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(`${Math.floor(distance)}m`, edgeX, edgeZ + 12);
+                        }
+                    }
                 }
             }
 
