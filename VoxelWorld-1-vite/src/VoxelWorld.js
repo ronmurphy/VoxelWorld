@@ -1909,6 +1909,7 @@ class NebulaVoxelApp {
                 snow: '❄️',
                 dirt: '🪨',
                 coal: '⚫',
+                pumpkin: '🎃',   // Halloween pumpkin!
                 skull: '💀',
                 leaf: '🍃',      // Legacy leaf
                 stick: '🪵',     // Crafted from leaves - tool material
@@ -1948,7 +1949,7 @@ class NebulaVoxelApp {
 
             // Try to get enhanced icon for materials that have block textures
             const materialsWithAssets = [
-                'bedrock', 'dirt', 'sand', 'snow', 'stone', 'grass',
+                'bedrock', 'dirt', 'sand', 'snow', 'stone', 'grass', 'pumpkin',
                 'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
                 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
                 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
@@ -5232,6 +5233,7 @@ class NebulaVoxelApp {
                 stone: 1500,
                 sand: 300,
                 shrub: 400,
+                pumpkin: 600, // Medium harvest time
                 backpack: 100, // Quick pickup
                 workbench: 800,
                 brick: 2000,
@@ -5707,6 +5709,7 @@ class NebulaVoxelApp {
             flowers: { color: 0xFF69B4, texture: 'flower' }, // Hot pink with flower pattern
             snow: { color: 0xFFFFFF, texture: 'snow' },      // Pure white with snow texture
             shrub: { color: 0x2F5233, texture: 'shrub' },    // Dark green with brown stem pattern
+            pumpkin: { color: 0xFF8C00, texture: 'pumpkin' },    // 🎃 Orange pumpkin (Halloween!)
             backpack: { color: 0x8B4513, texture: 'transparent' }, // Transparent for billboard
             water: { color: 0x1E90FF, texture: 'water', transparent: true }, // 🌊 Blue water with transparency
 
@@ -7583,7 +7586,23 @@ class NebulaVoxelApp {
                 }
             }
 
-            // 🌳 Draw tree positions (green dots) for debugging
+            // 🌊 Draw water positions (blue dots) FIRST - beneath trees
+            this.waterPositions.forEach(water => {
+                const relX = water.x - this.player.position.x;
+                const relZ = water.z - this.player.position.z;
+
+                // Convert to minimap coordinates
+                const waterMapX = size/2 + relX / scale;
+                const waterMapZ = size/2 + relZ / scale;
+
+                // Only draw if within minimap bounds
+                if (waterMapX >= 0 && waterMapX < size && waterMapZ >= 0 && waterMapZ < size) {
+                    ctx.fillStyle = '#1E90FF'; // Dodger blue - same as water block color
+                    ctx.fillRect(waterMapX - 1, waterMapZ - 1, 2, 2); // Small 2x2 blue squares
+                }
+            });
+
+            // 🌳 Draw tree positions (green dots) ON TOP - above water
             this.treePositions.forEach(tree => {
                 const relX = tree.x - this.player.position.x;
                 const relZ = tree.z - this.player.position.z;
@@ -7599,22 +7618,6 @@ class NebulaVoxelApp {
                     ctx.beginPath();
                     ctx.arc(treeMapX, treeMapZ, 2, 0, Math.PI * 2);
                     ctx.fill();
-                }
-            });
-
-            // 🌊 Draw water positions (blue dots)
-            this.waterPositions.forEach(water => {
-                const relX = water.x - this.player.position.x;
-                const relZ = water.z - this.player.position.z;
-
-                // Convert to minimap coordinates
-                const waterMapX = size/2 + relX / scale;
-                const waterMapZ = size/2 + relZ / scale;
-
-                // Only draw if within minimap bounds
-                if (waterMapX >= 0 && waterMapX < size && waterMapZ >= 0 && waterMapZ < size) {
-                    ctx.fillStyle = '#1E90FF'; // Dodger blue - same as water block color
-                    ctx.fillRect(waterMapX - 1, waterMapZ - 1, 2, 2); // Small 2x2 blue squares
                 }
             });
 
@@ -8316,6 +8319,20 @@ class NebulaVoxelApp {
                     const selectedBlock = selectedSlot?.itemType;
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
+                        // 🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
+                        const nonPlaceableItems = [
+                            'machete', 'stone_hammer', 'workbench', 'backpack',
+                            'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
+                            'healing_potion', 'light_orb', 'magic_amulet',
+                            'backpack_upgrade_1', 'backpack_upgrade_2', 'machete_upgrade'
+                        ];
+
+                        if (nonPlaceableItems.includes(selectedBlock)) {
+                            console.log(`🚫 Cannot place ${selectedBlock} - this is a tool/item, not a block!`);
+                            this.updateStatus(`🚫 ${selectedBlock} is a tool, not a placeable block!`, 'warning');
+                            return;
+                        }
+
                         // 🎯 THE BIG MOMENT: Detect crafted items vs regular blocks
                         if (selectedBlock.startsWith('crafted_')) {
                             // Place crafted 3D object with real dimensions!

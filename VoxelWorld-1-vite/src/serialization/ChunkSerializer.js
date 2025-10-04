@@ -52,6 +52,7 @@ export class ChunkSerializer {
         'snow': 5,
         'water': 6,
         'dirt': 7,
+        'pumpkin': 8,
         'oak_wood': 10,
         'pine_wood': 11,
         'birch_wood': 12,

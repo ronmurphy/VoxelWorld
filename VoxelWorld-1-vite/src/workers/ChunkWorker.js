@@ -165,7 +165,7 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
 
     // Block type mapping (must match ChunkSerializer, WorkerManager, VoxelWorld.js!)
     const blockTypeMap = {
-        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6, 'dirt': 7,
+        'bedrock': 0, 'grass': 1, 'sand': 2, 'stone': 3, 'iron': 4, 'snow': 5, 'water': 6, 'dirt': 7, 'pumpkin': 8,
         'oak_wood': 10, 'pine_wood': 11, 'birch_wood': 12, 'palm_wood': 13, 'dead_wood': 14,
         'oak_wood-leaves': 20, 'pine_wood-leaves': 21, 'birch_wood-leaves': 22,
         'palm_wood-leaves': 23, 'dead_wood-leaves': 24

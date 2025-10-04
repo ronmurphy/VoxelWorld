@@ -1204,6 +1204,27 @@ export class BiomeWorldGen {
                     }
                 }
 
+                // 🎃 PUMPKIN SPAWNING: Halloween pumpkins in Forest and Plains biomes
+                if (!hasSnow && (biome.name === 'Forest' || biome.name === 'Plains' || biome.name.includes('forest') || biome.name.includes('plains'))) {
+                    const pumpkinNoise = this.multiOctaveNoise(worldX + 5000, worldZ + 5000, this.noiseParams.microDetail, worldSeed + 5000);
+
+                    // 🎃 HALLOWEEN SPECIAL: 4x spawn rate on October 31st!
+                    const today = new Date();
+                    const isHalloween = (today.getMonth() === 9 && today.getDate() === 31); // Month is 0-indexed (9 = October)
+                    const baseChance = 0.015; // 1.5% spawn rate (fairly rare)
+                    const pumpkinChance = isHalloween ? baseChance * 4 : baseChance; // 6% on Halloween!
+
+                    if (pumpkinNoise > (1 - pumpkinChance)) {
+                        // Place pumpkin on the ground
+                        addBlockFn(worldX, height + 1, worldZ, 'pumpkin', false);
+
+                        if (this.DEBUG_MODE && Math.random() < 0.1) {
+                            const spawnMsg = isHalloween ? '🎃👻 HALLOWEEN PUMPKIN' : '🎃 Spawned pumpkin';
+                            console.log(`${spawnMsg} at (${worldX}, ${height + 1}, ${worldZ}) in ${biome.name}`);
+                        }
+                    }
+                }
+
                 // 🚫 DISABLED: Enhanced shrub generation with biome-specific density
                 // if (!hasSnow && biome.shrubChance > 0) {
                 //     // 🌿 BIOME-SPECIFIC SHRUB DENSITY

@@ -233,11 +233,11 @@ export class EnhancedGraphics {
 
             const candidates = {
                 blocks: [
-                    'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone',
+                    'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone', 'pumpkin',
                     'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
                 ],
-                tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench'],
+                tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin'],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun']
             };
 
