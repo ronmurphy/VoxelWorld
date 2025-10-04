@@ -1201,18 +1201,29 @@ export class WorkbenchSystem {
                 this.shapeLength = recipeSize.x || 1;
                 this.shapeWidth = recipeSize.z || 1;
                 this.shapeHeight = recipeSize.y || 1;
-                
+
+                // 🪵 LOCK WIDTH/LENGTH for cylinders (sticks) - only height adjustable
+                const isCylinder = this.selectedShape === 'cylinder';
+
                 // Update slider UI elements if they exist
-                if (this.lengthSlider) this.lengthSlider.value = this.shapeLength;
-                if (this.widthSlider) this.widthSlider.value = this.shapeWidth;
-                if (this.heightSlider) this.heightSlider.value = this.shapeHeight;
-                
+                if (this.lengthSlider) {
+                    this.lengthSlider.value = this.shapeLength;
+                    this.lengthSlider.disabled = isCylinder; // Lock for cylinders
+                }
+                if (this.widthSlider) {
+                    this.widthSlider.value = this.shapeWidth;
+                    this.widthSlider.disabled = isCylinder; // Lock for cylinders
+                }
+                if (this.heightSlider) {
+                    this.heightSlider.value = this.shapeHeight;
+                }
+
                 // Update slider labels
                 if (this.lengthValue) this.lengthValue.textContent = this.shapeLength.toFixed(1);
                 if (this.widthValue) this.widthValue.textContent = this.shapeWidth.toFixed(1);
                 if (this.heightValue) this.heightValue.textContent = this.shapeHeight.toFixed(1);
-                
-                console.log(`📏 Auto-set dimensions to ${this.shapeLength}×${this.shapeWidth}×${this.shapeHeight} from recipe`);
+
+                console.log(`📏 Auto-set dimensions to ${this.shapeLength}×${this.shapeWidth}×${this.shapeHeight} from recipe${isCylinder ? ' (width/length locked)' : ''}`);
             }
         } else {
             console.log('❌ No shapes found in recipe!');
@@ -1882,7 +1893,9 @@ export class WorkbenchSystem {
         const length = this.shapeLength;
         const width = this.shapeWidth;
         const height = this.shapeHeight;
-        const requiredQuantity = length * width * height * 2; // New cost calculation: L×W×H×2
+        // Formula: 2 materials per block crafted (L×W×H blocks × 2 materials each)
+        // Round up to prevent fractional materials (e.g., 0.8×0.6×0.8 = 0.768 → 2 materials)
+        const requiredQuantity = Math.ceil(length * width * height * 2);
         const availableQuantity = this.voxelWorld.countItemInSlots(material);
 
         console.log(`🔨 Preparing to craft ${shape} ${length}×${width}×${height} using ${requiredQuantity} ${material}`);
