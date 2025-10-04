@@ -39,8 +39,8 @@ export class BiomeWorldGen {
             forest: {
                 name: 'Forest',
                 color: 0x228B22,
-                minHeight: 2,  // 🌊 NEW SYSTEM: Base terrain y=1-3, forests slightly raised
-                maxHeight: 5,  // 🌊 Gentle hills for forest biomes
+                minHeight: 4,  // 🏔️ STEP 2.1: Bigger hills
+                maxHeight: 10, // 🏔️ More dramatic forest terrain
                 surfaceBlock: 'grass',
                 subBlock: 'dirt',
                 mapColor: '#228B22',
@@ -58,8 +58,8 @@ export class BiomeWorldGen {
             desert: {
                 name: 'Desert',
                 color: 0xDEB887,
-                minHeight: 1,  // 🌊 NEW SYSTEM: Deserts at water level (potential oases)
-                maxHeight: 4,  // 🌊 Sand dunes for mining
+                minHeight: 3,  // 🏜️ STEP 2.1: Bigger dunes
+                maxHeight: 8,  // 🏜️ Dramatic sand dunes
                 surfaceBlock: 'sand',
                 subBlock: 'sand',
                 mapColor: '#DEB887',
@@ -76,8 +76,8 @@ export class BiomeWorldGen {
             mountain: {
                 name: 'Mountain',
                 color: 0x696969,
-                minHeight: 8,  // 🏔️ Mountains start higher
-                maxHeight: 25, // 🏔️ TALL mountains (8 to 25 = 17 blocks tall!)
+                minHeight: 15,  // 🏔️ STEP 2.1: TALL mountains!
+                maxHeight: 30,  // 🏔️ Proper mountain peaks (will be hollowed in Step 3)
                 surfaceBlock: 'grass',  // 🌿 Grass on mountains (snow added by height check)
                 subBlock: 'stone',      // 🪨 Stone underground
                 mapColor: '#696969',
@@ -94,8 +94,8 @@ export class BiomeWorldGen {
             plains: {
                 name: 'Plains',
                 color: 0x90EE90,
-                minHeight: 2,  // 🌊 NEW SYSTEM: Flat plains just above water
-                maxHeight: 3,  // 🌊 Very flat, minimal hills
+                minHeight: 3,  // 🌾 STEP 2.1: More rolling
+                maxHeight: 6,  // 🌾 Gentle hills
                 surfaceBlock: 'grass',
                 subBlock: 'dirt',
                 mapColor: '#90EE90',
@@ -112,8 +112,8 @@ export class BiomeWorldGen {
             tundra: {
                 name: 'Tundra',
                 color: 0xF0F8FF,
-                minHeight: 3,  // ❄️ Frozen tundra slightly raised
-                maxHeight: 8,  // ❄️ Icy hills
+                minHeight: 4,  // ❄️ STEP 2.1: Bigger icy hills
+                maxHeight: 10, // ❄️ Dramatic frozen terrain
                 surfaceBlock: 'grass',  // 🌿 Grass (will be covered by snow)
                 subBlock: 'dirt',       // 🪨 Dirt underground
                 mapColor: '#F0F8FF',
@@ -167,11 +167,11 @@ export class BiomeWorldGen {
                 persistence: 0.4
             },
 
-            // Elevation noise - Fine-tuned for better terrain variety
+            // Elevation noise - Balanced for natural terrain (smooth but varied)
             elevation: {
-                scale: 0.012,      // Slightly reduced for smoother terrain
-                octaves: 5,        // Added octave for more detail
-                persistence: 0.65   // Slightly reduced for better balance
+                scale: 0.008,      // 🏔️ Sweet spot: smooth slopes but not flat plateaus
+                octaves: 5,        // More octaves for natural detail
+                persistence: 0.55  // Moderate detail level
             }
         };
     }
@@ -429,11 +429,11 @@ export class BiomeWorldGen {
                 persistence: 0.4
             },
 
-            // Elevation noise - Fine-tuned for better terrain variety
+            // Elevation noise - Balanced for natural terrain (smooth but varied)
             elevation: {
-                scale: 0.012,      // Slightly reduced for smoother terrain
-                octaves: 5,        // Added octave for more detail
-                persistence: 0.65   // Slightly reduced for better balance
+                scale: 0.008,      // 🏔️ Sweet spot: smooth slopes but not flat plateaus
+                octaves: 5,        // More octaves for natural detail
+                persistence: 0.55  // Moderate detail level
             }
         };
 
@@ -762,21 +762,49 @@ export class BiomeWorldGen {
         // COLD regions (temperature < -0.3)
         if (temperature < -0.3) {
             if (moisture < -0.2) return this.biomes.tundra;      // Cold + Dry = Tundra
-            if (moisture > 0.3) return this.biomes.forest;       // Cold + Wet = Forest
-            return this.biomes.plains;                            // Cold + Moderate = Plains
+            if (moisture > 0.3) return this.biomes.forest;       // Cold + Wet = Forest (snowy forest)
+            return this.biomes.mountain;                          // Cold + Moderate = Mountain (will be icy peaks in Step 2)
         }
 
         // HOT regions (temperature > 0.3)
         if (temperature > 0.3) {
             if (moisture < 0) return this.biomes.desert;          // Hot + Dry = Desert
-            if (moisture > 0.4) return this.biomes.forest;        // Hot + Wet = Forest
-            return this.biomes.plains;                             // Hot + Moderate = Plains
+            if (moisture > 0.4) return this.biomes.forest;        // Hot + Wet = Forest (jungle-like)
+            return this.biomes.plains;                            // Hot + Moderate = Plains (savanna-like)
         }
 
         // TEMPERATE regions (temperature between -0.3 and 0.3)
         if (moisture < -0.3) return this.biomes.plains;           // Temperate + Dry = Plains
-        if (moisture > 0.2) return this.biomes.forest;            // Temperate + Wet = Forest
-        return this.biomes.plains;                                 // Temperate + Moderate = Plains
+        if (moisture > 0.5) return this.biomes.forest;            // Temperate + Very Wet = Forest
+        if (moisture > 0.1) return this.biomes.mountain;          // Temperate + Moderate-Wet = Mountain
+        return this.biomes.plains;                                // Temperate + Moderate = Plains
+    }
+
+    // 🏔️ Super Mountain Detection - Only in mountain biomes
+    // Returns height modifier: 0 = normal, 1.0 = super mountain (y=25-30)
+    getSuperMountainModifier(x, z, biome, seed) {
+        // Only apply to mountain biomes
+        if (biome.name !== 'Mountain') return 0;
+
+        // Use very large-scale noise to create sparse super mountains
+        // Larger scale = fewer super mountains
+        const superMountainNoise = this.multiOctaveNoise(
+            x * 0.1,  // Very large scale
+            z * 0.1,
+            { scale: 0.001, octaves: 2, persistence: 0.4 },
+            seed + 9000
+        );
+
+        // Only create super mountain if noise is very high (rare)
+        // Threshold: 0.7 means only ~15% of mountain biome will have super peaks
+        if (superMountainNoise > 0.7) {
+            // Return smooth gradient from edge to center
+            // 0.7-0.8 = transition zone
+            // 0.8+ = full super mountain
+            return Math.min(1.0, (superMountainNoise - 0.7) / 0.3);
+        }
+
+        return 0;
     }
 
     // 🗺️ Legacy: Keep old biome generation for compatibility
@@ -1023,12 +1051,22 @@ export class BiomeWorldGen {
                 const biomeHeightCenter = (biome.maxHeight + biome.minHeight) / 2;
                 const biomeHeightRange = (biome.maxHeight - biome.minHeight) / 2;
 
-                // Apply generator height with biome constraints and ensure integer results
+                // Apply generator height with biome constraints
                 const generatorHeight = terrainData.height * biomeHeightRange;
-                const rawHeight = biomeHeightCenter + generatorHeight;
+                let rawHeight = biomeHeightCenter + generatorHeight;
 
-                // 🚨 EMERGENCY: Force safe integer heights to eliminate fractional issues
-                const safeHeight = Math.floor(Math.max(0, Math.min(4, rawHeight + 2))); // Force heights between 0-4
+                // 🏔️ STEP 2.1: Check for super mountain modifier (mountain biomes only)
+                const superMountainMod = this.getSuperMountainModifier(worldX, worldZ, biome, worldSeed);
+                if (superMountainMod > 0) {
+                    // Interpolate between normal mountain (maxHeight=30) and MEGA mountain (60!)
+                    const megaMountainHeight = 60;
+                    const normalMaxHeight = biome.maxHeight; // 30 for mountains
+                    const extraHeight = (megaMountainHeight - normalMaxHeight) * superMountainMod;
+                    rawHeight = Math.max(rawHeight, normalMaxHeight + extraHeight);
+                }
+
+                // Ensure height is a safe integer within world bounds
+                const safeHeight = Math.floor(Math.max(0, Math.min(64, rawHeight)));
                 const height = safeHeight;
 
                 // Enhanced debugging for problematic heights

@@ -137,9 +137,9 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
                 }
             }
 
-            // 🌊 WATER GENERATION: Fill empty spaces at y=1, y=2, y=3 with water blocks
+            // 🌊 WATER GENERATION: Fill empty spaces with water blocks
             // Only add water where terrain height is below the water level
-            const WATER_LEVEL = 4; // 🌊 Water fills up to y=4 (accounting for +2 height offset)
+            const WATER_LEVEL = 3; // 🌊 Lowered from y=4 to y=3 to reduce floating water
             if (height < WATER_LEVEL) {
                 const waterColor = 0x1E90FF; // Dodger blue
                 // Fill from above terrain to water level
