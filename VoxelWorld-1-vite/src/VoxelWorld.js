@@ -6273,18 +6273,37 @@ class NebulaVoxelApp {
                     const checkX = centerX + dx;
                     const checkZ = centerZ + dz;
 
-                    // Check from a reasonable height down to surface
-                    for (let y = 15; y >= 0; y--) {
+                    // 🏔️ Check from MUCH higher now that mountains can be y=60
+                    for (let y = 64; y >= 0; y--) {
                         const block = this.getBlock(checkX, y, checkZ);
                         if (block) {
-                            // Found surface, check if there are blocks above it (trees/obstacles)
+                            // Found surface, now check:
+                            // 1. No obstacles above (trees/rocks)
+                            // 2. Solid ground below (not hollow mountain)
+
+                            // Check above for obstacles
                             for (let checkY = y + 1; checkY <= y + 6; checkY++) {
                                 const aboveBlock = this.getBlock(checkX, checkY, checkZ);
                                 if (aboveBlock) {
                                     return false; // Found obstacle above surface
                                 }
                             }
-                            break; // Surface found, no obstacles above
+
+                            // 🏔️ NEW: Check below for solid ground (prevent spawning on hollow mountains)
+                            let solidBlocksBelow = 0;
+                            for (let checkY = y - 1; checkY >= Math.max(0, y - 5); checkY--) {
+                                const belowBlock = this.getBlock(checkX, checkY, checkZ);
+                                if (belowBlock) {
+                                    solidBlocksBelow++;
+                                }
+                            }
+
+                            // Need at least 3 solid blocks below to be safe spawn
+                            if (solidBlocksBelow < 3) {
+                                return false; // Not enough solid ground below
+                            }
+
+                            break; // Surface found, no obstacles above, solid ground below
                         }
                     }
                 }
@@ -6294,7 +6313,8 @@ class NebulaVoxelApp {
 
         // 🔍 Find surface height at a specific position
         this.findSurfaceHeight = (x, z) => {
-            for (let y = 15; y >= -5; y--) {
+            // 🏔️ Search from y=64 down to handle tall mountains
+            for (let y = 64; y >= -5; y--) {
                 const block = this.getBlock(x, y, z);
                 if (block) {
                     return y;
@@ -8477,6 +8497,7 @@ class NebulaVoxelApp {
 
         // Biome information display (more compact)
         this.biomeDisplay = document.createElement('div');
+        this.biomeDisplay.id = 'current-biome-display'; // 🎯 Easy to find in DOM
         this.biomeDisplay.className = 'biome-info';
         this.biomeDisplay.style.cssText = `
             color: #F5E6D3;

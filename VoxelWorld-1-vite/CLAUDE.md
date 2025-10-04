@@ -432,3 +432,158 @@ Successfully implemented and debugged an advanced multi-layer biome generation s
 
 The BiomeWorldGen system is now production-ready with advanced features while maintaining rock-solid stability and performance.
 
+---
+
+### ✅ COMPLETED: Climate-Based Biome Generation & Terrain Height System
+
+**🌍 Session Focus: Implementing Minecraft-Style Biome Selection + Tall Mountains**
+
+Successfully implemented a complete climate-based biome generation system with temperature and moisture maps, increased terrain heights, spawn point safety improvements, and water level adjustments.
+
+#### Major Systems Implemented:
+
+1. **🌡️ Climate-Based Biome Generation (BiomeWorldGen.js lines 712-780)**:
+   - **Temperature Map**: North-south gradient (-1 cold to +1 hot) with noise variation
+   - **Moisture Map**: Perlin noise for wet/dry regions (-1 dry to +1 wet)
+   - **Biome Selection Grid**: Climate zones determine biome placement
+     - Cold + Dry = Tundra
+     - Cold + Wet = Forest
+     - Hot + Dry = Desert
+     - Temperate + Wet = Forest
+     - Temperate + Moderate = Plains/Mountain
+   - **Result**: Geographic biome placement - no more snow next to deserts!
+
+   ```javascript
+   // Key implementation - Temperature gradient with noise
+   getTemperature(x, z, seed) {
+       const latitudeGradient = z * 0.003; // North-south gradient
+       const temperatureNoise = this.multiOctaveNoise(
+           x * 0.5, z * 0.5,
+           { scale: 0.002, octaves: 3, persistence: 0.5 },
+           seed + 1000
+       );
+       return latitudeGradient + temperatureNoise * 0.3;
+   }
+   ```
+
+2. **🏔️ Increased Terrain Heights (BiomeWorldGen.js lines 39-122)**:
+   - **Plains**: y=3-6 (gentle rolling hills)
+   - **Forest**: y=4-10 (forested hills)
+   - **Desert**: y=3-8 (sand dunes for mining)
+   - **Mountains**: y=15-30 (tall mountains, previously y=8-20)
+   - **Tundra**: y=4-10 (icy hills)
+   - **Mega Mountains**: y=40-60 (rare super mountains in mountain biomes only)
+
+   **Super Mountain System** (lines 783-808):
+   - Noise-based modifier creates rare mega mountains (>0.7 threshold)
+   - Only applies to mountain biomes
+   - Smooth height transition from normal (y=30) to mega (y=60)
+   - Intentionally hollow for future multi-layer dungeon integration
+
+3. **🌊 Water System Improvements (ChunkWorker.js lines 140-150)**:
+   - **Water Level**: Lowered from y=4 to y=3 to reduce floating water blocks
+   - **Water Fill**: Fills empty space from terrain height to y=3
+   - **Biome Integration**: Water level stays below biome ground level
+   - **Known Issue**: Some floating water blocks at chunk boundaries (acceptable for now)
+
+4. **🎯 Spawn Point Safety System (VoxelWorld.js lines 6266-6324)**:
+   - **Height Search**: Changed from y=15 to y=64 to detect tall mountains
+   - **Solid Ground Check**: Requires 3+ solid blocks below spawn point
+   - **Clear Space Above**: 6-block vertical clearance for player
+   - **Result**: No more spawning inside hollow mountains!
+
+   ```javascript
+   // Key fix - Check solid ground below spawn
+   let solidBlocksBelow = 0;
+   for (let checkY = y - 1; checkY >= Math.max(0, y - 5); checkY--) {
+       const belowBlock = this.getBlock(checkX, checkY, checkZ);
+       if (belowBlock) solidBlocksBelow++;
+   }
+   if (solidBlocksBelow < 3) return false; // Not safe spawn
+   ```
+
+5. **🎨 Noise Parameter Tuning (BiomeWorldGen.js lines 170-175)**:
+   - **Problem**: "Borg cube" artifacts - perfect 8×8 cubes at chunk boundaries
+   - **Iteration 1**: scale: 0.012 (original) - TOO sharp, created vertical cliffs
+   - **Iteration 2**: scale: 0.003 - TOO smooth, created flat plateaus
+   - **Final Balance**: scale: 0.008, octaves: 5, persistence: 0.55
+   - **Result**: Natural slopes with some remaining artifacts (user accepted)
+
+   ```javascript
+   elevation: {
+       scale: 0.008,      // Balanced for natural slopes
+       octaves: 5,        // More detail layers
+       persistence: 0.55  // Moderate detail level
+   }
+   ```
+
+6. **🆔 Biome Display Enhancement (VoxelWorld.js line 6480)**:
+   - Added `id="current-biome-display"` for easy DOM access
+   - **Known Issue**: Sometimes shows "Plains" when standing on mountains (height-based detection needs fixing)
+
+#### Code Locations Reference:
+
+**BiomeWorldGen.js - Climate & Height System:**
+- Lines 39-122: Biome definitions with updated height ranges
+- Lines 170-175: Noise parameter configuration
+- Lines 712-780: Climate-based biome selection (temperature + moisture)
+- Lines 783-808: Super mountain modifier system
+- Lines 1058-1070: Height calculation with mega mountain integration
+
+**VoxelWorld.js - Spawn Safety:**
+- Lines 6266-6312: `isAreaClear()` with solid ground check
+- Lines 6315-6324: `findSurfaceHeight()` with y=64 search range
+- Line 6480: Biome display element ID
+
+**ChunkWorker.js - Water Generation:**
+- Lines 105-138: Ground fill system (bedrock → terrain)
+- Lines 140-150: Water block generation (y≤3)
+- Line 142: Water level constant (WATER_LEVEL = 3)
+
+**WorkerManager.js & ChunkSerializer.js:**
+- Block type ID mappings (must stay synchronized across all 3 files)
+- Chunk persistence and caching system (RAM + disk)
+
+#### Known Issues & Intentional Features:
+
+**⚠️ Known Issues:**
+1. **Borg Cubes**: Some chunk boundary artifacts remain (noise tuning improved but not perfect)
+2. **Floating Water**: Occasional water blocks floating near tall terrain (reduced by lowering water level)
+3. **Biome Labeling**: Display shows "Plains" when standing on mountains (height-based detection bug)
+
+**✅ Intentional Features (NOT bugs):**
+1. **Hollow Mountains**: Mountains generate hollow for future dungeon integration with VoxelWorld-2
+2. **Floating Islands**: User finds them exciting and wants to keep as special features
+3. **Spawn Zone Resources**: Trees/rocks near spawn are non-persistent (fresh starts on world reset)
+
+#### Testing Notes:
+
+User tested with `clearAllData()` + force refresh:
+- Spawn point: Natural slopes, easy to escape (not a perfect Borg cube)
+- Floating islands: Still present, user likes them as fun exploration features
+- Water blocks: Mostly working with 54-64 water blocks per chunk in low areas
+- Mountains: Properly tall (y=15-30), hollow interiors work as intended
+
+#### Next Steps (Tomorrow's Work):
+
+1. **Fix Biome Labeling** (HIGH PRIORITY):
+   - Plains showing when standing on mountains
+   - Need height-aware biome detection
+
+2. **Hollow Out Mountains with 3D Cave Systems** (HIGH PRIORITY):
+   - Use Perlin worms to carve natural cave networks
+   - Multi-layer dungeon integration for mega mountains
+   - Leave mountain exteriors intact
+
+3. **Further Terrain Smoothing** (MEDIUM PRIORITY):
+   - Additional noise parameter tuning to reduce Borg cubes
+   - Possible biome boundary blending improvements
+
+4. **Floating Islands as Intentional Feature** (OPTIONAL):
+   - Make them special with quest markers or rare loot
+   - Add visual indicators (glow, particles, special blocks)
+
+5. **Test Spawn and Water Fixes** (IN PROGRESS):
+   - Verify spawn point always safe
+   - Monitor water block generation logs
+   - Check for edge cases with extreme terrain
