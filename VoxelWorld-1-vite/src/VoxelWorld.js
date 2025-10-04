@@ -666,35 +666,58 @@ class NebulaVoxelApp {
                 craftedMesh.userData.effectObjects.forEach(effect => {
                     if (effect.type === 'particles') {
                         particleEffectCount++;
-                        
-                        // 🔧 SAFETY CHECK: Ensure particle object and geometry are valid
-                        if (!effect.object || !effect.object.geometry || !effect.object.geometry.attributes || !effect.object.geometry.attributes.position) {
-                            console.warn('⚠️ Particle effect has invalid geometry, skipping animation');
-                            return;
-                        }
-                        
-                        const positions = effect.positions;
-                        const velocities = effect.velocities;
-                        const maxHeight = effect.maxHeight || 1.0; // Use scaled max height or default
 
-                        for (let i = 0; i < velocities.length; i++) {
-                            // Update particle positions
-                            positions[i * 3] += velocities[i].x;
-                            positions[i * 3 + 1] += velocities[i].y;
-                            positions[i * 3 + 2] += velocities[i].z;
+                        // 🔧 Handle sprite-based particles (new system for r180 compatibility)
+                        if (effect.sprites && effect.sprites.length > 0) {
+                            const sprites = effect.sprites;
+                            const velocities = effect.velocities;
+                            const maxHeight = effect.maxHeight || 1.0;
+                            const baseY = effect.baseY || 0;
 
-                            // Reset particle when it gets too high (scaled by fire size)
-                            if (positions[i * 3 + 1] > maxHeight) {
-                                // Get original spread scale from first reset
-                                const spreadScale = Math.abs(velocities[i].y) / 0.05; // Estimate original scale
-                                positions[i * 3] = (Math.random() - 0.5) * 0.3 * spreadScale;
-                                positions[i * 3 + 1] = 0;
-                                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3 * spreadScale;
-                                // Velocities stay the same (already scaled during creation)
+                            for (let i = 0; i < sprites.length; i++) {
+                                const sprite = sprites[i];
+                                const velocity = velocities[i];
+
+                                // Update sprite position
+                                sprite.position.x += velocity.x;
+                                sprite.position.y += velocity.y;
+                                sprite.position.z += velocity.z;
+
+                                // Reset particle when it gets too high
+                                if (sprite.position.y - baseY > maxHeight) {
+                                    const spreadScale = Math.abs(velocity.y) / 0.05;
+                                    sprite.position.x = craftedMesh.position.x + (Math.random() - 0.5) * 0.3 * spreadScale;
+                                    sprite.position.y = baseY;
+                                    sprite.position.z = craftedMesh.position.z + (Math.random() - 0.5) * 0.3 * spreadScale;
+                                }
                             }
                         }
+                        // 🔧 OLD SYSTEM: BufferGeometry particles (deprecated, causes r180 shader bugs)
+                        else if (effect.object && effect.object.geometry) {
+                            if (!effect.object.geometry.attributes || !effect.object.geometry.attributes.position) {
+                                console.warn('⚠️ Old particle system has invalid geometry, skipping');
+                                return;
+                            }
 
-                        effect.object.geometry.attributes.position.needsUpdate = true;
+                            const positions = effect.positions;
+                            const velocities = effect.velocities;
+                            const maxHeight = effect.maxHeight || 1.0;
+
+                            for (let i = 0; i < velocities.length; i++) {
+                                positions[i * 3] += velocities[i].x;
+                                positions[i * 3 + 1] += velocities[i].y;
+                                positions[i * 3 + 2] += velocities[i].z;
+
+                                if (positions[i * 3 + 1] > maxHeight) {
+                                    const spreadScale = Math.abs(velocities[i].y) / 0.05;
+                                    positions[i * 3] = (Math.random() - 0.5) * 0.3 * spreadScale;
+                                    positions[i * 3 + 1] = 0;
+                                    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3 * spreadScale;
+                                }
+                            }
+
+                            effect.object.geometry.attributes.position.needsUpdate = true;
+                        }
                     }
 
                     if (effect.type === 'light') {
@@ -710,33 +733,37 @@ class NebulaVoxelApp {
                 console.log(`🔥 Animating ${particleEffectCount} particle effects`);
             }
 
-            // 💥 Animate explosion effects from stone hammer
+            // 💥 Animate explosion effects from stone hammer (using Sprites)
             if (this.explosionEffects && this.explosionEffects.length > 0) {
                 for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
                     const explosion = this.explosionEffects[i];
                     explosion.lifetime++;
 
-                    // Update particle positions
-                    const positions = explosion.geometry.attributes.position.array;
-                    for (let j = 0; j < explosion.velocities.length; j++) {
-                        positions[j * 3] += explosion.velocities[j].x;
-                        positions[j * 3 + 1] += explosion.velocities[j].y;
-                        positions[j * 3 + 2] += explosion.velocities[j].z;
+                    // Update each sprite particle
+                    for (let j = 0; j < explosion.particles.length; j++) {
+                        const sprite = explosion.particles[j];
+                        const velocity = explosion.velocities[j];
 
-                        // Apply gravity
-                        explosion.velocities[j].y -= 0.01;
+                        // Update position
+                        sprite.position.x += velocity.x;
+                        sprite.position.y += velocity.y;
+                        sprite.position.z += velocity.z;
+
+                        // Apply gravity to velocity
+                        velocity.y -= 0.01;
+
+                        // Fade out sprite
+                        const fadeProgress = explosion.lifetime / explosion.maxLifetime;
+                        sprite.material.opacity = 1.0 - fadeProgress;
                     }
-                    explosion.geometry.attributes.position.needsUpdate = true;
-
-                    // Fade out particles
-                    const fadeProgress = explosion.lifetime / explosion.maxLifetime;
-                    explosion.material.opacity = 1.0 - fadeProgress;
 
                     // Remove expired explosions
                     if (explosion.lifetime >= explosion.maxLifetime) {
-                        this.scene.remove(explosion.particles);
-                        explosion.geometry.dispose();
-                        explosion.material.dispose();
+                        // Clean up all sprites
+                        explosion.particles.forEach(sprite => {
+                            this.scene.remove(sprite);
+                            sprite.material.dispose();
+                        });
                         this.explosionEffects.splice(i, 1);
                     }
                 }
@@ -807,8 +834,10 @@ class NebulaVoxelApp {
                 // 🎯 Only give items if this is actual player harvesting (not chunk cleanup)
                 if (giveItems) {
                     // Check active tool in selected slot (with safety check)
-                    const selectedSlot = this.inventory?.slots?.[this.inventory?.selectedSlot];
+                    const selectedSlot = this.inventory?.hotbarSlots?.[this.selectedSlot];
                     const hasStoneHammer = selectedSlot && selectedSlot.itemType === 'stone_hammer';
+
+                    console.log(`🔨 Harvesting block ${blockData.type}, tool: ${selectedSlot?.itemType}, hasStoneHammer: ${hasStoneHammer}`);
 
                     // Check if it's a shrub for harvesting
                     if (blockData.type === 'shrub') {
@@ -910,11 +939,11 @@ class NebulaVoxelApp {
         };
 
         // 💥 Create explosion particle effect for stone hammer
+        // NOTE: Using Sprites instead of THREE.Points to avoid r180 shader bug
         this.createExplosionEffect = (x, y, z, blockType) => {
             const particleCount = 20;
-            const positions = new Float32Array(particleCount * 3);
+            const particles = [];
             const velocities = [];
-            const colors = new Float32Array(particleCount * 3);
 
             // Determine particle color based on block type
             let baseColor = { r: 0.5, g: 0.5, b: 0.5 }; // Default grey for stone
@@ -924,62 +953,46 @@ class NebulaVoxelApp {
                 baseColor = { r: 0.4, g: 0.4, b: 0.4 }; // Dark grey for stone
             }
 
-            // Create explosion particles
+            // Create explosion particles using Sprites (THREE.Points causes r180 shader errors)
             for (let i = 0; i < particleCount; i++) {
-                // Start all particles at block center
-                positions[i * 3] = 0;
-                positions[i * 3 + 1] = 0;
-                positions[i * 3 + 2] = 0;
+                // Create sprite material with color variation
+                const r = Math.max(0, Math.min(1, baseColor.r + (Math.random() - 0.5) * 0.2));
+                const g = Math.max(0, Math.min(1, baseColor.g + (Math.random() - 0.5) * 0.2));
+                const b = Math.max(0, Math.min(1, baseColor.b + (Math.random() - 0.5) * 0.2));
 
-                // Random explosion velocities (outward in all directions)
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.random() * Math.PI;
-                const speed = 0.1 + Math.random() * 0.15;
-                
-                velocities.push({
-                    x: Math.sin(phi) * Math.cos(theta) * speed,
-                    y: Math.sin(phi) * Math.sin(theta) * speed + 0.05, // Slight upward bias
-                    z: Math.cos(phi) * speed
+                const spriteMaterial = new THREE.SpriteMaterial({
+                    color: new THREE.Color(r, g, b),
+                    transparent: true,
+                    opacity: 1.0,
+                    blending: THREE.NormalBlending,
+                    depthWrite: false
                 });
 
-                // Add color variation
-                colors[i * 3] = baseColor.r + (Math.random() - 0.5) * 0.2;
-                colors[i * 3 + 1] = baseColor.g + (Math.random() - 0.5) * 0.2;
-                colors[i * 3 + 2] = baseColor.b + (Math.random() - 0.5) * 0.2;
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.scale.set(0.2, 0.2, 0.2);
+                sprite.position.set(x, y, z);
+
+                this.scene.add(sprite);
+                particles.push(sprite);
+
+                // Random explosion velocities (outward in all directions) - SLOWER for visibility
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const speed = 0.05 + Math.random() * 0.08; // Reduced speed for longer visibility
+
+                velocities.push({
+                    x: Math.sin(phi) * Math.cos(theta) * speed,
+                    y: Math.sin(phi) * Math.sin(theta) * speed + 0.03, // Slight upward bias
+                    z: Math.cos(phi) * speed
+                });
             }
-
-            // Create particle geometry
-            const particleGeometry = new THREE.BufferGeometry();
-            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-            // Create particle material
-            const particleMaterial = new THREE.PointsMaterial({
-                size: 0.15,
-                vertexColors: true,
-                transparent: true,
-                opacity: 1.0,
-                blending: THREE.NormalBlending,
-                depthWrite: false
-            });
-
-            // Create particle system
-            const particles = new THREE.Points(particleGeometry, particleMaterial);
-            particles.position.set(x, y, z);
-            particles.matrixAutoUpdate = true;
-            particles.updateMatrix();
-            particles.updateMatrixWorld(true);
-            
-            this.scene.add(particles);
 
             // Store particle data for animation
             const explosionData = {
-                particles: particles,
+                particles: particles, // Array of sprites
                 velocities: velocities,
-                geometry: particleGeometry,
-                material: particleMaterial,
                 lifetime: 0,
-                maxLifetime: 30 // Frames until particles disappear
+                maxLifetime: 180 // Frames until particles disappear (180 frames = 3 seconds at 60fps)
             };
 
             // Initialize explosion effects array if it doesn't exist
@@ -988,8 +1001,8 @@ class NebulaVoxelApp {
             }
 
             this.explosionEffects.push(explosionData);
-            
-            console.log(`💥 Created explosion effect at (${x}, ${y}, ${z}) for ${blockType}`);
+
+            console.log(`💥 Created explosion effect with ${particleCount} sprites at (${x}, ${y}, ${z}) for ${blockType}`);
         };
 
         // Seed system functions
@@ -1437,6 +1450,34 @@ class NebulaVoxelApp {
                     delete this.craftedObjects[removedKey];
                     console.log(`🗑️ Removed from crafted objects tracking: ${removedKey}`);
                 }
+            }
+
+            // 🔥 CLEANUP: Remove effect objects (particles, lights) BEFORE removing mesh
+            if (craftedMesh.userData.effectObjects && craftedMesh.userData.effectObjects.length > 0) {
+                craftedMesh.userData.effectObjects.forEach(effect => {
+                    if (effect.type === 'particles') {
+                        // Clean up sprite-based particles
+                        if (effect.sprites) {
+                            effect.sprites.forEach(sprite => {
+                                this.scene.remove(sprite);
+                                if (sprite.material) sprite.material.dispose();
+                            });
+                            console.log(`🔥 Removed ${effect.sprites.length} fire particles`);
+                        }
+                        // Clean up old BufferGeometry particles
+                        else if (effect.object) {
+                            this.scene.remove(effect.object);
+                            if (effect.object.geometry) effect.object.geometry.dispose();
+                            if (effect.object.material) effect.object.material.dispose();
+                        }
+                    }
+                    if (effect.type === 'light') {
+                        this.scene.remove(effect.object);
+                        console.log(`💡 Removed glow light`);
+                    }
+                });
+                craftedMesh.userData.effectObjects = [];
+                console.log(`✅ Cleaned up all effect objects for "${originalName}"`);
             }
 
             // 🎯 PHASE 2.1 & 2.2: Remove physics bodies from physics world (including hollow objects)
@@ -3638,24 +3679,43 @@ class NebulaVoxelApp {
 
             effects.forEach(effectType => {
                 if (effectType === 'fire') {
-                    // Create fire particle system using THREE.Points (compatible with r180)
-                    console.log(`🔥 Creating fire particle effect (scaled by ${heightScale}x)`);
-                    
+                    // Create fire particle system using Sprites (THREE.Points causes r180 shader bugs)
+                    console.log(`🔥 Creating fire particle effect using Sprites (scaled by ${heightScale}x)`);
+
                     // Scale particle count with size (more particles for bigger fires)
                     const particleCount = Math.floor(20 * sizeScale);
-                    const positions = new Float32Array(particleCount * 3);
+                    const fireSprites = [];
                     const velocities = [];
 
                     // Scale spread and velocity with dimensions
                     const spreadScale = sizeScale * 0.3;
                     const velocityScale = heightScale * 0.05;
 
-                    // Initialize particle positions and velocities
+                    // Create individual sprite particles
                     for (let i = 0; i < particleCount; i++) {
-                        positions[i * 3] = (Math.random() - 0.5) * spreadScale;     // x - wider spread for bigger fires
-                        positions[i * 3 + 1] = 0;                                    // y - start at base
-                        positions[i * 3 + 2] = (Math.random() - 0.5) * spreadScale; // z - wider spread
-                        
+                        // Create sprite material with fire colors
+                        const spriteMaterial = new THREE.SpriteMaterial({
+                            color: 0xff8844,
+                            transparent: true,
+                            opacity: 0.8,
+                            blending: THREE.AdditiveBlending,
+                            depthWrite: false
+                        });
+
+                        const sprite = new THREE.Sprite(spriteMaterial);
+                        sprite.scale.set(0.15 * sizeScale, 0.15 * sizeScale, 0.15 * sizeScale);
+
+                        // Position sprite at base with spread
+                        sprite.position.set(
+                            x + (Math.random() - 0.5) * spreadScale,
+                            y,
+                            z + (Math.random() - 0.5) * spreadScale
+                        );
+
+                        this.scene.add(sprite);
+                        fireSprites.push(sprite);
+
+                        // Store velocity for animation
                         velocities.push({
                             x: (Math.random() - 0.5) * 0.02,
                             y: Math.random() * velocityScale + velocityScale, // Higher velocity for taller fires
@@ -3663,40 +3723,15 @@ class NebulaVoxelApp {
                         });
                     }
 
-                    // Create particle geometry
-                    const particleGeometry = new THREE.BufferGeometry();
-                    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-                    // Create particle material - scale size with fire size
-                    const particleMaterial = new THREE.PointsMaterial({
-                        color: 0xff8844,
-                        size: 0.1 * sizeScale, // Bigger particles for bigger fires
-                        transparent: true,
-                        opacity: 0.8,
-                        blending: THREE.AdditiveBlending,
-                        depthWrite: false
-                    });
-
-                    // Create particle system
-                    const particles = new THREE.Points(particleGeometry, particleMaterial);
-                    particles.position.set(x, y, z);
-                    
-                    // Ensure proper matrix initialization
-                    particles.matrixAutoUpdate = true;
-                    particles.updateMatrix();
-                    particles.updateMatrixWorld(true);
-                    
-                    this.scene.add(particles);
-
                     craftedObject.userData.effectObjects.push({
                         type: 'particles',
-                        object: particles,
-                        positions: positions,
+                        sprites: fireSprites, // Array of sprite objects
                         velocities: velocities,
-                        maxHeight: heightScale * 1.5 // Particles rise higher for taller fires
+                        maxHeight: heightScale * 1.5, // Particles rise higher for taller fires
+                        baseY: y // Store base position for respawn
                     });
 
-                    console.log(`🔥 Added ${particleCount} fire particles at (${x}, ${y}, ${z}), max height: ${heightScale * 1.5}`);
+                    console.log(`🔥 Added ${particleCount} fire sprite particles at (${x}, ${y}, ${z}), max height: ${heightScale * 1.5}`);
                 }
 
                 if (effectType === 'holy' || effectType === 'glow') {
@@ -5152,7 +5187,8 @@ class NebulaVoxelApp {
 
         // Get harvesting time for block type with current tool
         this.getHarvestTime = (blockType) => {
-            const currentTool = this.getHotbarSlot(this.selectedSlot);
+            const selectedSlot = this.inventory?.hotbarSlots?.[this.selectedSlot];
+            const currentTool = selectedSlot?.itemType || null;
 
             // Base harvest times (in milliseconds)
             const baseTimes = {
@@ -5185,6 +5221,14 @@ class NebulaVoxelApp {
                     // Leaf harvesting (if directly targeting leaves)
                     leaf: 0.2, forest_leaves: 0.2, mountain_leaves: 0.2,
                     desert_leaves: 0.2, plains_leaves: 0.2, tundra_leaves: 0.2
+                },
+                // 🔨 STONE HAMMER: Excellent for stone and iron harvesting
+                stone_hammer: {
+                    stone: 0.4, // 1500ms * 0.4 = 600ms (fast!)
+                    iron: 0.5,  // 3000ms * 0.5 = 1500ms (reasonable)
+                    brick: 0.6, // Also good for brick
+                    wood: 1.8,  // Inefficient for wood
+                    grass: 2.0  // Very inefficient for soft materials
                 },
                 // Other materials default to 1.5x (inefficient as tools)
             };
@@ -5335,6 +5379,62 @@ class NebulaVoxelApp {
             };
         };
         console.log('💡 Utility available: clearAllData() - clears localStorage + IndexedDB and reloads');
+
+        // 🎁 DEBUG UTILITY: Give item to inventory
+        // Can be called from browser console: giveItem("stone_hammer")
+        window.giveItem = (itemName, quantity = 1) => {
+            // Valid items (tools, crafted items, special items)
+            const validItems = [
+                // Tools from ToolBench
+                'stone_hammer', 'machete', 'stick',
+                // Workbench items
+                'workbench', 'backpack',
+                // Crafted items start with 'crafted_' prefix (allow any)
+            ];
+
+            // Check if item is valid or starts with 'crafted_'
+            if (!validItems.includes(itemName) && !itemName.startsWith('crafted_')) {
+                console.error(`❌ Invalid item: "${itemName}"`);
+                console.log('Valid items:', validItems.join(', '));
+                console.log('Or any crafted item (starts with "crafted_")');
+                return;
+            }
+
+            // Add to inventory
+            const added = this.inventory.addToInventory(itemName, quantity);
+            if (added > 0) {
+                console.log(`✅ Gave ${added}x ${itemName}`);
+                this.updateStatus(`🎁 Debug: Gave ${added}x ${itemName}`, 'success');
+            } else {
+                console.warn(`⚠️ Could not add ${itemName} - inventory might be full`);
+            }
+        };
+
+        // 📦 DEBUG UTILITY: Give block to inventory
+        // Can be called from browser console: giveBlock("stone", 64)
+        window.giveBlock = (blockName, quantity = 1) => {
+            // Get valid blocks from blockTypes
+            const validBlocks = Object.keys(this.blockTypes);
+
+            if (!validBlocks.includes(blockName)) {
+                console.error(`❌ Invalid block: "${blockName}"`);
+                console.log('Valid blocks:', validBlocks.join(', '));
+                return;
+            }
+
+            // Add to inventory
+            const added = this.inventory.addToInventory(blockName, quantity);
+            if (added > 0) {
+                console.log(`✅ Gave ${added}x ${blockName}`);
+                this.updateStatus(`🎁 Debug: Gave ${added}x ${blockName}`, 'success');
+            } else {
+                console.warn(`⚠️ Could not add all ${blockName} blocks - inventory might be full (added ${added}/${quantity})`);
+            }
+        };
+
+        console.log('💡 Debug utilities available:');
+        console.log('  giveItem("stone_hammer") - adds item to inventory');
+        console.log('  giveBlock("stone", 64) - adds blocks to inventory');
 
         // 🧪 DEBUG MODE: Set to true during development to persist seed across reloads
         // ⚠️ IMPORTANT: Set to false before production release!
@@ -6196,7 +6296,7 @@ class NebulaVoxelApp {
         // Day/Night Cycle
         this.dayNightCycle = {
             currentTime: 12, // Start at noon (24-hour format)
-            cycleDuration: 600, // 10 minutes for full cycle
+            cycleDuration: 1200, // 20 minutes for full cycle (doubled from 600/10min)
             timeScale: 1.0,
             isActive: true,
             lastUpdate: Date.now(),
@@ -7603,6 +7703,42 @@ class NebulaVoxelApp {
 
             // 🔥 Animate particle effects (fire, etc.)
             this.animateParticleEffects(currentTime);
+
+            // 💥 Animate explosion effects from stone hammer
+            if (this.explosionEffects && this.explosionEffects.length > 0) {
+                for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+                    const explosion = this.explosionEffects[i];
+                    explosion.lifetime++;
+
+                    // Update each sprite particle
+                    for (let j = 0; j < explosion.particles.length; j++) {
+                        const sprite = explosion.particles[j];
+                        const velocity = explosion.velocities[j];
+
+                        // Update position
+                        sprite.position.x += velocity.x;
+                        sprite.position.y += velocity.y;
+                        sprite.position.z += velocity.z;
+
+                        // Apply gravity to velocity
+                        velocity.y -= 0.01;
+
+                        // Fade out sprite
+                        const fadeProgress = explosion.lifetime / explosion.maxLifetime;
+                        sprite.material.opacity = 1.0 - fadeProgress;
+                    }
+
+                    // Remove expired explosions
+                    if (explosion.lifetime >= explosion.maxLifetime) {
+                        // Clean up all sprites
+                        explosion.particles.forEach(sprite => {
+                            this.scene.remove(sprite);
+                            sprite.material.dispose();
+                        });
+                        this.explosionEffects.splice(i, 1);
+                    }
+                }
+            }
 
             // Animate billboards (even when paused - they should keep floating)
             this.animateBillboards(currentTime);

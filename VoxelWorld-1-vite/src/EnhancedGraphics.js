@@ -21,9 +21,9 @@ export class EnhancedGraphics {
         this.timeImages = new Map();    // Map<timePeriod, HTMLImageElement>
 
         // Asset paths (relative to document root)
-        // Simple detection: use relative paths for all cases
-        // Electron will serve from dist/ folder, web will serve from dist/ folder
-        console.log('🎨 Using relative asset paths for all environments');
+        // Vite publicDir is 'assets', so everything in assets/ becomes root-level
+        // Path 'art/tools' maps to 'assets/art/tools' on disk
+        console.log('🎨 Using Vite publicDir paths (assets/ → /)');
         this.assetPaths = {
             blocks: 'art/blocks',
             tools: 'art/tools',
