@@ -145,176 +145,158 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 
 ### Next Session TODO
 
-### 🚀 PRIORITY: Performance Optimization with Web Workers & Caching (NEW!)
+### ✅ COMPLETED: Web Workers & Caching System
 
-**Background Context:**
-- Object pooling optimization improved render distance: 1 → 2
-- Electron desktop wrapper improved render distance: 2 → 3
-- At render distance 3, Electron version is playable but jerky due to chunk generation blocking main thread
-- Friend suggested Web Workers for background chunk generation to eliminate stuttering
+**Status: FULLY IMPLEMENTED**
 
-**Implementation Plan:**
+The Web Worker chunk generation and caching system has been successfully implemented:
 
-1. **Web Worker Chunk Generation** (HIGH PRIORITY):
-   - Create `ChunkWorker.js` to handle background terrain generation
-   - Move `BiomeWorldGen` noise calculations to worker thread
-   - Generate raw vertex data (positions, normals, UVs, indices) in worker
-   - Use **transferable objects** (ArrayBuffer) for zero-copy data transfer
-   - Main thread creates THREE.Mesh from worker-generated vertex data
-   - Expected result: Smooth gameplay at render distance 3-4+ without frame drops
+1. **✅ Web Worker Chunk Generation**:
+   - `/src/workers/ChunkWorker.js` - Background terrain generation worker
+   - `/src/worldgen/WorkerManager.js` - Worker pool and message handling
+   - `/src/worldgen/RegionNoiseCache.js` - Noise caching optimization
+   - Transferable objects for zero-copy data transfer
+   - Non-blocking chunk generation on worker thread
 
-   **Key Architecture:**
-   ```javascript
-   // Worker generates raw geometry data
-   Worker: BiomeWorldGen → vertices/indices (Float32Array/Uint16Array)
-   Worker → Main: postMessage(data, [transferable buffers])
-   Main: Receives data → Creates THREE.BufferGeometry → Adds to scene
-   ```
+2. **✅ Hybrid RAM + Disk Chunk Caching**:
+   - `/src/cache/ChunkCache.js` - LRU RAM cache (256 chunk limit)
+   - `/src/serialization/ChunkPersistence.js` - Disk/IndexedDB persistence
+   - `/src/serialization/ChunkSerializer.js` - Binary chunk format (Uint8Array)
+   - `/src/serialization/ModificationTracker.js` - Dirty chunk tracking
+   - Three-tier loading: RAM → Disk → Generate (worker)
 
-2. **Hybrid RAM + Disk Chunk Caching** (HIGH PRIORITY):
-   - Implement `CacheChunk.js` template (already created in repo)
-   - **RAM Cache**: LRU eviction with 256 chunk limit, instant access for active chunks
-   - **Disk Cache**:
-     - **Electron**: Use `fs.promises` for async file I/O to `userData/chunks/`
-     - **Web**: Use IndexedDB for browser persistence
-   - **Block Data Format**: Use `Uint8Array` (1 byte per block) instead of JSON objects
-   - **Lazy Persistence**: Only write dirty chunks to disk when evicted from RAM
-   - **Three-tier loading**: RAM → Disk → Generate (worker)
-   - Expected result: Instant world loading on subsequent sessions, massive memory savings
-
-   **Key Benefits:**
-   - Compact binary format saves 90%+ memory vs JSON
-   - Pre-generated chunks load from disk in milliseconds
-   - LRU cache keeps frequently accessed chunks hot
-   - Transferable objects enable zero-copy between worker and main thread
-
-3. **Integration Strategy**:
-   - Phase 1: Implement Web Worker chunk generation (eliminates stuttering)
-   - Phase 2: Add RAM cache with LRU eviction
-   - Phase 3: Add disk persistence (Electron fs.promises, Web IndexedDB)
-   - Phase 4: Test and tune cache sizes and render distance limits
-
-**Technical Research Needed:**
-- THREE.js BufferGeometry creation from worker-generated vertex data
-- Transferable object patterns for ArrayBuffer/TypedArray
-- fs.promises best practices for Electron chunk caching
-- IndexedDB patterns for browser chunk persistence
+**Result:** Smooth gameplay with render distance 3+, instant world loading from disk cache.
 
 ---
 
-1. **Complete Workbench Crafting System** (MEDIUM PRIORITY - deferred):
-   - **Craft Button**: Add "Craft" button to workbench that consumes materials and creates the crafted object
-   - **Inventory Integration**: Place crafted items into player inventory (hotbar or backpack)
-   - **Material Consumption**: Subtract required materials from inventory when crafting
-   - **Error Handling**: Check if player has enough materials before allowing craft
-   - **Crafted Item Types**: Create new item types for crafted objects (e.g., "wooden_cube", "stone_tower")
+### ✅ COMPLETED: Workbench Crafting System
 
-2. **Enhanced Inventory Management** (HIGH PRIORITY):
-   - **Drag & Drop**: Implement drag-and-drop between backpack and hotbar slots
-   - **Right-Click Transfer**: Already exists but needs refinement for crafted items
-   - **Item Stacking**: Allow multiple of same item type in single slot (show count)
-   - **Hotbar Integration**: Ensure crafted items can be selected and placed in world
-   - **Visual Updates**: Real-time inventory UI updates when items are moved/consumed
+**Status: FULLY IMPLEMENTED**
 
-3. **3D Object Placement System** (HIGH PRIORITY):
-   - **Crafted Item Placement**: Allow placing crafted 3D objects in the voxel world
-   - **Object Collision**: Crafted objects should have proper collision detection
-   - **Object Harvesting**: Allow breaking placed crafted objects to get materials back
-   - **Object Storage**: Save/load placed 3D objects with world data
-   - **Object Interaction**: Different interaction methods for complex objects vs simple blocks
+The workbench crafting system is complete with all requested features:
 
-### Implementation Plan for Crafting:
+1. **✅ Craft Button & Material Consumption**:
+   - `WorkbenchSystem.js:1871` - `craftItem()` method
+   - Material validation and consumption
+   - Inventory integration for placing crafted items
+   - Error handling for insufficient materials
 
-```javascript
-// Workbench crafting flow:
-1. Player selects material (wood) → Visual feedback
-2. Player selects recipe (cube) → 3D preview shows
-3. Player clicks "Craft" button → Check materials
-4. If sufficient materials → Consume materials, create item
-5. Add "wooden_cube" to inventory → Update hotbar/backpack UI
-6. Player can select crafted item from hotbar
-7. Player can place "wooden_cube" in world as 3D object
-```
+2. **✅ Crafted Item Types**:
+   - Metadata system for tracking crafted object properties (material, shape, size)
+   - Recipe book with basic shapes and complex structures
+   - 3D preview with orbit controls
 
-### Technical Approach:
+**Result:** Players can craft items, consume materials, and add crafted objects to inventory.
 
-**Crafted Item System:**
-- Extend inventory to support crafted object types
-- Add item metadata (material, shape, size) to track crafted properties
-- Create placement system that handles both blocks and 3D objects
-- Implement object-specific collision volumes and interaction
+---
 
-**Inventory Enhancements:**
-- Add item categories (blocks, tools, crafted_objects)
-- Implement item transferring with proper validation
-- Add visual indicators for different item types
-- Support item metadata display in tooltips
+### ✅ COMPLETED: 3D Object Placement System
 
-4. **Code Architecture Refactoring** (CRITICAL PRIORITY):
-   **VoxelWorld.js has grown too large and needs logical separation into modular files**
+**Status: FULLY IMPLEMENTED**
 
-   Current issues:
-   - Single file approaching 4000+ lines
-   - Multiple responsibilities mixed together
-   - Difficult to maintain and debug
-   - Poor separation of concerns
+Crafted objects can be placed, saved, and harvested:
 
-   **Refactoring Plan:**
-   - **Physics.js**: Extract collision system, movement, gravity, and physics utilities
-   - **BlockTypes.js**: Extract block definitions, properties, material systems
-   - **WorldGeneration.js**: Extract chunk system, biome generation, terrain generation
-   - **PlayerController.js**: Extract player movement, input handling, camera controls
-   - **InventorySystem.js**: Extract backpack, hotbar, item management
-   - **SaveLoadSystem.js**: Extract save/load with LocalStorage → IndexedDB migration for large worlds
-   - **UI.js**: Extract notifications, minimap, status bar, mobile joysticks
-   - **Workbench.js**: Extract workbench modal and crafting system
-   - Keep VoxelWorld.js as main orchestrator class
+1. **✅ Object Placement & Collision**:
+   - `VoxelWorld.js:246` - `placeCraftedObject()` method
+   - Real dimensions based on crafted item metadata
+   - Collision detection for placed objects
+   - Object harvesting to recover materials
 
-   **Implementation Strategy:**
-   1. **Create modular ES6 classes** with clear interfaces
-   2. **Use dependency injection** - pass VoxelWorld instance to modules that need it
-   3. **Maintain existing API** - no breaking changes to external interfaces
-   4. **Extract incrementally** - one module at a time to avoid breaking everything
-   5. **Add proper imports/exports** for clean module boundaries
+2. **✅ Save/Load System**:
+   - Custom meshes saved with world data
+   - Automatic recreation on world load
+   - Metadata persistence for crafted properties
 
-   **Example Structure:**
-   ```javascript
-   // Physics.js
-   export class PhysicsEngine {
-     constructor(voxelWorld) { this.world = voxelWorld; }
-     checkCollision(position, hitbox) { /* ... */ }
-     updateMovement(player, deltaTime) { /* ... */ }
-   }
+**Result:** Full lifecycle support for crafted 3D objects in the voxel world.
 
-   // VoxelWorld.js (orchestrator)
-   import { PhysicsEngine } from './Physics.js';
-   import { WorldGenerator } from './WorldGeneration.js';
+---
 
-   class VoxelWorld {
-     constructor(container) {
-       this.physics = new PhysicsEngine(this);
-       this.worldGen = new WorldGenerator(this);
-       // ...
-     }
-   }
-   ```
+### 🔄 PARTIALLY COMPLETED: Inventory Management
 
-   **Benefits:**
-   - **Maintainable**: Each file has single responsibility
-   - **Testable**: Modules can be tested independently
-   - **Debuggable**: Easier to locate and fix issues
-   - **Scalable**: New features can be added as separate modules
-   - **Reusable**: Modules can be reused in other projects
+**Status: MOSTLY IMPLEMENTED**
 
-3. **Collision System Refinement** (OPTIONAL):
-   - Current hitbox system still allows clipping through multi-block structures
-   - Consider swept AABB or continuous collision detection for better accuracy
-   - May need to implement collision response with proper separation resolution
+Inventory system has most features, missing only drag & drop:
 
-4. **UI Updates for Item Transfers**:
-   - Emoji icons don't update when items move between hotbar/backpack
-   - Need real-time visual feedback for inventory changes
-   - Ensure correct items are displayed after transfers
+1. **✅ Item Stacking**: Implemented in `InventorySystem.js` with configurable stack limits
+2. **✅ Right-Click Transfer**: Works between hotbar and backpack
+3. **✅ Visual Updates**: Real-time UI updates when items move
+4. **❌ Drag & Drop**: NOT implemented (only right-click transfer available)
+
+**Next Step:** Add drag-and-drop UI for more intuitive inventory management.
+
+---
+
+### 🔄 PARTIALLY COMPLETED: Code Architecture Refactoring
+
+**Status: IN PROGRESS**
+
+VoxelWorld.js has been partially refactored, but still needs more work:
+
+1. **✅ Extracted Modules**:
+   - `InventorySystem.js` - Hotbar and backpack management
+   - `WorkbenchSystem.js` - Workbench UI and crafting logic
+   - `ToolBenchSystem.js` - Tool crafting system
+   - `BiomeWorldGen.js` - Terrain generation
+   - Web worker modules (ChunkWorker, WorkerManager, etc.)
+
+2. **❌ Still in VoxelWorld.js (9205 lines)**:
+   - Physics system (collision, movement, gravity)
+   - BlockTypes definitions and materials
+   - Player controller (input, camera)
+   - UI systems (notifications, minimap, mobile joysticks)
+   - Save/load system
+   - Main game loop and orchestration
+
+**Next Step:** Continue extracting Physics, PlayerController, UI, and SaveLoad modules.
+
+---
+
+### 🎯 NEW PRIORITIES FOR NEXT SESSION
+
+### 1. **Fix Biome Labeling Bug** (HIGH PRIORITY)
+   - **Issue**: Display shows "Plains" when standing on mountains
+   - **Cause**: Height-based biome detection doesn't match climate-based generation
+   - **Fix**: Update biome detection to use same climate algorithm as generation
+   - **Location**: Need to find getCurrentBiome() or similar method
+
+### 2. **Implement 3D Cave Systems** (HIGH PRIORITY)
+   - **Current**: Mountains are intentionally hollow (placeholder)
+   - **Goal**: Use Perlin worms to carve natural cave networks
+   - **Features**:
+     - Multi-layer dungeon integration for mega mountains (y=40-60)
+     - Leave mountain exteriors intact
+     - Cave entrances at mountain sides
+     - Underground resources and exploration
+   - **Location**: `BiomeWorldGen.js` - currently only has 'caves' in specialFeatures array
+
+### 3. **Terrain Smoothing Refinement** (MEDIUM PRIORITY)
+   - **Current**: Some Borg cube artifacts remain at chunk boundaries
+   - **Iterations Done**:
+     - scale: 0.012 → TOO sharp (vertical cliffs)
+     - scale: 0.003 → TOO smooth (flat plateaus)
+     - scale: 0.008 → Better but not perfect
+   - **Next**: Experiment with biome boundary blending or chunk edge interpolation
+
+### 4. **Floating Islands Enhancement** (OPTIONAL - FUN FEATURE)
+   - **Current**: Floating islands exist, user wants to keep them
+   - **Enhancement Ideas**:
+     - Special biome for floating islands
+     - Rare loot or quest markers
+     - Visual indicators (glow, particles, special blocks)
+     - Sky dungeon integration
+
+### 5. **Drag & Drop Inventory** (MEDIUM PRIORITY)
+   - Add drag-and-drop between hotbar and backpack slots
+   - More intuitive than right-click only
+   - Visual feedback during drag operation
+
+### 6. **Continue VoxelWorld.js Refactoring** (ONGOING)
+   - **Next Modules to Extract**:
+     - `PhysicsEngine.js` - Collision, movement, gravity
+     - `PlayerController.js` - Input handling, camera controls
+     - `UIManager.js` - Notifications, minimap, mobile joysticks
+     - `SaveLoadSystem.js` - Persistence and world data
+   - **Goal**: Reduce VoxelWorld.js from 9205 lines to <2000 lines (orchestrator only)
 
 ### Future Feature Ideas
 
