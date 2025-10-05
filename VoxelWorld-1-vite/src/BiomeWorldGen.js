@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { StructureGenerator } from './StructureGenerator.js';
 
 /**
  * 🌍 BiomeWorldGen - Advanced Multi-Layer Biome Generation System
@@ -28,6 +29,9 @@ export class BiomeWorldGen {
         // 🌲 TREE SPACING SYSTEM - Track tree positions to prevent chunks
         this.treePositions = new Set(); // Store "x,z" keys for quick lookup
         this.MIN_TREE_DISTANCE = 3; // Minimum blocks between trees
+
+        // 🏛️ STRUCTURE GENERATOR - Ruins and structures
+        this.structureGenerator = new StructureGenerator(this.worldSeed);
 
         this.initializeBiomes();
         this.initializeNoiseGenerators();
@@ -1252,6 +1256,20 @@ export class BiomeWorldGen {
             }
         }
 
+        // 🏛️ GENERATE STRUCTURES (ruins, chambers, etc.) - Called after all terrain & decorations
+        // Get biome at chunk center for structure generation
+        const centerX = Math.floor(chunkX * chunkSize + chunkSize / 2);
+        const centerZ = Math.floor(chunkZ * chunkSize + chunkSize / 2);
+        const chunkBiome = this.getBiomeAt(centerX, centerZ, worldSeed);
+        
+        this.structureGenerator.generateStructuresForChunk(
+            chunkX,
+            chunkZ,
+            addBlockFn,
+            (x, z) => this.findGroundHeight(x, z),
+            chunkBiome.name // Pass biome for future biome-specific ruins
+        );
+
         loadedChunks.add(chunkKey);
         // console.log(`✅ CHUNK (${chunkX}, ${chunkZ}) - COMPLETED`); // Removed for performance
 
@@ -1420,19 +1438,5 @@ export class BiomeWorldGen {
             surfaceColor: new THREE.Color(surfaceColor),
             subSurfaceColor: new THREE.Color(subSurfaceColor)
         };
-    }
-
-    getStats() {
-        return { ...this.STATS };
-    }
-
-    resetStats() {
-        this.STATS = {
-            chunksGenerated: 0,
-            lowHeights: 0,
-            emergencyFills: 0,
-            treesPlaced: 0
-        };
-        console.log('📊 BiomeWorldGen statistics reset');
     }
 }

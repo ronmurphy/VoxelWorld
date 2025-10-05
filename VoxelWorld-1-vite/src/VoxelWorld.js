@@ -5913,6 +5913,113 @@ class NebulaVoxelApp {
         console.log('💡 Debug utilities available:');
         console.log('  giveItem("stone_hammer") - adds item to inventory');
         console.log('  giveBlock("stone", 64) - adds blocks to inventory');
+        console.log('  makeRuins("small") - generates test ruin near player (small/medium/large/colossal)');
+        console.log('  clearSeed() - clears saved seed and generates new random world on refresh');
+        console.log('  setSeed(12345) - sets a specific seed for the world');
+        console.log('  Type showCommands() to see all available commands');
+
+        // 📋 HELP UTILITY: Show all available commands
+        // Can be called from browser console: showCommands()
+        window.showCommands = () => {
+            console.log('%c🎮 VoxelWorld Console Commands', 'font-size: 16px; font-weight: bold; color: #4CAF50;');
+            console.log('');
+            
+            console.log('%c📦 Item & Block Commands:', 'font-weight: bold; color: #2196F3;');
+            console.log('  giveItem("name", quantity)     - Add item to inventory');
+            console.log('    Examples: giveItem("stone_hammer"), giveItem("workbench", 5)');
+            console.log('    Valid items: stone_hammer, machete, stick, compass, compass_upgrade,');
+            console.log('                 workbench, backpack, tool_bench, crafted_* items');
+            console.log('');
+            console.log('  giveBlock("name", quantity)    - Add blocks to inventory');
+            console.log('    Examples: giveBlock("stone", 64), giveBlock("dirt", 100)');
+            console.log('');
+            
+            console.log('%c🏛️ World Generation Commands:', 'font-weight: bold; color: #FF9800;');
+            console.log('  makeRuins("size")              - Generate test ruin near player');
+            console.log('    Sizes: "small", "medium", "large", "colossal"');
+            console.log('    Example: makeRuins("large")');
+            console.log('');
+            
+            console.log('%c🌍 Seed Commands:', 'font-weight: bold; color: #9C27B0;');
+            console.log('  setSeed(number)                - Set world seed (requires refresh)');
+            console.log('    Example: setSeed(12345)');
+            console.log('');
+            console.log('  clearSeed()                    - Clear seed, generate random world (requires refresh)');
+            console.log('');
+            
+            console.log('%c🧹 Cleanup Commands:', 'font-weight: bold; color: #F44336;');
+            console.log('  clearCaches()                  - Clear caches but KEEP saved games');
+            console.log('    ✅ Safe - preserves your world data');
+            console.log('');
+            console.log('  clearAllData()                 - Clear localStorage + IndexedDB, reload');
+            console.log('    ⚠️  Deletes saved games!');
+            console.log('');
+            console.log('  nuclearClear()                 - 🧨 WIPE EVERYTHING (RAM, disk, all caches)');
+            console.log('    ☢️  NUCLEAR OPTION - removes all data and hard reloads');
+            console.log('');
+            
+            console.log('%c📋 Help Commands:', 'font-weight: bold; color: #607D8B;');
+            console.log('  showCommands()                 - Show this help (you just ran it!)');
+            console.log('');
+            
+            console.log('%c💡 Tips:', 'font-weight: bold; color: #FFC107;');
+            console.log('  • Press F12 to open console');
+            console.log('  • Type command exactly as shown (case-sensitive)');
+            console.log('  • Use quotes for string parameters: "stone_hammer"');
+            console.log('  • Commands that modify world require page refresh');
+            console.log('  • Current seed logged at page load: check console');
+            console.log('');
+            
+            return '📋 Command list displayed above ⬆️';
+        };
+
+        // 🏛️ DEBUG UTILITY: Generate test ruin near player
+        // Can be called from browser console: makeRuins("medium")
+        window.makeRuins = (size = "small") => {
+            if (!this.biomeWorldGen || !this.biomeWorldGen.structureGenerator) {
+                console.error('❌ Structure generator not available');
+                return;
+            }
+            
+            const playerX = Math.floor(this.player.position.x);
+            const playerY = Math.floor(this.player.position.y);
+            const playerZ = Math.floor(this.player.position.z);
+            
+            const biome = this.biomeWorldGen.getBiomeAt(playerX, playerZ, this.worldSeed);
+            
+            this.biomeWorldGen.structureGenerator.debugGenerateRuin(
+                size,
+                playerX,
+                playerY,
+                playerZ,
+                (x, y, z, type, playerPlaced, color) => this.addBlock(x, y, z, type, playerPlaced, color),
+                (x, z) => this.biomeWorldGen.findGroundHeight(x, z),
+                biome.name
+            );
+            
+            this.updateStatus(`🏛️ Generated ${size} ruin near you!`, 'success');
+        };
+
+        // 🌱 DEBUG UTILITY: Clear saved seed
+        // Can be called from browser console: clearSeed()
+        window.clearSeed = () => {
+            localStorage.removeItem('voxelWorld_debugSeed');
+            localStorage.removeItem('voxelWorld_seed');
+            console.log('✅ Seed cleared! Refresh page to generate new random world.');
+            this.updateStatus('🌱 Seed cleared! Refresh to generate new world.', 'success');
+        };
+
+        // 🎲 DEBUG UTILITY: Set specific seed
+        // Can be called from browser console: setSeed(12345)
+        window.setSeed = (newSeed) => {
+            if (typeof newSeed !== 'number') {
+                console.error('❌ Seed must be a number');
+                return;
+            }
+            localStorage.setItem('voxelWorld_debugSeed', newSeed.toString());
+            console.log(`✅ Seed set to ${newSeed}! Refresh page to apply.`);
+            this.updateStatus(`🎲 Seed set to ${newSeed}! Refresh to apply.`, 'success');
+        };
 
         // 🧪 DEBUG MODE: Set to true during development to persist seed across reloads
         // ⚠️ IMPORTANT: Set to false before production release!
