@@ -9304,24 +9304,394 @@ class NebulaVoxelApp {
         };
 
         modal.innerHTML = `
-            <div style="background: rgba(40,40,40,0.95); border-radius: 12px; padding: 24px 32px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 18px; align-items: center; min-width: 220px;">
-                <h2 style="margin:0 0 12px 0; color: white; font-size: 20px;">Voxel World Menu</h2>
-                <div style="width: 100%; text-align: center; margin-bottom: 8px;">
-                    <div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">Current GPU:</div>
-                    <div style="font-size: 13px; color: #4CAF50; font-family: monospace;" id="gpu-display">${getGPUDisplayName()}</div>
+            <div style="
+                background: linear-gradient(180deg, rgba(139, 90, 43, 0.98), rgba(101, 67, 33, 0.98));
+                border: 3px solid #654321;
+                border-radius: 12px;
+                padding: 0;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.8), inset 0 2px 4px rgba(245, 230, 211, 0.2);
+                min-width: 600px;
+                max-width: 700px;
+                font-family: 'Georgia', serif;
+                position: relative;
+            ">
+                <!-- Decorative corner elements -->
+                <div style="position: absolute; top: 8px; left: 8px; width: 20px; height: 20px; border-left: 2px solid #D4AF37; border-top: 2px solid #D4AF37; opacity: 0.6;"></div>
+                <div style="position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-right: 2px solid #D4AF37; border-top: 2px solid #D4AF37; opacity: 0.6;"></div>
+                <div style="position: absolute; bottom: 8px; left: 8px; width: 20px; height: 20px; border-left: 2px solid #D4AF37; border-bottom: 2px solid #D4AF37; opacity: 0.6;"></div>
+                <div style="position: absolute; bottom: 8px; right: 8px; width: 20px; height: 20px; border-right: 2px solid #D4AF37; border-bottom: 2px solid #D4AF37; opacity: 0.6;"></div>
+
+                <!-- Header -->
+                <div style="
+                    background: linear-gradient(180deg, rgba(101, 67, 33, 0.9), rgba(80, 54, 27, 0.9));
+                    border-bottom: 2px solid #654321;
+                    padding: 16px 24px;
+                    border-radius: 9px 9px 0 0;
+                ">
+                    <h2 style="
+                        margin: 0;
+                        color: #F5E6D3;
+                        font-size: 24px;
+                        text-align: center;
+                        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+                        letter-spacing: 1px;
+                    ">📜 Adventurer's Menu</h2>
                 </div>
-                <button id="modal-gpu-btn" style="font-size: 16px; padding: 8px 24px; background: #FF5722; color: white; border: none; border-radius: 6px; cursor: pointer;">${getGPUPreferenceLabel()}</button>
-                <button id="modal-newgame-btn" style="font-size: 16px; padding: 8px 24px; background: #FF9800; color: white; border: none; border-radius: 6px; cursor: pointer;">🎲 New Game</button>
-                <button id="modal-benchmark-btn" style="font-size: 16px; padding: 8px 24px; background: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer;">${getBenchmarkLabel()}</button>
-                <button id="modal-render-distance-btn" style="font-size: 16px; padding: 8px 24px; background: #00BCD4; color: white; border: none; border-radius: 6px; cursor: pointer;">🔭 Render Distance: ${getCurrentRenderDistance()}</button>
-                <button id="modal-enhanced-graphics-btn" style="font-size: 16px; padding: 8px 24px; background: ${this.enhancedGraphics.isEnabled ? '#4CAF50' : '#757575'}; color: white; border: none; border-radius: 6px; cursor: pointer;">${this.enhancedGraphics.isEnabled ? '🎨 Enhanced Graphics ON' : '🎨 Enhanced Graphics OFF'}</button>
-                <button id="modal-save-btn" style="font-size: 16px; padding: 8px 24px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer;">💾 Save Game</button>
-                <button id="modal-load-btn" style="font-size: 16px; padding: 8px 24px; background: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer;">📂 Load Game</button>
-                <button id="modal-delete-btn" style="font-size: 16px; padding: 8px 24px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer;">🗑 Delete Save</button>
-                <button id="modal-close-btn" style="margin-top: 12px; font-size: 14px; padding: 6px 18px; background: #666; color: white; border-radius: 6px; cursor: pointer;">Close Menu</button>
+
+                <!-- Tab Navigation -->
+                <div style="
+                    display: flex;
+                    background: rgba(80, 54, 27, 0.6);
+                    border-bottom: 2px solid #654321;
+                    padding: 0;
+                ">
+                    <button class="menu-tab" data-tab="world" style="
+                        flex: 1;
+                        padding: 12px 16px;
+                        background: rgba(139, 90, 43, 0.8);
+                        border: none;
+                        border-right: 1px solid #654321;
+                        color: #F5E6D3;
+                        font-size: 14px;
+                        font-family: 'Georgia', serif;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        font-weight: bold;
+                        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+                    ">🌍 World</button>
+                    <button class="menu-tab" data-tab="settings" style="
+                        flex: 1;
+                        padding: 12px 16px;
+                        background: rgba(80, 54, 27, 0.6);
+                        border: none;
+                        border-right: 1px solid #654321;
+                        color: #F5E6D3;
+                        font-size: 14px;
+                        font-family: 'Georgia', serif;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+                    ">⚙️ Settings</button>
+                    <button class="menu-tab" data-tab="graphics" style="
+                        flex: 1;
+                        padding: 12px 16px;
+                        background: rgba(80, 54, 27, 0.6);
+                        border: none;
+                        color: #F5E6D3;
+                        font-size: 14px;
+                        font-family: 'Georgia', serif;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+                    ">🎨 Graphics</button>
+                </div>
+
+                <!-- Tab Content Container -->
+                <div style="padding: 20px 24px; min-height: 400px;">
+
+                    <!-- WORLD TAB -->
+                    <div class="tab-content" data-tab="world" style="display: block;">
+                        <div style="text-align: center; margin-bottom: 16px;">
+                            <div style="color: #F5E6D3; font-size: 18px; margin-bottom: 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">Current World</div>
+                            <div style="color: #FFE4B5; font-size: 12px; font-style: italic;">Seed: ${this.worldSeed || 'Unknown'}</div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                            <button id="modal-save-btn" style="
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #5a8a4a, #4a7a3a);
+                                color: #F5E6D3;
+                                border: 2px solid #3d5d2d;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 15px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">💾 Save Game</button>
+                            <button id="modal-load-btn" style="
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #4a7a9a, #3a6a8a);
+                                color: #F5E6D3;
+                                border: 2px solid #2d5d7a;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 15px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">📂 Load Game</button>
+                        </div>
+
+                        <!-- World Actions -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 14px; margin-bottom: 12px; font-weight: bold;">World Actions</div>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <button id="modal-newgame-btn" style="
+                                    padding: 10px 16px;
+                                    background: linear-gradient(180deg, #9a7a4a, #8a6a3a);
+                                    color: #F5E6D3;
+                                    border: 2px solid #6d5d2d;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 14px;
+                                    font-family: 'Georgia', serif;
+                                    text-align: left;
+                                    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                    transition: all 0.2s;
+                                ">🎲 Start New World</button>
+                                <button id="modal-delete-btn" style="
+                                    padding: 10px 16px;
+                                    background: linear-gradient(180deg, #9a4a4a, #8a3a3a);
+                                    color: #F5E6D3;
+                                    border: 2px solid #7d2d2d;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                    font-size: 14px;
+                                    font-family: 'Georgia', serif;
+                                    text-align: left;
+                                    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                    transition: all 0.2s;
+                                ">🗑 Delete Save</button>
+                            </div>
+                        </div>
+
+                        <!-- Info Note -->
+                        <div style="
+                            background: rgba(212, 175, 55, 0.15);
+                            border: 1px solid #D4AF37;
+                            border-radius: 6px;
+                            padding: 12px;
+                            color: #FFE4B5;
+                            font-size: 12px;
+                            font-style: italic;
+                            text-align: center;
+                        ">
+                            💡 Tip: Save frequently to preserve your progress!
+                        </div>
+                    </div>
+
+                    <!-- SETTINGS TAB -->
+                    <div class="tab-content" data-tab="settings" style="display: none;">
+                        <div style="color: #F5E6D3; font-size: 18px; margin-bottom: 16px; text-align: center; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">Performance Settings</div>
+
+                        <!-- Render Distance -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 8px; font-weight: bold;">🔭 View Distance</div>
+                            <button id="modal-render-distance-btn" style="
+                                width: 100%;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #4a8a9a, #3a7a8a);
+                                color: #F5E6D3;
+                                border: 2px solid #2d6d7a;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">Render Distance: ${getCurrentRenderDistance()}</button>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Higher = more visible terrain, lower FPS</div>
+                        </div>
+
+                        <!-- GPU Preference -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 8px; font-weight: bold;">🎮 GPU Mode</div>
+                            <div style="color: #4CAF50; font-size: 11px; margin-bottom: 8px; font-family: monospace;">${getGPUDisplayName()}</div>
+                            <button id="modal-gpu-btn" style="
+                                width: 100%;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #9a5a4a, #8a4a3a);
+                                color: #F5E6D3;
+                                border: 2px solid #7d3d2d;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">${getGPUPreferenceLabel()}</button>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Requires page reload (F5)</div>
+                        </div>
+
+                        <!-- Benchmark -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 8px; font-weight: bold;">⚡ Performance Test</div>
+                            <button id="modal-benchmark-btn" style="
+                                width: 100%;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #7a5a9a, #6a4a8a);
+                                color: #F5E6D3;
+                                border: 2px solid #5d3d7a;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">${getBenchmarkLabel()}</button>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Tests your system and optimizes settings</div>
+                        </div>
+                    </div>
+
+                    <!-- GRAPHICS TAB -->
+                    <div class="tab-content" data-tab="graphics" style="display: none;">
+                        <div style="color: #F5E6D3; font-size: 18px; margin-bottom: 16px; text-align: center; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">Visual Settings</div>
+
+                        <!-- Enhanced Graphics -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 8px; font-weight: bold;">🎨 Enhanced Graphics</div>
+                            <button id="modal-enhanced-graphics-btn" style="
+                                width: 100%;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, ${this.enhancedGraphics.isEnabled ? '#5a8a4a' : '#6a6a6a'}, ${this.enhancedGraphics.isEnabled ? '#4a7a3a' : '#5a5a5a'});
+                                color: #F5E6D3;
+                                border: 2px solid ${this.enhancedGraphics.isEnabled ? '#3d5d2d' : '#4a4a4a'};
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">${this.enhancedGraphics.isEnabled ? '✓ Enhanced Graphics ON' : '○ Enhanced Graphics OFF'}</button>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Custom textures and detailed graphics</div>
+                        </div>
+
+                        <!-- Graphics Info -->
+                        <div style="
+                            background: rgba(212, 175, 55, 0.15);
+                            border: 1px solid #D4AF37;
+                            border-radius: 6px;
+                            padding: 12px;
+                            color: #FFE4B5;
+                            font-size: 12px;
+                            font-style: italic;
+                            text-align: center;
+                        ">
+                            💡 Enhanced graphics loads custom textures for blocks and tools
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div style="
+                    background: linear-gradient(180deg, rgba(80, 54, 27, 0.9), rgba(101, 67, 33, 0.9));
+                    border-top: 2px solid #654321;
+                    padding: 12px 24px;
+                    text-align: center;
+                    border-radius: 0 0 9px 9px;
+                ">
+                    <button id="modal-close-btn" style="
+                        padding: 8px 32px;
+                        background: linear-gradient(180deg, #6a5a4a, #5a4a3a);
+                        color: #F5E6D3;
+                        border: 2px solid #4a3a2a;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-family: 'Georgia', serif;
+                        font-weight: bold;
+                        text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                        transition: all 0.2s;
+                    ">Close Menu</button>
+                </div>
             </div>
         `;
         contentArea.appendChild(modal);
+
+        // 🎨 Add hover effects CSS for menu buttons
+        const menuStyle = document.createElement('style');
+        menuStyle.textContent = `
+            .menu-tab:hover {
+                background: rgba(139, 90, 43, 0.6) !important;
+                transform: translateY(-1px);
+            }
+            #modal-save-btn:hover, #modal-load-btn:hover,
+            #modal-newgame-btn:hover, #modal-delete-btn:hover,
+            #modal-render-distance-btn:hover, #modal-gpu-btn:hover,
+            #modal-benchmark-btn:hover, #modal-enhanced-graphics-btn:hover,
+            #modal-close-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important;
+                filter: brightness(1.1);
+            }
+        `;
+        document.head.appendChild(menuStyle);
+
+        // 📑 TAB SWITCHING LOGIC
+        const menuTabs = modal.querySelectorAll('.menu-tab');
+        const tabContents = modal.querySelectorAll('.tab-content');
+
+        menuTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.getAttribute('data-tab');
+
+                // Update tab buttons (active state)
+                menuTabs.forEach(t => {
+                    if (t.getAttribute('data-tab') === targetTab) {
+                        t.style.background = 'rgba(139, 90, 43, 0.8)';
+                        t.style.fontWeight = 'bold';
+                    } else {
+                        t.style.background = 'rgba(80, 54, 27, 0.6)';
+                        t.style.fontWeight = 'normal';
+                    }
+                });
+
+                // Show/hide tab content
+                tabContents.forEach(content => {
+                    if (content.getAttribute('data-tab') === targetTab) {
+                        content.style.display = 'block';
+                    } else {
+                        content.style.display = 'none';
+                    }
+                });
+            });
+        });
 
         // Time indicator click handler (opens menu)
         this.timeIndicator.onclick = () => {
