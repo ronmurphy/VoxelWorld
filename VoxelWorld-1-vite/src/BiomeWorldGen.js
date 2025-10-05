@@ -1166,12 +1166,9 @@ export class BiomeWorldGen {
 
                 // 🌳 FIXED: Tree generation with accurate ground detection and spacing
                 if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome, this.worldSeed)) {
-                    console.log(`🌳 shouldGenerateTree returned TRUE at (${worldX}, ${worldZ}) in ${biome.name}`);
-
                     // 🌲 TREE SPACING SYSTEM - Prevent massive tree chunks
                     if (this.hasNearbyTree(worldX, worldZ)) {
                         // Skip this tree if too close to another
-                        console.log(`⛔ Blocked by nearby tree at (${worldX}, ${worldZ})`);
                         continue;
                     }
 
@@ -1179,7 +1176,6 @@ export class BiomeWorldGen {
                     // Trees must spawn on top of the terrain we just placed at finalHeight
                     const actualGroundHeight = finalHeight + 1;
 
-                    console.log(`✅ PLACING TREE at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}`);
                     this.STATS.treesPlaced++;
 
                     // 🌳 ACTUALLY GENERATE THE TREE based on biome type
@@ -1312,11 +1308,6 @@ export class BiomeWorldGen {
 
         const treeNoise = this.multiOctaveNoise(worldX + 4000, worldZ + 4000, this.noiseParams.microDetail, worldSeed + 4000);
         const baseChance = (biome.treeDistribution.min + biome.treeDistribution.max) / 2;
-
-        // DEBUG: Log first few tree checks
-        if (this.STATS.chunksGenerated <= 5 && Math.random() < 0.01) {
-            console.log(`🌳 Tree check at (${worldX}, ${worldZ}): biome=${biome.name}, mult=${multiplier}, baseChance=${baseChance.toFixed(3)}, noise=${treeNoise.toFixed(3)}`);
-        }
 
         // Add clustering for forest biomes
         if (biome.treeDistribution.clusters) {

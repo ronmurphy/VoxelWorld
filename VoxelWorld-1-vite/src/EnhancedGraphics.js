@@ -205,9 +205,7 @@ export class EnhancedGraphics {
                     const aliasedNames = [];
                     baseNames.forEach(name => {
                         if (this.textureAliases[name]) {
-                            const aliasName = this.textureAliases[name];
-                            aliasedNames.push(aliasName);
-                            console.log(`🔗 Adding alias: ${name} → ${aliasName}`);
+                            aliasedNames.push(this.textureAliases[name]);
                         }
                     });
                     aliasedNames.forEach(alias => this.availableAssets[category].push(alias));
@@ -451,17 +449,12 @@ export class EnhancedGraphics {
                 const actualFilename = this.textureAliases[toolType] || toolType;
                 const imagePath = `${this.assetPaths.tools}/${actualFilename}.png`;
 
-                if (toolType !== actualFilename) {
-                    console.log(`🔗 Loading aliased tool: ${toolType} → ${actualFilename}`);
-                }
-
                 const image = await this._loadImage(imagePath);
                 // Store both the image and the relative path (using original toolType as key)
                 this.toolImages.set(toolType, {
                     image: image,
                     path: imagePath
                 });
-                console.log(`✅ Loaded tool: ${toolType} at ${imagePath}`);
                 return { toolType, success: true };
             } catch (error) {
                 console.warn(`⚠️ Failed to load tool image: ${toolType}`, error);

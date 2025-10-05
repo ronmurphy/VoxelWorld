@@ -61,7 +61,6 @@ export class StructureGenerator {
 
         if (structureData) {
             const { worldX, worldZ, size, buried } = structureData;
-            console.log(`🏛️ RUIN SPAWNING at chunk (${chunkX}, ${chunkZ}) world (${worldX}, ${worldZ}) size: ${size}, buried: ${buried}`);
             this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
         }
         
