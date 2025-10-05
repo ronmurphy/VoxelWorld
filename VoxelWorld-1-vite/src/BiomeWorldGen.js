@@ -18,7 +18,7 @@ export class BiomeWorldGen {
         this.chunkCache = new Map(); // Cache biome data for performance
 
         // 🐛 Debug mode - temporarily enabled to see tree generation
-        this.DEBUG_MODE = false; // Toggle for detailed logging
+        this.DEBUG_MODE = true; // Toggle for detailed logging
         this.STATS = {
             chunksGenerated: 0,
             lowHeights: 0,
@@ -26,9 +26,9 @@ export class BiomeWorldGen {
             treesPlaced: 0
         };
 
-        // 🌲 TREE SPACING SYSTEM - Track tree positions to prevent chunks
+        // 🌲 TREE SPACING SYSTEM - Track tree positions to prevent clumping
         this.treePositions = new Set(); // Store "x,z" keys for quick lookup
-        this.MIN_TREE_DISTANCE = 2; // Minimum blocks between trees (2 = 5x5 check prevents clumping)
+        this.MIN_TREE_DISTANCE = 1; // Minimum blocks between trees (1 = 3x3 check, allows denser forests)
 
         // 🎯 CHUNK-BASED TREE COUNTER - Guarantees minimum tree density
         this.chunkTreeCounter = new Map(); // Map<biomeType, counter>
@@ -1036,8 +1036,8 @@ export class BiomeWorldGen {
 
         // Check if this chunk should get a guaranteed tree
         const needsGuaranteedTree = (counter % interval === 0);
-        if (needsGuaranteedTree && this.DEBUG_MODE) {
-            console.log(`🎯 Chunk (${chunkX}, ${chunkZ}) in ${biomeName}: GUARANTEED tree (counter: ${counter}, interval: ${interval})`);
+        if (this.DEBUG_MODE && this.STATS.chunksGenerated % 5 === 0) {
+            console.log(`🗺️ Generating chunk (${chunkX}, ${chunkZ}) | Dominant biome: ${biomeName} | Trees: ${needsGuaranteedTree ? 'GUARANTEED' : 'noise-based'}`);
         }
 
         // Increment counter for next chunk
@@ -1210,6 +1210,9 @@ export class BiomeWorldGen {
                     // Skip spacing check for guaranteed trees to ensure they always place
                     if (!isGuaranteedSpot && this.hasNearbyTree(worldX, worldZ)) {
                         // Skip this tree if too close to another
+                        if (this.DEBUG_MODE && Math.random() < 0.01) {
+                            console.log(`🚫 Tree blocked by spacing at (${worldX}, ${worldZ}) in ${biome.name}`);
+                        }
                         continue;
                     }
 
@@ -1220,15 +1223,24 @@ export class BiomeWorldGen {
                     this.STATS.treesPlaced++;
 
                     // 🌳 ACTUALLY GENERATE THE TREE based on biome type
+                    let treeType = 'Oak';
                     if (biome.name === 'Mountain' || biome.name.includes('mountain')) {
                         this.voxelWorld.generatePineTree(worldX, actualGroundHeight, worldZ);
+                        treeType = 'Pine';
                     } else if (biome.name === 'Tundra' || biome.name.includes('tundra')) {
                         this.voxelWorld.generateBirchTree(worldX, actualGroundHeight, worldZ);
+                        treeType = 'Birch';
                     } else if (biome.name === 'Desert' || biome.name.includes('desert')) {
                         this.voxelWorld.generatePalmTree(worldX, actualGroundHeight, worldZ);
+                        treeType = 'Palm';
                     } else {
                         // Forest, Plains, and other biomes get Oak trees
                         this.voxelWorld.generateOakTree(worldX, actualGroundHeight, worldZ);
+                        treeType = 'Oak';
+                    }
+
+                    if (this.DEBUG_MODE) {
+                        console.log(`🌳 PLACED ${treeType} tree #${this.STATS.treesPlaced} at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}${isGuaranteedSpot ? ' [GUARANTEED]' : ''}`);
                     }
 
                     // 🗺️ Track tree position for spacing calculations
@@ -1237,13 +1249,6 @@ export class BiomeWorldGen {
                     // Mark guaranteed tree as placed
                     if (isGuaranteedSpot) {
                         guaranteedTreePlaced = true;
-                        if (this.DEBUG_MODE) {
-                            console.log(`🎯 Placed GUARANTEED tree in chunk (${chunkX}, ${chunkZ}) at (${worldX}, ${actualGroundHeight}, ${worldZ})`);
-                        }
-                    }
-
-                    if (this.DEBUG_MODE && this.STATS.treesPlaced % 10 === 0) {
-                        console.log(`🌳 Generated ${this.STATS.treesPlaced} trees - Latest ${biome.name === 'Mountain' ? 'Pine' : 'Oak'} at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}`);
                     }
                 }
 
@@ -1314,9 +1319,10 @@ export class BiomeWorldGen {
         loadedChunks.add(chunkKey);
         // console.log(`✅ CHUNK (${chunkX}, ${chunkZ}) - COMPLETED`); // Removed for performance
 
-        // 📊 Log statistics summary every 20 chunks (reduced frequency)
-        if (this.STATS.chunksGenerated % 20 === 0) {
-            console.log(`📊 BiomeWorldGen Stats: ${this.STATS.chunksGenerated} chunks, ${this.STATS.lowHeights} low heights, ${this.STATS.emergencyFills} emergency fills, ${this.STATS.treesPlaced} trees`);
+        // 📊 Log statistics summary every 10 chunks
+        if (this.DEBUG_MODE && this.STATS.chunksGenerated % 10 === 0) {
+            const treesPerChunk = (this.STATS.treesPlaced / this.STATS.chunksGenerated).toFixed(2);
+            console.log(`📊 BiomeWorldGen Stats: ${this.STATS.chunksGenerated} chunks generated | ${this.STATS.treesPlaced} trees placed (${treesPerChunk} trees/chunk avg) | ${this.STATS.lowHeights} low heights | ${this.STATS.emergencyFills} emergency fills`);
         }
     }
 
@@ -1328,20 +1334,32 @@ export class BiomeWorldGen {
         }
 
         // 🌲 BIOME-SPECIFIC TREE DENSITY SYSTEM (2x increased for better coverage)
-        const biomeDensityMultipliers = {
-            'Forest': 16,           // Moderate tree density (2x from 8)
-            'dense_forest': 24,     // Dense forests (2x from 12)
-            'sparse_forest': 12,    // Light forest areas (2x from 6)
-            'Plains': 20,           // Scattered but visible trees (2x from 10)
-            'Mountain': 20,         // Moderate density (2x from 10)
-            'mountain_forest': 24,  // Forested mountains (2x from 12)
-            'Desert': 4,            // Very rare (2x from 2)
-            'oasis': 16,            // More trees in oasis (2x from 8)
-            'Tundra': 6             // Sparse, hardy trees (2x from 3)
+        // const biomeDensityMultipliers = {
+        //     'Forest': 16,           // Moderate tree density (2x from 8)
+        //     'dense_forest': 24,     // Dense forests (2x from 12)
+        //     'sparse_forest': 12,    // Light forest areas (2x from 6)
+        //     'Plains': 20,           // Scattered but visible trees (2x from 10)
+        //     'Mountain': 20,         // Moderate density (2x from 10)
+        //     'mountain_forest': 24,  // Forested mountains (2x from 12)
+        //     'Desert': 4,            // Very rare (2x from 2)
+        //     'oasis': 16,            // More trees in oasis (2x from 8)
+        //     'Tundra': 6             // Sparse, hardy trees (2x from 3)
+        // };
+
+                const biomeDensityMultipliers = {
+            'Forest': 20,            // High density - good tree coverage
+            'dense_forest': 30,      // Very dense forests
+            'sparse_forest': 15,     // Moderate forest coverage
+            'Plains': 18,            // Scattered but visible trees
+            'Mountain': 18,          // Moderate mountain trees
+            'mountain_forest': 28,   // Forested mountains
+            'Desert': 5,             // Very rare, sparse desert trees
+            'oasis': 20,             // More trees in oasis
+            'Tundra': 8              // Sparse hardy tundra trees
         };
 
         // Check for transition biomes (e.g., "Mountain-Plains Transition")
-        let multiplier = 4; // Default multiplier
+        let multiplier = 10; // Default multiplier for unlisted biomes
         for (const [biomeName, mult] of Object.entries(biomeDensityMultipliers)) {
             if (biome.name.includes(biomeName)) {
                 multiplier = mult;
@@ -1364,10 +1382,11 @@ export class BiomeWorldGen {
             }
         }
 
-        const result = treeNoise > (1 - baseChance * multiplier);
+        const threshold = 1 - baseChance * multiplier;
+        const result = treeNoise > threshold;
 
-        if (this.DEBUG_MODE && Math.random() < 0.01) {
-            console.log(`🌳 Tree result: ${result} (noise: ${treeNoise.toFixed(3)}, threshold: ${(1 - baseChance * multiplier).toFixed(3)}, baseChance: ${baseChance.toFixed(3)}) for ${biome.name}`);
+        if (this.DEBUG_MODE && Math.random() < 0.05) {
+            console.log(`🌳 Tree check: ${result ? '✅ PASS' : '❌ FAIL'} | Biome: ${biome.name} | Multiplier: ${multiplier.toFixed(2)} | Noise: ${treeNoise.toFixed(3)} > Threshold: ${threshold.toFixed(3)}`);
         }
 
         return result;

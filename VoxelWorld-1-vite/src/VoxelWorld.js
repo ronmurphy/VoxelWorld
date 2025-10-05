@@ -7110,10 +7110,10 @@ class NebulaVoxelApp {
                     this.chunkSize
                 );
 
-                // 🌳 ENHANCED: Defer tree generation to ensure terrain is fully placed
-                setTimeout(() => {
-                    this.generateTreesForChunk(chunkX, chunkZ);
-                }, 10);
+                // 🌳 DISABLED: Tree generation now handled by BiomeWorldGen.js during chunk generation
+                // setTimeout(() => {
+                //     this.generateTreesForChunk(chunkX, chunkZ);
+                // }, 10);
             }
         };
 
@@ -7169,10 +7169,11 @@ class NebulaVoxelApp {
                     }
                 }, 10);
             } else {
-                // No cached trees - generate trees normally (first time seeing this chunk)
-                setTimeout(() => {
-                    this.generateTreesForChunk(chunkX, chunkZ);
-                }, 10);
+                // 🌳 DISABLED: Tree generation now handled by BiomeWorldGen.js during chunk generation
+                // No cached trees - BiomeWorldGen already generated them during initial chunk creation
+                // setTimeout(() => {
+                //     this.generateTreesForChunk(chunkX, chunkZ);
+                // }, 10);
             }
 
             // Silent chunk loading - only log on errors
@@ -7602,8 +7603,24 @@ class NebulaVoxelApp {
 
         // Generate the appropriate tree type for the biome
         this.generateTreeForBiome = (worldX, treeHeight, worldZ, biome) => {
-            // Get ground block beneath tree
-            const groundBlock = this.getBlock(worldX, treeHeight - 1, worldZ);
+            // 🔍 SEARCH DOWNWARD to find actual ground surface
+            let groundY = treeHeight - 1;
+            let foundGround = false;
+
+            for (let searchY = treeHeight - 1; searchY >= Math.max(0, treeHeight - 5); searchY--) {
+                const block = this.getBlock(worldX, searchY, worldZ);
+                if (block && block.type && block.type !== 'air' && block.type !== 'water') {
+                    groundY = searchY;
+                    foundGround = true;
+                    break;
+                }
+            }
+
+            if (!foundGround) {
+                return; // No ground found within search range
+            }
+
+            const groundBlock = this.getBlock(worldX, groundY, worldZ);
             if (!groundBlock) {
                 return; // No ground block found
             }
@@ -7612,55 +7629,58 @@ class NebulaVoxelApp {
             const groundType = groundBlock.type;
             if (['stone', 'iron', 'sand'].includes(groundType)) {
                 // Replace ground with dirt for natural tree placement
-                this.removeBlock(worldX, treeHeight - 1, worldZ, false); // Remove without giving items
-                this.addBlock(worldX, treeHeight - 1, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+                this.removeBlock(worldX, groundY, worldZ, false);
+                this.addBlock(worldX, groundY, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
 
                 // Also convert block below for deeper roots
-                const deeperBlock = this.getBlock(worldX, treeHeight - 2, worldZ);
+                const deeperBlock = this.getBlock(worldX, groundY - 1, worldZ);
                 if (deeperBlock && ['stone', 'iron', 'sand'].includes(deeperBlock.type)) {
-                    this.removeBlock(worldX, treeHeight - 2, worldZ, false);
-                    this.addBlock(worldX, treeHeight - 2, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+                    this.removeBlock(worldX, groundY - 1, worldZ, false);
+                    this.addBlock(worldX, groundY - 1, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
                 }
             } else if (!['grass', 'dirt'].includes(groundType)) {
                 return; // Invalid ground type (e.g., bedrock, leaves, wood)
             }
 
-            // 🌿 ENHANCED: Multi-layer collision detection for trees
-            // Check exact tree placement position
-            const existingBlock = this.getBlock(worldX, treeHeight, worldZ);
-            if (existingBlock) {
-                // Don't place trees on shrubs, other trees, or any existing blocks
-                console.log(`🚫 Tree blocked at (${worldX},${treeHeight},${worldZ}) by existing ${existingBlock.type}`);
-                return; // Don't generate if space is occupied
+            // 🔍 SEARCH UPWARD to find first empty air space for tree trunk
+            let actualTreeHeight = groundY + 1;
+            for (let searchY = groundY + 1; searchY <= groundY + 5; searchY++) {
+                const block = this.getBlock(worldX, searchY, worldZ);
+                if (!block || block.type === 'air') {
+                    actualTreeHeight = searchY;
+                    break;
+                }
             }
 
-            // 🌿 CRITICAL: Enhanced shrub detection with multiple height levels
-            // Check both at ground level and above for shrubs
-            for (let dx = -3; dx <= 3; dx++) {
-                for (let dz = -3; dz <= 3; dz++) {
-                    for (let dy = -1; dy <= 1; dy++) { // Check below, at, and above ground level
-                        const checkY = treeHeight + dy;
-                        const checkBlock = this.getBlock(worldX + dx, checkY, worldZ + dz);
+            // ✅ Use the found air position for tree placement
+            treeHeight = actualTreeHeight;
 
-                        if (checkBlock) {
-                            if (checkBlock.type === 'shrub') {
-                                console.log(`🚫🌿 Tree BLOCKED by shrub: position (${worldX},${treeHeight},${worldZ}) blocked by shrub at (${worldX + dx},${checkY},${worldZ + dz})`);
-                                return; // ABSOLUTELY no trees near shrubs
-                            }
+            if (Math.random() < 0.01) { // 1% debug logging
+                console.log(`🌲 Tree surface search: Ground Y=${groundY} (${groundType}), Tree trunk Y=${treeHeight} at (${worldX}, ${worldZ})`);
+            }
 
-                            // Also check for existing tree blocks
-                            if (this.isWoodBlock(checkBlock.type)) {
-                                console.log(`🚫🌳 Tree blocked by existing tree: ${checkBlock.type} at (${worldX + dx},${checkY},${worldZ + dz})`);
-                                return; // Don't generate if another tree nearby
-                            }
+            // 🌿 Reduced collision detection - only check immediate trunk position (1x1x3)
+            // Old 7x7x3 zone was blocking ALL trees from spawning!
+            for (let dy = 0; dy <= 2; dy++) { // Only check trunk height
+                const checkY = treeHeight + dy;
+                const checkBlock = this.getBlock(worldX, checkY, worldZ);
 
-                            // Check for existing tree IDs to prevent ID collision
-                            const existingTreeId = this.getTreeIdFromBlock(worldX + dx, checkY, worldZ + dz);
-                            if (existingTreeId) {
-                                console.log(`🚫🆔 Tree blocked by existing tree ID ${existingTreeId} at (${worldX + dx},${checkY},${worldZ + dz})`);
-                                return; // Don't generate near existing tree IDs
-                            }
-                        }
+                if (checkBlock && checkBlock.type !== 'air') {
+                    // Only check exact trunk position for obstructions
+                    if (checkBlock.type === 'shrub') {
+                        console.log(`🚫🌿 Tree BLOCKED by shrub at trunk position (${worldX},${checkY},${worldZ})`);
+                        return;
+                    }
+
+                    if (this.isWoodBlock(checkBlock.type)) {
+                        console.log(`🚫🌳 Tree blocked by existing tree trunk at (${worldX},${checkY},${worldZ})`);
+                        return;
+                    }
+
+                    const existingTreeId = this.getTreeIdFromBlock(worldX, checkY, worldZ);
+                    if (existingTreeId) {
+                        console.log(`🚫🆔 Tree blocked by existing tree ID ${existingTreeId} at (${worldX},${checkY},${worldZ})`);
+                        return;
                     }
                 }
             }
