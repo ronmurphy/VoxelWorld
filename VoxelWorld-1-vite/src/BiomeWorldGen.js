@@ -1347,19 +1347,19 @@ export class BiomeWorldGen {
         // };
 
                 const biomeDensityMultipliers = {
-            'Forest': 20,            // High density - good tree coverage
-            'dense_forest': 30,      // Very dense forests
-            'sparse_forest': 15,     // Moderate forest coverage
-            'Plains': 18,            // Scattered but visible trees
-            'Mountain': 18,          // Moderate mountain trees
-            'mountain_forest': 28,   // Forested mountains
-            'Desert': 5,             // Very rare, sparse desert trees
-            'oasis': 20,             // More trees in oasis
-            'Tundra': 8              // Sparse hardy tundra trees
+            'Forest': 2.5,           // 2.5x density - good tree coverage
+            'dense_forest': 3.5,     // 3.5x density - dense forests
+            'sparse_forest': 1.5,    // 1.5x density - moderate coverage
+            'Plains': 2.0,           // 2x density - scattered trees
+            'Mountain': 2.0,         // 2x density - moderate mountain trees
+            'mountain_forest': 3.0,  // 3x density - forested mountains
+            'Desert': 0.3,           // 0.3x density - very rare desert trees
+            'oasis': 2.5,            // 2.5x density - more trees in oasis
+            'Tundra': 1.0            // 1x density - sparse hardy tundra trees
         };
 
         // Check for transition biomes (e.g., "Mountain-Plains Transition")
-        let multiplier = 10; // Default multiplier for unlisted biomes
+        let multiplier = 1.5; // Default multiplier for unlisted biomes
         for (const [biomeName, mult] of Object.entries(biomeDensityMultipliers)) {
             if (biome.name.includes(biomeName)) {
                 multiplier = mult;
