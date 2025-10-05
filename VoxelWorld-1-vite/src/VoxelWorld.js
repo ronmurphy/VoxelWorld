@@ -217,10 +217,10 @@ class NebulaVoxelApp {
             // 🍃 OVERLAP PREVENTION: Check for existing blocks at this position
             const existingBlock = this.world[key];
             if (existingBlock) {
-                // If it's a leaf block overlapping with another leaf block, skip to prevent duplicates
+                // If it's a leaf block overlapping with another leaf, skip entirely
+                // This prevents confusing overlapping canopies when trees are harvested
                 if (this.isLeafBlock(type) && this.isLeafBlock(existingBlock.type)) {
-                    // console.log(`🍃 Prevented leaf overlap at (${x},${y},${z}): ${type} would overlap ${existingBlock.type}`);
-                    return;
+                    return; // Don't place overlapping leaves
                 }
                 // For other block types, allow overwriting (existing behavior)
                 if (existingBlock.mesh) {
@@ -7119,7 +7119,7 @@ class NebulaVoxelApp {
 
         // 👷 WORKER CHUNK DATA HANDLER: Convert worker data to blocks
         this.handleWorkerChunkData = (chunkX, chunkZ, chunkData) => {
-            const { blockCount, positions, blockTypes, colors, flags, waterBlockCount } = chunkData;
+            const { blockCount, positions, blockTypes, colors, flags, waterBlockCount, heightMap, waterMap } = chunkData;
 
             // 🌊 Debug water blocks
             if (waterBlockCount > 0) {
@@ -7160,7 +7160,7 @@ class NebulaVoxelApp {
             // 🌳 RESTORE TREES: Check if we have cached trees for this chunk
             const chunkKey = `${chunkX},${chunkZ}`;
             const cachedTrees = this.treeCache.get(chunkKey);
-            
+
             if (cachedTrees && cachedTrees.length > 0) {
                 // Restore trees from cache instead of regenerating
                 setTimeout(() => {
@@ -7169,24 +7169,40 @@ class NebulaVoxelApp {
                     }
                 }, 10);
             } else {
-                // 🌳 DISABLED: Tree generation now handled by BiomeWorldGen.js during chunk generation
-                // No cached trees - BiomeWorldGen already generated them during initial chunk creation
-                // setTimeout(() => {
-                //     this.generateTreesForChunk(chunkX, chunkZ);
-                // }, 10);
+                // 🌳 NEW CHUNK: Generate trees for worker-created chunks
+                // Worker provides heightMap and waterMap for accurate placement
+                setTimeout(() => {
+                    this.generateTreesForChunk(chunkX, chunkZ, heightMap, waterMap);
+                }, 10);
             }
 
             // Silent chunk loading - only log on errors
             // console.log(`✅ Worker chunk (${chunkX}, ${chunkZ}) loaded: ${blockCount} blocks`);
         };
 
+        // 🔍 HELPER: Find actual solid ground below a position (for detecting gaps)
+        this.findActualGroundBelow = (x, startY, z) => {
+            // Scan downward to find first solid non-tree block
+            for (let y = startY; y >= 0; y--) {
+                const block = this.getBlock(x, y, z);
+                if (block && block.type) {
+                    // Found a block - check if it's valid ground
+                    const validGroundBlocks = ['grass', 'sand', 'dirt', 'stone', 'snow'];
+                    if (validGroundBlocks.includes(block.type)) {
+                        return y;
+                    }
+                }
+            }
+            return null; // No ground found
+        };
+
         // 🌳 SEPARATED TREE GENERATION: Now a dedicated method for better timing control
-        this.generateTreesForChunk = (chunkX, chunkZ) => {
+        this.generateTreesForChunk = (chunkX, chunkZ, heightMap = null, waterMap = null) => {
             // Minimal logging - only for significant issues
             let treesPlaced = 0;
             let treesAttempted = 0;
             let noSurfaceFound = 0;
-            
+
             for (let x = 0; x < this.chunkSize; x++) {
                 for (let z = 0; z < this.chunkSize; z++) {
                     const worldX = chunkX * this.chunkSize + x;
@@ -7194,26 +7210,57 @@ class NebulaVoxelApp {
 
                     const biome = this.biomeWorldGen.getBiomeAt(worldX, worldZ, this.worldSeed);
 
-                    // Check if we should generate a tree at this position
-                    const shouldGenerate = this.shouldGenerateTree(worldX, worldZ, biome);
+                    // Check if we should generate a tree at this position using BiomeWorldGen's logic
+                    const passesNoiseCheck = this.biomeWorldGen.shouldGenerateTree(worldX, worldZ, biome, this.worldSeed);
 
-                    if (shouldGenerate) {
-                        treesAttempted++;
-                        
-                        // 🌍 Find ACTUAL surface (not bedrock, not underground)
-                        let surfaceY = -10;
-                        for (let y = 64; y >= 1; y--) {  // Start from y=64 (mega mountains!), stop at y=1 (skip bedrock)
-                            const block = this.getBlock(worldX, y, worldZ);
-                            if (block && block.type !== 'bedrock' && block.type !== 'air') { // Found surface block
-                                surfaceY = y + 1; // Place tree 1 block above surface
-                                break;
-                            }
+                    if (passesNoiseCheck) {
+                        // 🌲 Check spacing to prevent tree crowding
+                        const tooCloseToOtherTree = this.biomeWorldGen.hasNearbyTree(worldX, worldZ, chunkX, chunkZ);
+
+                        if (tooCloseToOtherTree) {
+                            continue; // Skip this tree, too close to another
                         }
 
-                        // Only place tree if we found a valid surface (not bedrock)
-                        if (surfaceY > 1 && surfaceY <= 65) {
-                            this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
+                        treesAttempted++;
+
+                        // 🗺️ Use heightMap and waterMap from worker (most reliable!)
+                        const heightIndex = x * this.chunkSize + z;
+
+                        // 🌊 Check water map first - skip if this position has water
+                        if (waterMap && waterMap[heightIndex] === 1) {
+                            noSurfaceFound++;
+                            continue; // Water position - no trees
+                        }
+
+                        // 🗺️ Get ground height from worker's heightMap (exact terrain height)
+                        let surfaceY;
+                        if (heightMap) {
+                            const groundHeight = heightMap[heightIndex];
+                            surfaceY = groundHeight + 1; // Tree sits on top of ground block
+                        } else {
+                            // Fallback: scan for ground (for non-worker chunks like spawn)
+                            surfaceY = this.biomeWorldGen.findGroundHeight(worldX, worldZ);
+                        }
+
+                        // Only place tree if we found a valid surface
+                        if (surfaceY !== null && surfaceY > 1 && surfaceY <= 65) {
+                            // 🌳 ANCIENT TREE SPAWN CHANCE
+                            // 20% total: 15% regular ancient, 5% mega ancient
+                            const ancientChance = this.seededNoise(worldX + 25000, worldZ + 25000, this.worldSeed);
+
+                            if (ancientChance > 0.80) {
+                                // 20% of trees are ancient
+                                const isMega = ancientChance > 0.95; // Top 5% are mega ancient
+                                this.generateAncientTree(worldX, surfaceY, worldZ, biome, isMega);
+                            } else {
+                                // 80% normal trees
+                                this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
+                            }
+
                             treesPlaced++;
+
+                            // 🗺️ Track tree position for spacing
+                            this.biomeWorldGen.trackTreePosition(worldX, worldZ, chunkX, chunkZ);
                         } else {
                             noSurfaceFound++;
                         }
@@ -7557,6 +7604,180 @@ class NebulaVoxelApp {
             return loot;
         };
 
+        // 🌳 ANCIENT TREE SYSTEM - Rare majestic trees with thick trunks
+        // Generate ancient tree with 2x2 or 3x3 thick trunk base
+        this.generateAncientTree = (worldX, surfaceY, worldZ, biome, isMega = false) => {
+            // Determine tree type based on biome
+            let treeType = 'oak_wood';
+            let leafType = 'oak_wood-leaves';
+
+            switch (biome.name) {
+                case 'Forest':
+                    treeType = Math.random() < 0.7 ? 'oak_wood' : 'birch_wood';
+                    leafType = treeType + '-leaves';
+                    break;
+                case 'Mountain':
+                    treeType = 'pine_wood';
+                    leafType = 'pine_wood-leaves';
+                    break;
+                case 'Desert':
+                    treeType = 'palm_wood';
+                    leafType = 'palm_wood-leaves';
+                    break;
+                case 'Tundra':
+                    treeType = 'pine_wood';
+                    leafType = 'pine_wood-leaves';
+                    break;
+                case 'Plains':
+                    treeType = 'oak_wood';
+                    leafType = 'oak_wood-leaves';
+                    break;
+            }
+
+            // 🌳 Create tree registry
+            const treeId = this.createTreeRegistry(treeType, worldX, surfaceY, worldZ);
+            this.treePositions.push({ x: worldX, z: worldZ, type: treeType.replace('_wood', ''), treeId });
+
+            // 🏛️ MEGA ANCIENT TREE: Cone-shaped base (5% chance)
+            if (isMega) {
+                const baseHeight = 8 + Math.floor(this.seededNoise(worldX + 20000, worldZ + 20000, this.worldSeed) * 6); // 8-13 blocks
+                const trunkHeight = 12 + Math.floor(this.seededNoise(worldX + 21000, worldZ + 21000, this.worldSeed) * 8); // 12-19 blocks
+
+                console.log(`🏛️🌳 MEGA ANCIENT TREE spawning! Type: ${treeType}, Base height: ${baseHeight}, Total: ${baseHeight + trunkHeight}`);
+
+                // Cone-shaped base - starts at 5x5, narrows to 3x3, then 2x2
+                for (let h = 0; h < baseHeight; h++) {
+                    const progress = h / baseHeight; // 0.0 to 1.0
+                    let radius;
+
+                    if (progress < 0.4) {
+                        radius = 2; // 5x5 base (radius 2 = -2 to +2)
+                    } else if (progress < 0.7) {
+                        radius = 1; // 3x3 middle (radius 1 = -1 to +1)
+                    } else {
+                        radius = 0; // 1x1 top transitioning to single trunk
+                    }
+
+                    // Place trunk blocks in square pattern
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        for (let dz = -radius; dz <= radius; dz++) {
+                            this.addTreeBlock(treeId, worldX + dx, surfaceY + h, worldZ + dz, treeType, false);
+                        }
+                    }
+                }
+
+                // Single trunk above cone base
+                for (let h = baseHeight; h < baseHeight + trunkHeight; h++) {
+                    this.addTreeBlock(treeId, worldX, surfaceY + h, worldZ, treeType, false);
+                }
+
+                // Massive canopy
+                this.generateMassiveCanopy(treeId, worldX, surfaceY + baseHeight + trunkHeight, worldZ, leafType, treeType);
+
+            } else {
+                // 🌳 REGULAR ANCIENT TREE: 2x2 or 3x3 thick trunk
+                const baseSize = Math.random() < 0.5 ? 1 : 1; // radius 1 = 3x3, always 3x3 for ancient
+                const trunkHeight = 10 + Math.floor(this.seededNoise(worldX + 18000, worldZ + 18000, this.worldSeed) * 6); // 10-15 blocks
+
+                console.log(`🌳 Ancient Tree spawning! Type: ${treeType}, Size: ${baseSize === 0 ? '2x2' : '3x3'}, Height: ${trunkHeight}`);
+
+                // Thick trunk base
+                for (let h = 0; h < trunkHeight; h++) {
+                    for (let dx = -baseSize; dx <= baseSize; dx++) {
+                        for (let dz = -baseSize; dz <= baseSize; dz++) {
+                            this.addTreeBlock(treeId, worldX + dx, surfaceY + h, worldZ + dz, treeType, false);
+                        }
+                    }
+                }
+
+                // Large canopy
+                this.generateLargeCanopy(treeId, worldX, surfaceY + trunkHeight, worldZ, leafType, treeType);
+            }
+        };
+
+        // 🌿 Generate large canopy for ancient trees
+        this.generateLargeCanopy = (treeId, x, y, z, leafType, treeType) => {
+            if (treeType.includes('pine')) {
+                // Large conical pine canopy
+                for (let layer = 0; layer < 8; layer++) {
+                    const layerY = y - layer;
+                    const radius = Math.min(layer + 2, 5); // Up to radius 5
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        for (let dz = -radius; dz <= radius; dz++) {
+                            const distance = Math.sqrt(dx * dx + dz * dz);
+                            if (distance <= radius && !(dx === 0 && dz === 0 && layer > 0)) {
+                                this.addTreeBlock(treeId, x + dx, layerY, z + dz, leafType, false);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Large oak/birch/palm canopy (7x7 base)
+                for (let dx = -3; dx <= 3; dx++) {
+                    for (let dz = -3; dz <= 3; dz++) {
+                        if (Math.abs(dx) + Math.abs(dz) <= 5) {
+                            this.addTreeBlock(treeId, x + dx, y, z + dz, leafType, false);
+                        }
+                    }
+                }
+                for (let dx = -2; dx <= 2; dx++) {
+                    for (let dz = -2; dz <= 2; dz++) {
+                        this.addTreeBlock(treeId, x + dx, y + 1, z + dz, leafType, false);
+                    }
+                }
+                for (let dx = -1; dx <= 1; dx++) {
+                    for (let dz = -1; dz <= 1; dz++) {
+                        this.addTreeBlock(treeId, x + dx, y + 2, z + dz, leafType, false);
+                    }
+                }
+            }
+        };
+
+        // 🏛️ Generate massive canopy for mega ancient trees
+        this.generateMassiveCanopy = (treeId, x, y, z, leafType, treeType) => {
+            if (treeType.includes('pine')) {
+                // Massive conical pine canopy
+                for (let layer = 0; layer < 12; layer++) {
+                    const layerY = y - layer;
+                    const radius = Math.min(layer + 2, 7); // Up to radius 7!
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        for (let dz = -radius; dz <= radius; dz++) {
+                            const distance = Math.sqrt(dx * dx + dz * dz);
+                            if (distance <= radius) {
+                                this.addTreeBlock(treeId, x + dx, layerY, z + dz, leafType, false);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Massive oak/birch canopy (11x11 base!)
+                for (let dx = -5; dx <= 5; dx++) {
+                    for (let dz = -5; dz <= 5; dz++) {
+                        if (Math.abs(dx) + Math.abs(dz) <= 8) {
+                            this.addTreeBlock(treeId, x + dx, y, z + dz, leafType, false);
+                        }
+                    }
+                }
+                for (let dx = -4; dx <= 4; dx++) {
+                    for (let dz = -4; dz <= 4; dz++) {
+                        if (Math.abs(dx) + Math.abs(dz) <= 6) {
+                            this.addTreeBlock(treeId, x + dx, y + 1, z + dz, leafType, false);
+                        }
+                    }
+                }
+                for (let dx = -3; dx <= 3; dx++) {
+                    for (let dz = -3; dz <= 3; dz++) {
+                        this.addTreeBlock(treeId, x + dx, y + 2, z + dz, leafType, false);
+                    }
+                }
+                for (let dx = -2; dx <= 2; dx++) {
+                    for (let dz = -2; dz <= 2; dz++) {
+                        this.addTreeBlock(treeId, x + dx, y + 3, z + dz, leafType, false);
+                    }
+                }
+            }
+        };
+
         // 🌳 TREE GENERATION HELPERS
         // Determine if a tree should be generated at this location
         this.shouldGenerateTree = (worldX, worldZ, biome) => {
@@ -7628,15 +7849,34 @@ class NebulaVoxelApp {
             // 🌳 CONVERT STONE/SAND TO DIRT for tree base (go 2 blocks deep for roots!)
             const groundType = groundBlock.type;
             if (['stone', 'iron', 'sand'].includes(groundType)) {
-                // Replace ground with dirt for natural tree placement
-                this.removeBlock(worldX, groundY, worldZ, false);
-                this.addBlock(worldX, groundY, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+                // 🏛️ PILLAR TREE DETECTION: Check if this is a narrow elevated column
+                // Count surrounding blocks at same height
+                let solidNeighbors = 0;
+                const neighborOffsets = [[1,0], [-1,0], [0,1], [0,-1]];
+                for (const [dx, dz] of neighborOffsets) {
+                    const neighborBlock = this.getBlock(worldX + dx, groundY, worldZ + dz);
+                    if (neighborBlock && neighborBlock.type !== 'air' && neighborBlock.type !== 'water') {
+                        solidNeighbors++;
+                    }
+                }
 
-                // Also convert block below for deeper roots
-                const deeperBlock = this.getBlock(worldX, groundY - 1, worldZ);
-                if (deeperBlock && ['stone', 'iron', 'sand'].includes(deeperBlock.type)) {
-                    this.removeBlock(worldX, groundY - 1, worldZ, false);
-                    this.addBlock(worldX, groundY - 1, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+                // If isolated column (2 or fewer neighbors), it's a Pillar Tree - keep stone!
+                if (solidNeighbors <= 2) {
+                    if (Math.random() < 0.1) { // 10% logging
+                        console.log(`🏛️ Pillar Tree spawned at (${worldX}, ${groundY}, ${worldZ}) - stone column preserved!`);
+                    }
+                    // Don't convert to dirt - let the stone pillar remain for that unique look
+                } else {
+                    // Normal terrain - replace ground with dirt for natural tree placement
+                    this.removeBlock(worldX, groundY, worldZ, false);
+                    this.addBlock(worldX, groundY, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+
+                    // Also convert block below for deeper roots
+                    const deeperBlock = this.getBlock(worldX, groundY - 1, worldZ);
+                    if (deeperBlock && ['stone', 'iron', 'sand'].includes(deeperBlock.type)) {
+                        this.removeBlock(worldX, groundY - 1, worldZ, false);
+                        this.addBlock(worldX, groundY - 1, worldZ, 'dirt', new THREE.Color(0x8B4513), false);
+                    }
                 }
             } else if (!['grass', 'dirt'].includes(groundType)) {
                 return; // Invalid ground type (e.g., bedrock, leaves, wood)

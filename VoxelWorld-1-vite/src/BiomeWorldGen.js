@@ -27,8 +27,9 @@ export class BiomeWorldGen {
         };
 
         // 🌲 TREE SPACING SYSTEM - Track tree positions to prevent clumping
-        this.treePositions = new Set(); // Store "x,z" keys for quick lookup
-        this.MIN_TREE_DISTANCE = 1; // Minimum blocks between trees (1 = 3x3 check, allows denser forests)
+        // Use Map to store chunk-local tree positions: Map<chunkKey, Set<"x,z">>
+        this.treePositionsByChunk = new Map();
+        this.MIN_TREE_DISTANCE = 3; // Minimum blocks between trees (3 = 7x7 check, prevents canopy overlap)
 
         // 🎯 CHUNK-BASED TREE COUNTER - Guarantees minimum tree density
         this.chunkTreeCounter = new Map(); // Map<biomeType, counter>
@@ -1208,7 +1209,7 @@ export class BiomeWorldGen {
                 if (!hasSnow && (passesNoiseCheck || isGuaranteedSpot)) {
                     // 🌲 TREE SPACING SYSTEM - Prevent massive tree chunks
                     // Skip spacing check for guaranteed trees to ensure they always place
-                    if (!isGuaranteedSpot && this.hasNearbyTree(worldX, worldZ)) {
+                    if (!isGuaranteedSpot && this.hasNearbyTree(worldX, worldZ, chunkX, chunkZ)) {
                         // Skip this tree if too close to another
                         if (this.DEBUG_MODE && Math.random() < 0.01) {
                             console.log(`🚫 Tree blocked by spacing at (${worldX}, ${worldZ}) in ${biome.name}`);
@@ -1244,7 +1245,7 @@ export class BiomeWorldGen {
                     }
 
                     // 🗺️ Track tree position for spacing calculations
-                    this.trackTreePosition(worldX, worldZ);
+                    this.trackTreePosition(worldX, worldZ, chunkX, chunkZ);
 
                     // Mark guaranteed tree as placed
                     if (isGuaranteedSpot) {
@@ -1347,19 +1348,19 @@ export class BiomeWorldGen {
         // };
 
                 const biomeDensityMultipliers = {
-            'Forest': 2.5,           // 2.5x density - good tree coverage
-            'dense_forest': 3.5,     // 3.5x density - dense forests
-            'sparse_forest': 1.5,    // 1.5x density - moderate coverage
-            'Plains': 2.0,           // 2x density - scattered trees
-            'Mountain': 2.0,         // 2x density - moderate mountain trees
-            'mountain_forest': 3.0,  // 3x density - forested mountains
-            'Desert': 0.3,           // 0.3x density - very rare desert trees
-            'oasis': 2.5,            // 2.5x density - more trees in oasis
-            'Tundra': 1.0            // 1x density - sparse hardy tundra trees
+            'Forest': 8,             // Good forest coverage without crowding
+            'dense_forest': 12,      // Dense forests
+            'sparse_forest': 6,      // Light forest coverage
+            'Plains': 10,            // Scattered trees across plains
+            'Mountain': 10,          // Moderate mountain tree coverage
+            'mountain_forest': 14,   // Forested mountains
+            'Desert': 2,             // Very rare desert trees
+            'oasis': 8,              // More trees in oasis areas
+            'Tundra': 3              // Sparse hardy tundra trees
         };
 
         // Check for transition biomes (e.g., "Mountain-Plains Transition")
-        let multiplier = 1.5; // Default multiplier for unlisted biomes
+        let multiplier = 5; // Default multiplier for unlisted biomes
         for (const [biomeName, mult] of Object.entries(biomeDensityMultipliers)) {
             if (biome.name.includes(biomeName)) {
                 multiplier = mult;
@@ -1395,19 +1396,23 @@ export class BiomeWorldGen {
     // 🌱 GROUND HEIGHT DETECTION - Find actual surface for tree placement
     findGroundHeight(worldX, worldZ) {
         // Scan from high to low to find the true ground surface
-        const searchRange = { min: -5, max: 35 }; // Extended to handle tall mountains (max Y=30)
+        const searchRange = { min: -5, max: 65 }; // Extended to handle mega mountains (max Y=60)
 
         for (let y = searchRange.max; y >= searchRange.min; y--) {
             const blockAt = this.voxelWorld.getBlock(worldX, y, worldZ);
             const blockAbove = this.voxelWorld.getBlock(worldX, y + 1, worldZ);
 
-            // Found ground surface: solid block with air/empty above
-            if (blockAt && blockAt.type && blockAt.type !== 'air' && (!blockAbove || blockAbove.type === 'air' || !blockAbove.type)) {
-                // Don't place trees on certain block types
-                const invalidSurfaces = ['water', 'lava', 'snow'];
-                if (invalidSurfaces.includes(blockAt.type)) {
-                    return null; // Invalid surface for tree placement
-                }
+            // 🌊 WATER CHECK: If we hit water, don't place trees (skip this position entirely)
+            if (blockAt && blockAt.type === 'water') {
+                return null; // Water zone - no trees
+            }
+
+            // Only consider VALID ground blocks (not leaves, not wood, not player-placed)
+            const validGroundBlocks = ['grass', 'sand', 'dirt', 'stone'];
+
+            // Found ground surface: valid ground block with air/empty above
+            if (blockAt && blockAt.type && validGroundBlocks.includes(blockAt.type) &&
+                (!blockAbove || blockAbove.type === 'air' || !blockAbove.type)) {
 
                 return y + 1; // Return height ON TOP of the surface block
             }
@@ -1421,32 +1426,46 @@ export class BiomeWorldGen {
     }
 
     // 🌲 TREE SPACING METHODS - Prevent massive tree chunks
-    hasNearbyTree(x, z) {
+    hasNearbyTree(worldX, worldZ, chunkX, chunkZ) {
+        // Check current chunk and adjacent chunks for nearby trees
+        const chunksToCheck = [
+            `${chunkX},${chunkZ}`,           // Current chunk
+            `${chunkX-1},${chunkZ}`,         // Left
+            `${chunkX+1},${chunkZ}`,         // Right
+            `${chunkX},${chunkZ-1}`,         // Top
+            `${chunkX},${chunkZ+1}`,         // Bottom
+            `${chunkX-1},${chunkZ-1}`,       // Top-left
+            `${chunkX+1},${chunkZ-1}`,       // Top-right
+            `${chunkX-1},${chunkZ+1}`,       // Bottom-left
+            `${chunkX+1},${chunkZ+1}`        // Bottom-right
+        ];
+
         // Check in a MIN_TREE_DISTANCE radius around this position
         for (let dx = -this.MIN_TREE_DISTANCE; dx <= this.MIN_TREE_DISTANCE; dx++) {
             for (let dz = -this.MIN_TREE_DISTANCE; dz <= this.MIN_TREE_DISTANCE; dz++) {
-                const checkX = x + dx;
-                const checkZ = z + dz;
-                const key = `${checkX},${checkZ}`;
-                if (this.treePositions.has(key)) {
-                    return true; // Found nearby tree
+                const checkX = worldX + dx;
+                const checkZ = worldZ + dz;
+                const posKey = `${checkX},${checkZ}`;
+
+                // Check all nearby chunks for this position
+                for (const chunkKey of chunksToCheck) {
+                    const chunkTrees = this.treePositionsByChunk.get(chunkKey);
+                    if (chunkTrees && chunkTrees.has(posKey)) {
+                        return true; // Found nearby tree
+                    }
                 }
             }
         }
         return false; // No nearby trees
     }
 
-    trackTreePosition(x, z) {
-        const key = `${x},${z}`;
-        this.treePositions.add(key);
-
-        // Memory management: Remove old tree positions to prevent memory leak
-        if (this.treePositions.size > 10000) {
-            // Keep only recent 5000 positions (arbitrary cleanup)
-            const positions = Array.from(this.treePositions);
-            this.treePositions.clear();
-            positions.slice(-5000).forEach(pos => this.treePositions.add(pos));
+    trackTreePosition(worldX, worldZ, chunkX, chunkZ) {
+        const chunkKey = `${chunkX},${chunkZ}`;
+        if (!this.treePositionsByChunk.has(chunkKey)) {
+            this.treePositionsByChunk.set(chunkKey, new Set());
         }
+        const posKey = `${worldX},${worldZ}`;
+        this.treePositionsByChunk.get(chunkKey).add(posKey);
     }
 
     // 🎲 Seed Management

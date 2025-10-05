@@ -57,9 +57,13 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
 
     // Track tree positions for this chunk
     const treePositions = new Set();
-    
+
     // 🌊 Track water blocks for debugging
     let waterBlockCount = 0;
+
+    // 🗺️ Height map and water map for tree placement (8x8 grid for chunk)
+    const heightMap = new Int16Array(chunkSize * chunkSize);
+    const waterMap = new Uint8Array(chunkSize * chunkSize); // 1 = has water, 0 = no water
 
     for (let x = 0; x < chunkSize; x++) {
         for (let z = 0; z < chunkSize; z++) {
@@ -153,6 +157,11 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
                 }
             }
 
+            // 🗺️ Store ground height and water status for tree placement
+            const heightIndex = x * chunkSize + z;
+            heightMap[heightIndex] = height;
+            waterMap[heightIndex] = (height < WATER_LEVEL) ? 1 : 0; // Mark if this position has water
+
             // NOTE: Tree generation disabled in worker - let main thread handle it
             // Trees need to be registered in VoxelWorld's tree registry for harvesting
             // Worker-generated trees would bypass the tree ID system
@@ -196,9 +205,11 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             positions,
             blockTypes,
             colors,
-            flags
+            flags,
+            heightMap, // 🗺️ Include height map for accurate tree placement
+            waterMap   // 🌊 Include water map to prevent trees on water
         }
-    }, [positions.buffer, blockTypes.buffer, colors.buffer, flags.buffer]);
+    }, [positions.buffer, blockTypes.buffer, colors.buffer, flags.buffer, heightMap.buffer, waterMap.buffer]);
 }
 
 function clearCache() {
