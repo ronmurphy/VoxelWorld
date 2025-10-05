@@ -156,6 +156,39 @@ class NebulaVoxelApp {
             this.recreateAllMaterials();
         };
 
+        // 🏛️ CENTRALIZED BILLBOARD ITEMS REGISTRY
+        // Single source of truth for all billboard/world items
+        // Used by: spawnRandomWorldItems, ruins treasures, billboard rendering
+        this.BILLBOARD_ITEMS = {
+            // Desert biome items
+            skull: { emoji: '💀', biome: 'Desert', rarity: 0.3 },
+
+            // Forest biome items
+            mushroom: { emoji: '🍄', biome: 'Forest', rarity: 0.2 },
+            flower: { emoji: '🌸', biome: 'Forest', rarity: 0.2 },
+            berry: { emoji: '🍓', biome: 'Forest', rarity: 0.2 },
+            leaf: { emoji: '🍃', biome: 'Forest', rarity: 0.4 },
+
+            // Mountain biome items
+            crystal: { emoji: '💎', biome: 'Mountain', rarity: 0.15 },
+            oreNugget: { emoji: '⛰️', biome: 'Mountain', rarity: 0.25 },
+
+            // Plains biome items
+            wheat: { emoji: '🌾', biome: 'Plains', rarity: 0.2 },
+            feather: { emoji: '🪶', biome: 'Plains', rarity: 0.2 },
+            bone: { emoji: '🦴', biome: 'Plains', rarity: 0.2 },
+
+            // Tundra biome items
+            shell: { emoji: '🐚', biome: 'Tundra', rarity: 0.1 },
+            fur: { emoji: '🐻‍❄️', biome: 'Tundra', rarity: 0.1 },
+            iceShard: { emoji: '❄️', biome: 'Tundra', rarity: 0.1 },
+
+            // Rare equipment (very exciting finds!)
+            rustySword: { emoji: '⚔️', biome: 'any', rarity: 0.02 },
+            oldPickaxe: { emoji: '⛏️', biome: 'any', rarity: 0.02 },
+            ancientAmulet: { emoji: '📿', biome: 'any', rarity: 0.02 }
+        };
+
         // 🔄 COMPATIBILITY: Provide access to inventory arrays for legacy code
         // These properties delegate to InventorySystem for backward compatibility
         Object.defineProperty(this, 'hotbarSlots', {
@@ -575,44 +608,51 @@ class NebulaVoxelApp {
 
         // Check if block type should use billboard
         this.shouldUseBillboard = (type) => {
-            const billboardTypes = ['backpack', 'shrub']; // Can expand: 'flower', 'crystal', etc.
-            return billboardTypes.includes(type);
+            // Special items (backpack, shrub) always use billboard
+            if (type === 'backpack' || type === 'shrub') return true;
+
+            // World items from centralized registry
+            return this.BILLBOARD_ITEMS.hasOwnProperty(type);
         };
 
         // Create emoji billboard sprite
         this.createBillboard = (x, y, z, type) => {
-            const emojiConfig = {
+            // Animation configs for special items (backpack, shrub)
+            const specialAnimations = {
                 backpack: {
-                    emoji: '🎒',
                     float: true,
                     rotate: true,
                     floatSpeed: 2.0,
                     floatAmount: 0.15
                 },
                 shrub: {
-                    emoji: '🌿',
                     float: true,
                     rotate: false,
                     floatSpeed: 1.0,
                     floatAmount: 0.08
-                },
-                flower: {
-                    emoji: '🌸',
-                    float: true,
-                    rotate: false,
-                    floatSpeed: 0.8,
-                    floatAmount: 0.05
-                },
-                crystal: {
-                    emoji: '💎',
-                    float: false,
-                    rotate: true,
-                    floatSpeed: 3.0,
-                    floatAmount: 0.0
                 }
             };
 
-            const config = emojiConfig[type];
+            // Build config from centralized registry or special items
+            let config = null;
+
+            if (specialAnimations[type]) {
+                // Special items (backpack, shrub) - hardcoded emoji
+                config = {
+                    emoji: type === 'backpack' ? '🎒' : '🌿',
+                    ...specialAnimations[type]
+                };
+            } else if (this.BILLBOARD_ITEMS[type]) {
+                // World items from centralized registry
+                config = {
+                    emoji: this.BILLBOARD_ITEMS[type].emoji,
+                    float: true,
+                    rotate: false,
+                    floatSpeed: 1.0,
+                    floatAmount: 0.05
+                };
+            }
+
             if (!config) return null;
 
             // Try to use enhanced graphics first, fall back to emoji
@@ -6261,6 +6301,24 @@ class NebulaVoxelApp {
             pumpkin: { color: 0xFF8C00, texture: 'pumpkin' },    // 🎃 Orange pumpkin (Halloween!)
             backpack: { color: 0x8B4513, texture: 'transparent' }, // Transparent for billboard
             water: { color: 0x1E90FF, texture: 'water', transparent: true }, // 🌊 Blue water with transparency
+
+            // 🏛️ Billboard treasure items (invisible cubes for collision/interaction)
+            skull: { color: 0xFFFFFF, texture: 'transparent' },
+            mushroom: { color: 0xFF6347, texture: 'transparent' },
+            flower: { color: 0xFF69B4, texture: 'transparent' },
+            berry: { color: 0xFF1493, texture: 'transparent' },
+            leaf: { color: 0x90EE90, texture: 'transparent' },
+            crystal: { color: 0x87CEEB, texture: 'transparent' },
+            oreNugget: { color: 0x708090, texture: 'transparent' },
+            wheat: { color: 0xF0E68C, texture: 'transparent' },
+            feather: { color: 0xFFFFFF, texture: 'transparent' },
+            bone: { color: 0xFFFFF0, texture: 'transparent' },
+            shell: { color: 0xFFE4B5, texture: 'transparent' },
+            fur: { color: 0x8B7355, texture: 'transparent' },
+            iceShard: { color: 0xE0FFFF, texture: 'transparent' },
+            rustySword: { color: 0xB87333, texture: 'transparent' },
+            oldPickaxe: { color: 0x696969, texture: 'transparent' },
+            ancientAmulet: { color: 0xFFD700, texture: 'transparent' },
 
             // NEW: Biome-specific wood types
             oak_wood: { color: 0x8B4513, texture: 'oak_wood' },      // Classic brown oak

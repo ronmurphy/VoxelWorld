@@ -1,59 +1,26 @@
 /**
- * StructureGen        // Current available blocks (more can be added when textures available)
-        this.BLOCK_PALETTE = {
-            wall: 'stone',
-            floor: 'dirt',
-            rubble: 'dirt',
-            treasure: 'skull' // Billboard treasure item
-        };
-        
-        // Billboard treasure items (all world items from spawnRandomWorldItems)
-        this.TREASURE_ITEMS = [
-            // Desert items
-            'skull',           // 💀
-            
-            // Forest items
-            'mushroom',        // 🍄
-            'flower',          // 🌸
-            'berry',           // 🍓
-            'leaf',            // 🍃
-            
-            // Mountain items
-            'crystal',         // 💎
-            'oreNugget',       // ⛰️
-            
-            // Plains items
-            'wheat',           // 🌾
-            'feather',         // 🪶
-            'bone',            // 🦴
-            
-            // Tundra items
-            'shell',           // 🐚
-            'fur',             // 🐻‍❄️
-            'iceShard',        // ❄️
-            
-            // Rare equipment (very exciting finds!)
-            'rustySword',      // ⚔️
-            'oldPickaxe',      // ⛏️
-            'ancientAmulet'    // 📿
-        ];ral ruins and structure generation
+ * StructureGenerator - Procedural ruins and structure generation
  * Generates small/medium/large/colossal ruins with hollow interiors
  * Minimal integration with BiomeWorldGen, no cache/worker modifications
  */
 export class StructureGenerator {
-    constructor(seed = 12345) {
+    constructor(seed = 12345, billboardItems = {}) {
         this.seed = seed;
-        this.STRUCTURE_FREQUENCY = 0.008; // Tuned for exciting finds, not littered
+        this.STRUCTURE_FREQUENCY = 0.02; // Increased from 0.008 (0.8%) to 0.02 (2%) - more common!
         this.MIN_STRUCTURE_DISTANCE = 80; // Minimum blocks between structures
-        
-        // Structure size definitions
+
+        // 🚀 PERFORMANCE: Cache structure check results to prevent duplicate calculations
+        this.structureCache = new Map(); // Map<"chunkX,chunkZ", structureData|null>
+
+        // Structure size definitions - weighted by rarity
+        // Small ruins are very common (70%), larger ones progressively rarer
         this.SIZES = {
-            small: { width: 5, height: 5, depth: 5, weight: 0.5 },
-            medium: { width: 9, height: 7, depth: 9, weight: 0.3 },
-            large: { width: 15, height: 10, depth: 15, weight: 0.15 },
-            colossal: { width: 25, height: 15, depth: 25, weight: 0.05 }
+            small: { width: 5, height: 5, depth: 5, weight: 0.70 },      // 70% of ruins
+            medium: { width: 9, height: 7, depth: 9, weight: 0.20 },     // 20% of ruins
+            large: { width: 15, height: 10, depth: 15, weight: 0.08 },   // 8% of ruins
+            colossal: { width: 25, height: 15, depth: 25, weight: 0.02 } // 2% of ruins (very rare!)
         };
-        
+
         // Current available blocks (more can be added when textures available)
         this.BLOCK_PALETTE = {
             wall: 'stone',
@@ -61,15 +28,12 @@ export class StructureGenerator {
             rubble: 'dirt',
             treasure: 'skull' // Billboard treasure item
         };
-        
-        // Billboard treasure items (world items that can spawn in ruins)
-        this.TREASURE_ITEMS = [
-            'skull',       // 💀 Desert item
-            'mushroom',    // 🍄 Forest item
-            'flower',      // � Forest item
-            'berry',       // � Forest item
-            'leaf'         // � Forest item (common)
-        ];
+
+        // Use centralized billboard items from VoxelWorld
+        // If not provided (fallback), use minimal set
+        this.TREASURE_ITEMS = Object.keys(billboardItems).length > 0
+            ? Object.keys(billboardItems)
+            : ['skull', 'mushroom', 'flower', 'berry', 'leaf'];
         
         // Biome-specific blocks (for future expansion)
         this.BIOME_BLOCKS = {
@@ -97,20 +61,22 @@ export class StructureGenerator {
             this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
         }
         
-        // Check nearby chunks for structures that might extend into this chunk
-        for (let dx = -2; dx <= 2; dx++) {
-            for (let dz = -2; dz <= 2; dz++) {
-                if (dx === 0 && dz === 0) continue;
-                
+        // 🚀 OPTIMIZED: Check nearby chunks for structures that might extend into this chunk
+        // Reduced from ±2 to ±1 (25 checks → 9 checks)
+        // Even colossal ruins (25 blocks) only need ±1 chunk overlap check
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+                if (dx === 0 && dz === 0) continue; // Skip center (already checked above)
+
                 const nearbyData = this.checkForStructure(chunkX + dx, chunkZ + dz);
                 if (nearbyData) {
                     const { worldX, worldZ, size, buried } = nearbyData;
                     const sizeData = this.SIZES[size];
-                    
+
                     // Check if structure extends into current chunk
                     const currentChunkWorldX = chunkX * 16;
                     const currentChunkWorldZ = chunkZ * 16;
-                    
+
                     if (Math.abs(worldX - currentChunkWorldX) < sizeData.width + 16 &&
                         Math.abs(worldZ - currentChunkWorldZ) < sizeData.depth + 16) {
                         this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
@@ -123,21 +89,29 @@ export class StructureGenerator {
     /**
      * Deterministic check if a chunk should have a structure
      * Uses seed-based noise for consistent placement across sessions
+     * 🚀 CACHED: Results are cached to prevent duplicate calculations
      */
     checkForStructure(chunkX, chunkZ) {
+        // 🚀 Check cache first
+        const cacheKey = `${chunkX},${chunkZ}`;
+        if (this.structureCache.has(cacheKey)) {
+            return this.structureCache.get(cacheKey);
+        }
+
         // Use noise-based generation for structure placement
         const noise = this.seededNoise(chunkX, chunkZ);
-        
+
         // Only generate if noise exceeds threshold
         if (noise < 1.0 - this.STRUCTURE_FREQUENCY) {
+            this.structureCache.set(cacheKey, null); // Cache negative result
             return null;
         }
-        
+
         // Determine structure size based on noise value
         const sizeNoise = this.seededNoise(chunkX * 2, chunkZ * 2);
         let size = 'small';
         let cumulative = 0;
-        
+
         for (const [sizeName, data] of Object.entries(this.SIZES)) {
             cumulative += data.weight;
             if (sizeNoise < cumulative) {
@@ -145,21 +119,25 @@ export class StructureGenerator {
                 break;
             }
         }
-        
+
         // Determine if structure should be buried (25% chance)
         const burialNoise = this.seededNoise(chunkX * 3, chunkZ * 3);
         const buried = burialNoise > 0.75;
-        
+
         // Calculate world position (center of chunk with some variation)
         const offsetX = Math.floor(this.seededNoise(chunkX * 4, chunkZ * 4) * 16);
         const offsetZ = Math.floor(this.seededNoise(chunkX * 5, chunkZ * 5) * 16);
-        
-        return {
+
+        const structureData = {
             worldX: chunkX * 16 + offsetX,
             worldZ: chunkZ * 16 + offsetZ,
             size,
             buried
         };
+
+        // 🚀 Cache positive result
+        this.structureCache.set(cacheKey, structureData);
+        return structureData;
     }
     
     /**
@@ -177,13 +155,26 @@ export class StructureGenerator {
             groundHeight = Math.floor(playerY);
             console.log(`🔧 Debug mode: Using player Y (${groundHeight}) for structure placement`);
         } else {
-            // Normal mode - detect ground height
+            // Normal mode - detect ground height with multi-point sampling for reliability
             groundHeight = getHeightFn(worldX, worldZ);
-            
-            // Safety check: if ground detection failed or returned weird value, use safe default
+
+            // If center fails, try sampling nearby points (more reliable during chunk gen)
             if (groundHeight === null || groundHeight === undefined || groundHeight < 0 || groundHeight > 64) {
-                console.warn(`⚠️ Invalid ground height (${groundHeight}) at (${worldX}, ${worldZ}), using default y=5`);
-                groundHeight = 5; // Safe default above bedrock
+                const offsets = [[0, 2], [2, 0], [0, -2], [-2, 0]]; // Sample 4 cardinal directions
+                for (const [dx, dz] of offsets) {
+                    const sampledHeight = getHeightFn(worldX + dx, worldZ + dz);
+                    if (sampledHeight !== null && sampledHeight >= 0 && sampledHeight <= 64) {
+                        groundHeight = sampledHeight;
+                        console.log(`🔍 Used nearby sample for ground height: ${groundHeight}`);
+                        break;
+                    }
+                }
+            }
+
+            // Final safety check: if all sampling failed, use safe default
+            if (groundHeight === null || groundHeight === undefined || groundHeight < 0 || groundHeight > 64) {
+                console.warn(`⚠️ All ground detection failed at (${worldX}, ${worldZ}), using fallback y=8`);
+                groundHeight = 8; // Safe default above most terrain
             }
         }
         
@@ -196,7 +187,8 @@ export class StructureGenerator {
         } else {
             // Not buried - place 1-2 blocks lower than ground for better integration
             // This makes ruins look like they're partially sunken/settled into terrain
-            const settlementDepth = Math.floor(Math.random() * 2) + 1; // 1-2 blocks
+            // Use seeded random for deterministic placement (not Math.random())
+            const settlementDepth = Math.floor(this.seededNoise(worldX * 7, worldZ * 11) * 2) + 1; // 1-2 blocks
             baseY = Math.max(1, groundHeight - settlementDepth);
         }
         

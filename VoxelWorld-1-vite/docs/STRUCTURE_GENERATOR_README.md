@@ -90,7 +90,7 @@ this.structureGenerator.generateStructuresForChunk(
 - Medium: 2 treasures
 - Large: 3 treasures
 - Colossal: 4 treasures
-- Alternates `explore_item` and `dead_tree`
+- Generates a `explore_item` -- however incorrectly. 
 
 ## Testing Checklist
 - [ ] Structures spawn at expected frequency
@@ -108,6 +108,7 @@ this.structureGenerator.generateStructuresForChunk(
 ```javascript
 // In BIOME_BLOCKS
 desert: ['sandstone', 'sand', 'stone', 'dirt']
+-- we have the block texture for this -- Brad
 ```
 
 ### Add Mossy Blocks

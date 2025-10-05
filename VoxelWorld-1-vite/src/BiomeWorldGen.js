@@ -31,7 +31,7 @@ export class BiomeWorldGen {
         this.MIN_TREE_DISTANCE = 3; // Minimum blocks between trees
 
         // 🏛️ STRUCTURE GENERATOR - Ruins and structures
-        this.structureGenerator = new StructureGenerator(this.worldSeed);
+        this.structureGenerator = new StructureGenerator(this.worldSeed, voxelWorld.BILLBOARD_ITEMS);
 
         this.initializeBiomes();
         this.initializeNoiseGenerators();
