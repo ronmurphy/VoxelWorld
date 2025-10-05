@@ -7201,16 +7201,16 @@ class NebulaVoxelApp {
                         
                         // 🌍 Find ACTUAL surface (not bedrock, not underground)
                         let surfaceY = -10;
-                        for (let y = 15; y >= 1; y--) {  // Start from y=15, stop at y=1 (skip bedrock)
+                        for (let y = 64; y >= 1; y--) {  // Start from y=64 (mega mountains!), stop at y=1 (skip bedrock)
                             const block = this.getBlock(worldX, y, worldZ);
-                            if (block && block.type !== 'bedrock') { // Found surface block (not bedrock)
+                            if (block && block.type !== 'bedrock' && block.type !== 'air') { // Found surface block
                                 surfaceY = y + 1; // Place tree 1 block above surface
                                 break;
                             }
                         }
 
                         // Only place tree if we found a valid surface (not bedrock)
-                        if (surfaceY > 1 && surfaceY <= 16) {
+                        if (surfaceY > 1 && surfaceY <= 65) {
                             this.generateTreeForBiome(worldX, surfaceY, worldZ, biome);
                             treesPlaced++;
                         } else {
@@ -7714,8 +7714,8 @@ class NebulaVoxelApp {
                     const worldX = chunkX * this.chunkSize + x;
                     const worldZ = chunkZ * this.chunkSize + z;
                     
-                    // Scan for tree trunks (wood blocks)
-                    for (let y = 1; y <= 20; y++) {
+                    // Scan for tree trunks (wood blocks) - check full height range for mega mountains!
+                    for (let y = 1; y <= 65; y++) {
                         const block = this.getBlock(worldX, y, worldZ);
                         if (block && (block.type === 'oak_wood' || block.type === 'pine_wood' || 
                                      block.type === 'birch_wood' || block.type === 'palm_wood' || 
@@ -7760,8 +7760,8 @@ class NebulaVoxelApp {
                     const worldZ = chunkZ * this.chunkSize + z;
 
                     // 🌳 ENHANCED: Remove all blocks in full height range to handle trees and leaves
-                    // Trees can be up to 15+ blocks tall, so we need to clear full height range
-                    for (let y = -10; y <= 20; y++) { // Expanded range to handle tall trees and floating leaves
+                    // Mountains can be y=60, trees can be y=40+ with canopies even higher
+                    for (let y = -10; y <= 70; y++) { // Full range to handle mega mountains and tall trees
                         this.removeBlock(worldX, y, worldZ, false); // 🎯 false = don't give items for despawned blocks
                     }
                 }

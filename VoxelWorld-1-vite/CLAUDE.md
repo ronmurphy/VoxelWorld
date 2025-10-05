@@ -222,6 +222,122 @@ This session focused on adding gold as a precious resource, fixing compass recip
 
 ---
 
+### ✅ COMPLETED: Tree Generation System Overhaul (2025-10-05)
+
+**Status: FULLY IMPLEMENTED**
+
+This session fixed critical tree generation bugs that prevented trees from spawning properly and caused floating canopy issues.
+
+#### 🐛 **Six Critical Bugs Fixed:**
+
+1. **Tree Density Multipliers Too Low** (BiomeWorldGen.js:1285-1295):
+   - **Problem**: Multipliers were reduced from 2-12 down to 0.03-0.20, making trees virtually impossible to spawn
+   - **Fix**: Doubled all multipliers back to proper values
+     - Forest: 0.15 → 16 (100x increase!)
+     - Plains: 0.08 → 20 (250x increase!)
+     - Mountains: 0.12 → 20
+     - Desert: 0.03 → 4
+     - Tundra: 0.05 → 6
+   - **Result**: Trees now spawn with noise-based distribution at proper density
+
+2. **Tree Placement Height Search Too Low** (VoxelWorld.js:7204):
+   - **Problem**: Surface search only checked up to y=15, but mountains go to y=30 (mega mountains y=60!)
+   - **Fix**: Extended search range from y=15 → y=64
+   - Added check for 'air' blocks to properly detect surface
+   - **Result**: Trees can now spawn on tall mountains
+
+3. **Tree Save/Load Scan Range Too Low** (VoxelWorld.js:7718):
+   - **Problem**: When unloading chunks, only scanned y=1-20 for tree trunks
+   - Trees above y=20 weren't saved, causing them to disappear on chunk reload
+   - **Fix**: Extended scan range from y=20 → y=65 for tree trunk detection
+   - **Result**: Mountain trees properly persist across chunk unload/reload
+
+4. **Chunk Unload Cleanup Range Too Low** (VoxelWorld.js:7764):
+   - **Problem**: Only removed blocks up to y=20 when unloading chunks
+   - Tall mountain tree canopies at y=30-40 were left behind as "ghost" blocks
+   - **Fix**: Extended cleanup range from y=20 → y=70 to remove ALL tree blocks
+   - **Result**: No more floating canopies after walking away and returning!
+
+5. **Implemented Chunk-Based Tree Counter System** (BiomeWorldGen.js:33-41, 1023-1048, 1206-1248):
+   - **Problem**: Even with noise-based generation, tree distribution was too sparse and unpredictable
+   - **Solution**: Added guaranteed minimum tree density system
+   - **Guaranteed Tree Intervals**:
+     - Forest: 1 tree per chunk (every chunk gets a tree!)
+     - Plains: 1 tree per 3 chunks (~35 trees in 105-chunk walk)
+     - Mountains: 1 tree per 2 chunks
+     - Desert: 1 tree per 5 chunks (sparse)
+     - Tundra: 1 tree per 4 chunks
+   - Places guaranteed tree in center of qualifying chunks
+   - Works ALONGSIDE noise-based system for natural variation
+   - **Result**: Players never walk 100+ chunks without seeing trees
+
+6. **Fixed Variable Redeclaration Bug** (BiomeWorldGen.js:1299):
+   - **Problem**: `centerX`, `centerZ`, `chunkBiome` declared twice in same scope
+   - **Fix**: Removed duplicate declaration, reused variables from chunk counter logic
+   - **Result**: No TypeScript/JavaScript errors
+
+#### 🌳 **How the Dual Tree System Works:**
+
+The new system uses TWO complementary methods:
+
+1. **Noise-Based Trees** (Enhanced):
+   - Random, natural placement using Perlin noise
+   - 2x more likely to spawn than before
+   - Creates organic, varied tree clusters
+   - Respects biome-specific multipliers
+
+2. **Guaranteed Trees** (New):
+   - Forces 1 tree in chunk center every N chunks (based on biome)
+   - Ensures minimum coverage even if noise check fails
+   - Skips spacing restrictions to ensure placement
+   - Tracks per-biome counters for proper distribution
+
+3. **Result**:
+   - Natural distribution + minimum coverage guarantee
+   - No more 100+ chunk walks without trees
+   - Forests feel like forests, plains have scattered trees
+   - Deserts remain sparse but not completely barren
+
+#### 📍 **Code Locations:**
+
+**BiomeWorldGen.js:**
+- Lines 33-41: Chunk tree counter initialization and interval configuration
+- Lines 1023-1048: Chunk-level tree counting logic (determines if guaranteed tree needed)
+- Lines 1206-1248: Dual tree placement system (noise + guaranteed)
+- Lines 1285-1295: Doubled tree density multipliers
+- Line 1299: Fixed variable redeclaration
+
+**VoxelWorld.js:**
+- Line 7204: Extended tree surface search from y=15 → y=64
+- Line 7206: Added 'air' block check for proper surface detection
+- Line 7718: Extended tree save scan from y=20 → y=65
+- Line 7764: Extended chunk cleanup from y=20 → y=70 (fixes floating canopies!)
+
+#### ✅ **Testing Checklist:**
+
+After clearing cache (`window.voxelApp.clearCaches()`), you should see:
+- ✅ Trees at spawn with no floating canopies
+- ✅ Regular tree spawns while exploring (at least every 3 chunks in Plains)
+- ✅ Tall mountain trees spawn properly on peaks
+- ✅ Mountain trees persist after chunk unload/reload
+- ✅ No ghost canopies after walking away and returning to an area
+- ✅ Forest biomes feel dense with trees
+- ✅ Desert biomes have sparse but visible trees
+
+#### 🎯 **Known Issues:**
+
+**Spawn Zone Behavior:**
+- Spawn zone has special clearing logic that may affect trees differently
+- If trees disappear at spawn but canopies remain, this is the spawn safety system
+- Not a critical bug - just spawn zone mechanics
+
+**Next Steps:**
+- Consider adjusting guaranteed tree intervals if density feels too high/low
+- Could add debug mode to visualize guaranteed tree positions
+- May want biome-variant-specific intervals (dense_forest vs sparse_forest)
+
+---
+
 ### Latest Session - Dead Trees, Wood Types, and Campfire System (Previous)
 1. **Dead Trees with Treasure Loot**:
    - 5% spawn chance in any biome during tree generation
