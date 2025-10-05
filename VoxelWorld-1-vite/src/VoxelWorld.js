@@ -62,6 +62,7 @@ class NebulaVoxelApp {
         this.waterPositions = []; // 🌊 Track water block locations for minimap
         this.pumpkinPositions = []; // 🎃 Track pumpkin locations for compass
         this.worldItemPositions = []; // 🔍 Track world item locations (collectibles) for compass
+        this.ruinPositions = []; // 🏛️ Track ruin locations for minimap (center position)
         this.exploredChunks = new Set(); // Track all visited chunks for world map
         this.worldMapModal = null; // Full-screen world map modal
 
@@ -8225,6 +8226,37 @@ class NebulaVoxelApp {
                     ctx.beginPath();
                     ctx.arc(treeMapX, treeMapZ, 2, 0, Math.PI * 2);
                     ctx.fill();
+                }
+            });
+
+            // 🏛️ Draw ruins positions (gray/brown squares) - ON TOP of terrain
+            this.ruinPositions.forEach(ruin => {
+                const relX = ruin.x - this.player.position.x;
+                const relZ = ruin.z - this.player.position.z;
+
+                // Convert to minimap coordinates
+                const ruinMapX = size/2 + relX / scale;
+                const ruinMapZ = size/2 + relZ / scale;
+
+                // Only draw if within minimap bounds
+                if (ruinMapX >= 0 && ruinMapX < size && ruinMapZ >= 0 && ruinMapZ < size) {
+                    // Size-based colors: small=gray, medium=dark gray, large=brown, colossal=dark brown
+                    if (ruin.size === 'small') {
+                        ctx.fillStyle = '#808080'; // Gray
+                        ctx.fillRect(ruinMapX - 1, ruinMapZ - 1, 2, 2); // 2x2 square
+                    } else if (ruin.size === 'medium') {
+                        ctx.fillStyle = '#606060'; // Dark gray
+                        ctx.fillRect(ruinMapX - 1.5, ruinMapZ - 1.5, 3, 3); // 3x3 square
+                    } else if (ruin.size === 'large') {
+                        ctx.fillStyle = '#8B4513'; // Saddle brown
+                        ctx.fillRect(ruinMapX - 2, ruinMapZ - 2, 4, 4); // 4x4 square
+                    } else if (ruin.size === 'colossal') {
+                        ctx.fillStyle = '#654321'; // Dark brown (rare!)
+                        ctx.fillRect(ruinMapX - 2.5, ruinMapZ - 2.5, 5, 5); // 5x5 square
+                        // Add glow effect for colossal ruins
+                        ctx.fillStyle = 'rgba(101, 67, 33, 0.3)';
+                        ctx.fillRect(ruinMapX - 3.5, ruinMapZ - 3.5, 7, 7);
+                    }
                 }
             });
 

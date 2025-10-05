@@ -31,7 +31,7 @@ export class BiomeWorldGen {
         this.MIN_TREE_DISTANCE = 3; // Minimum blocks between trees
 
         // 🏛️ STRUCTURE GENERATOR - Ruins and structures
-        this.structureGenerator = new StructureGenerator(this.worldSeed, voxelWorld.BILLBOARD_ITEMS);
+        this.structureGenerator = new StructureGenerator(this.worldSeed, voxelWorld.BILLBOARD_ITEMS, voxelWorld);
 
         this.initializeBiomes();
         this.initializeNoiseGenerators();
@@ -1261,14 +1261,19 @@ export class BiomeWorldGen {
         const centerX = Math.floor(chunkX * chunkSize + chunkSize / 2);
         const centerZ = Math.floor(chunkZ * chunkSize + chunkSize / 2);
         const chunkBiome = this.getBiomeAt(centerX, centerZ, worldSeed);
-        
-        this.structureGenerator.generateStructuresForChunk(
-            chunkX,
-            chunkZ,
-            addBlockFn,
-            (x, z) => this.findGroundHeight(x, z),
-            chunkBiome.name // Pass biome for future biome-specific ruins
-        );
+
+        // 🏛️ Generate structures (ruins) for this chunk
+        if (this.structureGenerator) {
+            this.structureGenerator.generateStructuresForChunk(
+                chunkX,
+                chunkZ,
+                addBlockFn,
+                (x, z) => this.findGroundHeight(x, z),
+                chunkBiome.name // Pass biome for future biome-specific ruins
+            );
+        } else {
+            console.error('⚠️ StructureGenerator not initialized!');
+        }
 
         loadedChunks.add(chunkKey);
         // console.log(`✅ CHUNK (${chunkX}, ${chunkZ}) - COMPLETED`); // Removed for performance

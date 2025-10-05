@@ -4,9 +4,10 @@
  * Minimal integration with BiomeWorldGen, no cache/worker modifications
  */
 export class StructureGenerator {
-    constructor(seed = 12345, billboardItems = {}) {
+    constructor(seed = 12345, billboardItems = {}, voxelWorld = null) {
         this.seed = seed;
-        this.STRUCTURE_FREQUENCY = 0.02; // Increased from 0.008 (0.8%) to 0.02 (2%) - more common!
+        this.voxelWorld = voxelWorld; // Reference to VoxelWorld for minimap tracking
+        this.STRUCTURE_FREQUENCY = 0.08; // 8% of chunks - common enough to find while exploring
         this.MIN_STRUCTURE_DISTANCE = 80; // Minimum blocks between structures
 
         // 🚀 PERFORMANCE: Cache structure check results to prevent duplicate calculations
@@ -55,7 +56,7 @@ export class StructureGenerator {
     generateStructuresForChunk(chunkX, chunkZ, addBlockFn, getHeightFn, biome = 'default') {
         // Check if this chunk should have a structure origin point
         const structureData = this.checkForStructure(chunkX, chunkZ);
-        
+
         if (structureData) {
             const { worldX, worldZ, size, buried } = structureData;
             this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
@@ -100,9 +101,10 @@ export class StructureGenerator {
 
         // Use noise-based generation for structure placement
         const noise = this.seededNoise(chunkX, chunkZ);
+        const threshold = 1.0 - this.STRUCTURE_FREQUENCY;
 
         // Only generate if noise exceeds threshold
-        if (noise < 1.0 - this.STRUCTURE_FREQUENCY) {
+        if (noise < threshold) {
             this.structureCache.set(cacheKey, null); // Cache negative result
             return null;
         }
@@ -137,6 +139,20 @@ export class StructureGenerator {
 
         // 🚀 Cache positive result
         this.structureCache.set(cacheKey, structureData);
+
+        // 🏛️ LOG: Ruin generation for debugging
+        console.log(`🏛️ Ruin spawned! Size: ${size}, Position: (${structureData.worldX}, ${structureData.worldZ}), Buried: ${buried}, Chunk: (${chunkX}, ${chunkZ})`);
+
+        // 🗺️ Track ruin position for minimap
+        if (this.voxelWorld && this.voxelWorld.ruinPositions) {
+            this.voxelWorld.ruinPositions.push({
+                x: structureData.worldX,
+                z: structureData.worldZ,
+                size: size,
+                buried: buried
+            });
+        }
+
         return structureData;
     }
     
