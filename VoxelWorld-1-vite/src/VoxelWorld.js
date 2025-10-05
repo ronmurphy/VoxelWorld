@@ -6291,6 +6291,7 @@ class NebulaVoxelApp {
             coal: { color: 0x2F2F2F, texture: 'coal' },      // Dark gray/black coal texture
             wood: { color: 0x8B4513, texture: 'wood' },      // Saddle brown with wood grain (legacy)
             sand: { color: 0xF4A460, texture: 'sand' },      // Sandy brown with grain texture
+            sandstone: { color: 0xE3BC9A, texture: 'sandstone' }, // Desert tan sandstone
             glass: { color: 0x87CEEB, texture: 'glass' },    // Sky blue, translucent
             brick: { color: 0xB22222, texture: 'brick' },    // Fire brick with mortar lines
             glowstone: { color: 0xFFD700, texture: 'glow' }, // Gold with glowing effect
@@ -6386,6 +6387,20 @@ class NebulaVoxelApp {
                 ctx.fillStyle = '#D2B48C';
                 for (let i = 0; i < 30; i++) {
                     ctx.fillRect(Math.random() * 64, Math.random() * 64, 1, 1);
+                }
+            } else if (blockType.texture === 'sandstone') {
+                // Sandstone texture - layered sedimentary look
+                ctx.fillStyle = '#C4A676'; // Darker tan for layers
+                // Horizontal sediment layers
+                for (let y = 0; y < 64; y += 8) {
+                    const offset = Math.floor(Math.random() * 4);
+                    ctx.fillRect(0, y + offset, 64, 1);
+                    ctx.fillRect(0, y + offset + 2, 64, 1);
+                }
+                // Add some texture noise
+                ctx.fillStyle = '#D4B686';
+                for (let i = 0; i < 20; i++) {
+                    ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 1);
                 }
             } else if (blockType.texture === 'glass') {
                 // Glass texture - light streaks
@@ -9284,12 +9299,7 @@ class NebulaVoxelApp {
             line-height: 32px;
             position: relative;
         `;
-        // Use enhanced graphics icon or emoji fallback
-        const toolBenchIcon = this.getItemIcon('tool_bench', 'hotbar');
-        this.toolBenchButton.textContent = toolBenchIcon;
-        this.toolBenchButton.title = 'Open tool bench crafting (T key)';
-
-        // Add hotkey label
+        // Add hotkey label first (before setting icon)
         const toolBenchLabel = document.createElement('div');
         toolBenchLabel.textContent = 'T';
         toolBenchLabel.style.cssText = `
@@ -9305,6 +9315,19 @@ class NebulaVoxelApp {
         `;
         this.toolBenchButton.appendChild(toolBenchLabel);
         this.toolBenchHotkeyLabel = toolBenchLabel; // Store reference for day/night updates
+
+        // Use enhanced graphics icon or emoji fallback (set after label so label stays on top)
+        const toolBenchIcon = this.getItemIcon('tool_bench', 'hotbar');
+        // Use innerHTML for img tags, textContent for emojis
+        if (toolBenchIcon.includes('<img')) {
+            // For img tags, prepend before the label
+            this.toolBenchButton.insertAdjacentHTML('afterbegin', toolBenchIcon);
+        } else {
+            this.toolBenchButton.textContent = toolBenchIcon;
+            // Re-append label since textContent cleared it
+            this.toolBenchButton.appendChild(toolBenchLabel);
+        }
+        this.toolBenchButton.title = 'Open tool bench crafting (T key)';
 
         this.toolBenchButton.addEventListener('click', () => {
             // Open tool bench if unlocked

@@ -28,7 +28,7 @@ export class BiomeWorldGen {
 
         // 🌲 TREE SPACING SYSTEM - Track tree positions to prevent chunks
         this.treePositions = new Set(); // Store "x,z" keys for quick lookup
-        this.MIN_TREE_DISTANCE = 3; // Minimum blocks between trees
+        this.MIN_TREE_DISTANCE = 2; // Minimum blocks between trees (2 = 5x5 check prevents clumping)
 
         // 🏛️ STRUCTURE GENERATOR - Ruins and structures
         this.structureGenerator = new StructureGenerator(this.worldSeed, voxelWorld.BILLBOARD_ITEMS, voxelWorld);
@@ -65,7 +65,7 @@ export class BiomeWorldGen {
                 minHeight: 3,  // 🏜️ STEP 2.1: Bigger dunes
                 maxHeight: 8,  // 🏜️ Dramatic sand dunes
                 surfaceBlock: 'sand',
-                subBlock: 'sand',
+                subBlock: 'sandstone', // 🏛️ Sandstone underground (for ruins!)
                 mapColor: '#DEB887',
                 heightColorRange: { min: 0.7, max: 1.1 },
                 shrubChance: 0.03,
@@ -1164,28 +1164,22 @@ export class BiomeWorldGen {
                     }
                 }
 
-                // �🌳 FIXED: Tree generation with accurate ground detection and spacing
+                // 🌳 FIXED: Tree generation with accurate ground detection and spacing
                 if (!hasSnow && this.shouldGenerateTree(worldX, worldZ, biome, this.worldSeed)) {
+                    console.log(`🌳 shouldGenerateTree returned TRUE at (${worldX}, ${worldZ}) in ${biome.name}`);
+
                     // 🌲 TREE SPACING SYSTEM - Prevent massive tree chunks
                     if (this.hasNearbyTree(worldX, worldZ)) {
                         // Skip this tree if too close to another
+                        console.log(`⛔ Blocked by nearby tree at (${worldX}, ${worldZ})`);
                         continue;
                     }
 
-                    // 🌱 SMART GROUND DETECTION - Use ground scan or terrain height
-                    let actualGroundHeight = this.findGroundHeight(worldX, worldZ);
-                    if (actualGroundHeight === null) {
-                        // No surface found or invalid surface, use calculated terrain height
-                        actualGroundHeight = height + 1;
-                        if (this.DEBUG_MODE) {
-                            console.log(`🌱 Using calculated terrain height at (${worldX}, ${worldZ}): ${actualGroundHeight}`);
-                        }
-                    } else {
-                        if (this.DEBUG_MODE) {
-                            console.log(`🌱 Using detected ground height at (${worldX}, ${worldZ}): ${actualGroundHeight}`);
-                        }
-                    }
+                    // 🌱 FIXED: Use finalHeight (actual placed terrain) instead of height (calculated value)
+                    // Trees must spawn on top of the terrain we just placed at finalHeight
+                    const actualGroundHeight = finalHeight + 1;
 
+                    console.log(`✅ PLACING TREE at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}`);
                     this.STATS.treesPlaced++;
 
                     // 🌳 ACTUALLY GENERATE THE TREE based on biome type
@@ -1292,20 +1286,23 @@ export class BiomeWorldGen {
         }
 
         // 🌲 BIOME-SPECIFIC TREE DENSITY SYSTEM
+        // REWORKED: Use VERY small multipliers to account for spacing filter
+        // Formula: treeNoise > (1 - baseChance * multiplier * clusterModifier)
+        // After noise check, MIN_TREE_DISTANCE filter blocks 3×3 grid per tree
         const biomeDensityMultipliers = {
-            'Forest': 8,            // Moderate tree density (scaled back from 15)
-            'dense_forest': 12,     // Dense but not overwhelming
-            'sparse_forest': 6,     // Light forest areas
-            'Plains': 10,           // Scattered but visible trees (increased from 6)
-            'Mountain': 10,         // Moderate density
-            'mountain_forest': 12,  // Forested mountains
-            'Desert': 2,            // Very rare
-            'oasis': 8,             // More trees in oasis
-            'Tundra': 3             // Sparse, hardy trees
+            'Forest': 0.15,         // Forests: ~5% base, spacing will thin to ~1-2 trees/chunk
+            'dense_forest': 0.20,   // Dense variant
+            'sparse_forest': 0.10,  // Sparse variant
+            'Plains': 0.08,         // Plains: ~2.5% base, spacing thins to ~1 tree/3 chunks
+            'Mountain': 0.12,       // Mountains: moderate
+            'mountain_forest': 0.18,// Forested mountains
+            'Desert': 0.03,         // Desert: very rare, ~1% base
+            'oasis': 0.15,          // Oasis: same as forest
+            'Tundra': 0.05          // Tundra: sparse, ~1.6% base
         };
 
         // Check for transition biomes (e.g., "Mountain-Plains Transition")
-        let multiplier = 4; // Default multiplier
+        let multiplier = 0.5; // Default multiplier for unknown biomes (was 4, way too high)
         for (const [biomeName, mult] of Object.entries(biomeDensityMultipliers)) {
             if (biome.name.includes(biomeName)) {
                 multiplier = mult;
@@ -1313,12 +1310,13 @@ export class BiomeWorldGen {
             }
         }
 
-        if (this.DEBUG_MODE && Math.random() < 0.001) {
-            console.log(`🌳 Checking tree at (${worldX}, ${worldZ}) in ${biome.name}, multiplier: ${multiplier}`);
-        }
-
         const treeNoise = this.multiOctaveNoise(worldX + 4000, worldZ + 4000, this.noiseParams.microDetail, worldSeed + 4000);
         const baseChance = (biome.treeDistribution.min + biome.treeDistribution.max) / 2;
+
+        // DEBUG: Log first few tree checks
+        if (this.STATS.chunksGenerated <= 5 && Math.random() < 0.01) {
+            console.log(`🌳 Tree check at (${worldX}, ${worldZ}): biome=${biome.name}, mult=${multiplier}, baseChance=${baseChance.toFixed(3)}, noise=${treeNoise.toFixed(3)}`);
+        }
 
         // Add clustering for forest biomes
         if (biome.treeDistribution.clusters) {
@@ -1344,7 +1342,7 @@ export class BiomeWorldGen {
     // 🌱 GROUND HEIGHT DETECTION - Find actual surface for tree placement
     findGroundHeight(worldX, worldZ) {
         // Scan from high to low to find the true ground surface
-        const searchRange = { min: -5, max: 15 }; // Reduced range for better surface detection
+        const searchRange = { min: -5, max: 35 }; // Extended to handle tall mountains (max Y=30)
 
         for (let y = searchRange.max; y >= searchRange.min; y--) {
             const blockAt = this.voxelWorld.getBlock(worldX, y, worldZ);

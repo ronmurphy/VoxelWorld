@@ -7,7 +7,7 @@ export class StructureGenerator {
     constructor(seed = 12345, billboardItems = {}, voxelWorld = null) {
         this.seed = seed;
         this.voxelWorld = voxelWorld; // Reference to VoxelWorld for minimap tracking
-        this.STRUCTURE_FREQUENCY = 0.08; // 8% of chunks - common enough to find while exploring
+        this.STRUCTURE_FREQUENCY = 0.15; // 15% of chunks - more common for exploration (was 8%)
         this.MIN_STRUCTURE_DISTANCE = 80; // Minimum blocks between structures
 
         // 🚀 PERFORMANCE: Cache structure check results to prevent duplicate calculations
@@ -36,11 +36,13 @@ export class StructureGenerator {
             ? Object.keys(billboardItems)
             : ['skull', 'mushroom', 'flower', 'berry', 'leaf'];
         
-        // Biome-specific blocks (for future expansion)
+        // Biome-specific blocks for ruins
         this.BIOME_BLOCKS = {
-            desert: ['sand', 'dirt', 'stone'], // sandstone when available
-            mountain: ['stone', 'stone', 'dirt'],
-            tundra: ['stone', 'dirt', 'snow'],
+            Desert: ['sandstone', 'sand', 'dirt'],  // 🏜️ Desert ruins use sandstone!
+            Mountain: ['stone', 'stone', 'dirt'],
+            Tundra: ['stone', 'dirt', 'snow'],
+            Forest: ['stone', 'dirt', 'oak_wood'],
+            Plains: ['stone', 'dirt', 'grass'],
             default: ['stone', 'dirt', 'grass']
         };
     }
@@ -59,6 +61,7 @@ export class StructureGenerator {
 
         if (structureData) {
             const { worldX, worldZ, size, buried } = structureData;
+            console.log(`🏛️ RUIN SPAWNING at chunk (${chunkX}, ${chunkZ}) world (${worldX}, ${worldZ}) size: ${size}, buried: ${buried}`);
             this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
         }
         
@@ -280,7 +283,7 @@ export class StructureGenerator {
     /**
      * Check if position is a doorway (2x2 opening)
      */
-    isDoorway(x, y, z, width, height, depth) {
+    isDoorway(x, y, z, width, _height, depth) {
         const halfWidth = Math.floor(width / 2);
         const halfDepth = Math.floor(depth / 2);
         
@@ -314,7 +317,7 @@ export class StructureGenerator {
     /**
      * Add interior details - random billboard treasure items
      */
-    addInteriorDetails(worldX, worldZ, baseY, width, height, depth, addBlockFn) {
+    addInteriorDetails(worldX, worldZ, baseY, width, _height, depth, addBlockFn) {
         // Small structures: 1 treasure, Medium: 1-2, Large: 2-3, Colossal: 3-5
         const treasureCount = width < 7 ? 1 : width < 12 ? 2 : width < 20 ? 3 : 4;
         

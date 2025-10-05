@@ -39,9 +39,11 @@ export class EnhancedGraphics {
             time: []
         };
 
-        // Texture aliases - map block types to texture names
-        // No aliases needed - files are named exactly as block types (oak_wood, pine_wood, etc.)
-        this.textureAliases = {};
+        // Texture aliases - map item/block types to texture filenames
+        // Use when code uses different names than files (e.g., tool_bench → toolbench)
+        this.textureAliases = {
+            tool_bench: 'toolbench'  // Code uses tool_bench, file is toolbench.png
+        };
 
         // UI element size configurations
         this.uiSizes = {
@@ -198,7 +200,19 @@ export class EnhancedGraphics {
                     });
 
                     this.availableAssets[category] = Array.from(baseNames);
-                    console.log(`✅ ${category}: ${this.availableAssets[category].length} assets found`);
+
+                    // Apply texture aliases (add aliased names to available assets)
+                    const aliasedNames = [];
+                    baseNames.forEach(name => {
+                        if (this.textureAliases[name]) {
+                            const aliasName = this.textureAliases[name];
+                            aliasedNames.push(aliasName);
+                            console.log(`🔗 Adding alias: ${name} → ${aliasName}`);
+                        }
+                    });
+                    aliasedNames.forEach(alias => this.availableAssets[category].push(alias));
+
+                    console.log(`✅ ${category}: ${this.availableAssets[category].length} assets found (including ${aliasedNames.length} aliases)`);
                 } catch (error) {
                     console.warn(`Failed to list ${category} assets:`, error);
                     this.availableAssets[category] = [];
@@ -433,13 +447,21 @@ export class EnhancedGraphics {
     async _loadToolImages() {
         const promises = this.availableAssets.tools.map(async (toolType) => {
             try {
-                const imagePath = `${this.assetPaths.tools}/${toolType}.png`;
+                // Apply alias mapping: tool_bench → toolbench for file loading
+                const actualFilename = this.textureAliases[toolType] || toolType;
+                const imagePath = `${this.assetPaths.tools}/${actualFilename}.png`;
+
+                if (toolType !== actualFilename) {
+                    console.log(`🔗 Loading aliased tool: ${toolType} → ${actualFilename}`);
+                }
+
                 const image = await this._loadImage(imagePath);
-                // Store both the image and the relative path
+                // Store both the image and the relative path (using original toolType as key)
                 this.toolImages.set(toolType, {
                     image: image,
                     path: imagePath
                 });
+                console.log(`✅ Loaded tool: ${toolType} at ${imagePath}`);
                 return { toolType, success: true };
             } catch (error) {
                 console.warn(`⚠️ Failed to load tool image: ${toolType}`, error);
@@ -562,6 +584,7 @@ export class EnhancedGraphics {
             return defaultEmoji;
         }
 
+        // Try direct lookup first (no alias needed since we load both names)
         const imageData = this.toolImages.get(toolType);
         if (imageData && imageData.path) {
             // Return HTML img element with proper scaling using relative path
