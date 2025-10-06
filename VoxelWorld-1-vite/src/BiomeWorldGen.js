@@ -1474,7 +1474,8 @@ export class BiomeWorldGen {
     setWorldSeed(seed) {
         this.worldSeed = seed;
         this.chunkCache.clear(); // Clear cache when seed changes
-        this.treePositions.clear(); // Clear tree positions for new seed
+        this.treePositionsByChunk.clear(); // Clear tree positions for new seed
+        this.chunkTreeCounter.clear(); // Clear chunk tree counter for new seed
     }
 
     // 🧹 Cache Management

@@ -19,6 +19,12 @@ export class UIModals {
         // Remove existing modal if any
         this.closeActiveModal();
 
+        // 🔒 Disable VoxelWorld input controls while modal is open
+        if (this.voxelWorld) {
+            this.voxelWorld.controlsEnabled = false;
+            console.log('🔒 Disabled VoxelWorld input controls for character creation');
+        }
+
         const modal = document.createElement('div');
         modal.id = 'characterCreationModal';
         modal.className = 'voxel-modal-overlay';
@@ -181,6 +187,13 @@ export class UIModals {
 
         btnFinish.addEventListener('click', () => {
             this.closeActiveModal();
+
+            // ✅ Re-enable VoxelWorld input controls when modal closes
+            if (this.voxelWorld) {
+                this.voxelWorld.controlsEnabled = true;
+                console.log('✅ Re-enabled VoxelWorld input controls');
+            }
+
             if (onComplete) {
                 onComplete(charData);
             }

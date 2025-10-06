@@ -10344,7 +10344,18 @@ class NebulaVoxelApp {
                 await this.rpgIntegration.startCharacterCreation();
             }
 
-            const seedString = prompt("Enter a seed (leave empty for random):", "");
+            // 🧪 Skip seed prompt if DEBUG_SEED is active
+            const USE_DEBUG_SEED = true;
+            const DEBUG_SEED = 12345;
+
+            let seedString = "";
+            if (!USE_DEBUG_SEED) {
+                seedString = prompt("Enter a seed (leave empty for random):", "");
+            } else {
+                seedString = DEBUG_SEED.toString();
+                console.log('🧪 DEBUG_SEED active - skipping seed prompt, using:', DEBUG_SEED);
+            }
+
             this.newGame(seedString);
         };
 
