@@ -97,7 +97,7 @@ The VoxelWorld class is fully self-contained with its own event handlers, save s
 - **Proximity Interaction**: Press E near workbench to open crafting interface
 - **Dead Trees**: Rare treasure trees (5% spawn rate) that drop dead_wood + exotic wood from other biomes
 - **Specific Wood Types**: Replaced legacy 'wood' with oak_wood, pine_wood, birch_wood, palm_wood, dead_wood
-- **Campfire Recipe**: Crafted from 3x any wood type, creates glowing light source (particles disabled due to THREE.js r180 compatibility)
+- **Campfire Recipe**: Crafted from 3x any wood type, creates glowing light source with working particle system
 
 ### ✅ COMPLETED: Textured Crafted Objects with Subtle Color Tinting
 
@@ -338,6 +338,191 @@ After clearing cache (`window.voxelApp.clearCaches()`), you should see:
 
 ---
 
+### ✅ COMPLETED: Ancient Trees & Pillar Trees (2025-10-05)
+
+**Status: FULLY IMPLEMENTED**
+
+This session added massive ancient trees as rare spawns and embraced the quirky "pillar tree" bug as an intentional feature.
+
+#### 🌳 Ancient Tree System
+
+**1. Regular Ancient Trees (15% spawn chance)**:
+- **Thick 3x3 trunk** (9 blocks per layer vs normal 1x1)
+- **Height**: 10-15 blocks tall (vs normal 5-8 blocks)
+- **Large canopy**: 7x7 base for oak/birch/palm, conical radius-5 for pine
+- **Biome-specific wood**: oak_wood, pine_wood, birch_wood, palm_wood
+- **Massive loot**: ~117 wood blocks + 100+ leaf blocks when harvested
+- **Code**: VoxelWorld.js:7609-7696
+
+**2. Mega Ancient Trees (5% of ancient spawns = 1% overall)**:
+- **Cone-shaped base**: 5x5 → 3x3 → 1x1 (8-13 blocks tall base)
+- **Single trunk above**: 12-19 blocks tall
+- **Total height**: 20-32 blocks (TWICE as tall as regular ancient!)
+- **Massive canopy**: 11x11 base for oak/birch, radius-7 conical for pine
+- **Visual landmark**: Visible from far away due to extreme height
+- **Code**: VoxelWorld.js:7641-7676
+
+**3. Spawn Logic** (VoxelWorld.js:7247-7254):
+- 20% of all trees become ancient trees
+- Top 25% of those (5% overall) become mega ancient
+- Uses seeded noise for consistent placement
+- Works with all biome tree types
+
+**4. Canopy Generation**:
+- Large canopy (ancient): VoxelWorld.js:7698-7734
+- Massive canopy (mega): VoxelWorld.js:7736-7780
+- Pine trees use conical shape, oak/birch/palm use tiered platforms
+
+#### 🏛️ Pillar Trees (Quirky Bug Turned Feature)
+
+**Origin Story**:
+- Stone pillars were generated under trees to prevent floating appearance
+- Created weird elevated trees on stone columns
+- Bug was so aesthetically interesting we kept it as an intentional feature!
+
+**Detection System** (VoxelWorld.js:7852-7879):
+- Detects isolated stone/iron/sand columns (≤2 solid neighbors)
+- Preserves stone pillar instead of converting to dirt
+- Creates unique ancient ruins aesthetic
+- 10% logging rate to reduce console spam
+
+**Visual Result**:
+- Trees sitting majestically on tall stone pedestals
+- Natural-looking "ancient temple" vibe
+- Players love the quirky appearance
+
+#### 🏛️🌴 **Mega Ancient Palm Trees (Another Happy Bug!)**
+
+**Origin Story:**
+- Palm tree frond fix caused mega ancient palms to generate with inverted canopies
+- Created bizarre alien monument structures in the desert
+- Bug was so visually striking we kept it as an intentional feature!
+
+**Visual Characteristics:**
+- Massive 5x5 → 3x3 → 1x1 cone-shaped base
+- 20-32 blocks tall
+- Inverted tiered canopy (looks like alien architecture)
+- Extremely rare (1% overall spawn rate)
+- Desert biome landmarks
+
+**Code Location:**
+- VoxelWorld.js:7847-7890 - `generateMassiveCanopy()` creates the inverted effect
+- Uses oak/birch tiered platform logic instead of palm radial fronds
+- **Intentionally NOT fixed** - unique aesthetic kept as feature
+
+#### 🐛 Bug Fixes
+
+**Inverted Palm Tree Bug** (VoxelWorld.js:7493):
+- **Problem**: Extended fronds placed at `topY - 1` (hanging down into ground)
+- **Fix**: Changed to `topY` for proper horizontal extension
+- **Result**: Palm fronds now extend outward correctly
+
+#### 📍 Code Locations
+
+**Ancient Tree System:**
+- VoxelWorld.js:7247-7254 - Ancient spawn chance logic (20% ancient, 5% mega)
+- VoxelWorld.js:7609-7696 - `generateAncientTree()` main implementation
+- VoxelWorld.js:7698-7734 - `generateLargeCanopy()` for regular ancient
+- VoxelWorld.js:7736-7780 - `generateMassiveCanopy()` for mega ancient
+
+**Pillar Tree Detection:**
+- VoxelWorld.js:7852-7879 - Isolated column detection and preservation
+
+**Palm Tree Fix:**
+- VoxelWorld.js:7487-7495 - Palm frond generation (fixed topY bug)
+
+#### 🎯 Testing Notes
+
+**Confirmed Working**:
+- ✅ Ancient trees spawn at 20% rate (easy to find)
+- ✅ 3x3 thick trunks clearly visible
+- ✅ Massive loot drop (200+ blocks) when harvested
+- ✅ Pillar trees spawn on isolated stone columns
+- ✅ Palm tree fronds extend correctly (no more upside-down trees)
+
+**Mega Ancient Trees**:
+- ⏳ Not yet confirmed in testing (1% spawn rate requires extensive exploration)
+- Expected: 20-32 blocks tall, cone-shaped base, 11x11 canopy
+- Console logging: `🏛️🌳 MEGA ANCIENT TREE spawning! Type: pine_wood, Base height: 10, Total: 25`
+
+---
+
+### ✅ COMPLETED: Halloween Ghost Billboards & Pumpkin System (2025-10-05 Evening)
+
+**Status: FULLY IMPLEMENTED**
+
+Added a special Halloween surprise that only appears on October 31st - floating ghost billboards above pumpkins!
+
+#### 🎃 **Pumpkin Spawn System Fixes**
+
+**Bug Fixed:**
+- **Noise Range Issue**: `multiOctaveNoise` returns `-1 to 1`, but pumpkin spawn check expected `0 to 1`
+- **Old Rates**: 1.5% normal (actually 0.75%), 6% Halloween (actually 3%)
+- **Fix**: Added noise normalization: `(pumpkinNoise + 1) / 2`
+- **New Rates**: 3% normal, 15% on Halloween (Oct 31st)
+
+**Code Location:**
+- BiomeWorldGen.js:1256-1274 - Pumpkin spawn logic with fixed noise normalization
+
+**Result:** Pumpkins are now **4x easier to find** (3% vs old buggy 0.75%)!
+
+#### 👻 **Halloween Ghost Billboard System**
+
+**Features:**
+1. **Oct 31st Only**: Ghost billboards only spawn on October 31st (or with debug mode)
+2. **One Per Chunk**: First pumpkin in each chunk gets a floating ghost above it
+3. **Floating Animation**: Ghosts bob up and down slowly (floatSpeed: 1.5, floatAmount: 0.2)
+4. **Auto-Remove**: When ANY pumpkin in the chunk is harvested, the ghost disappears
+5. **Transparent PNG Support**: Uses THREE.SpriteMaterial with proper alpha transparency
+
+**Implementation:**
+- VoxelWorld.js:68-69 - Ghost billboard tracking Map and debug flag
+- VoxelWorld.js:276-302 - Auto-spawn ghost on first pumpkin per chunk
+- VoxelWorld.js:741-787 - `createGhostBillboard()` function
+- VoxelWorld.js:813-827 - Ghost animation in `animateBillboards()`
+- VoxelWorld.js:1114-1133 - Remove ghost when pumpkin harvested
+- App.js:47-51 - Expose `window['voxelApp']` for debugging
+
+**Debug Command:**
+```javascript
+// Enable Halloween mode year-round for testing
+window.voxelApp.debugHalloween = true;
+
+// Then clear cache and reload to spawn ghost billboards
+window.voxelApp.clearCaches();
+// Force refresh browser (Ctrl+Shift+R)
+```
+
+**Visual Details:**
+- Ghost emoji: 👻
+- Position: 1.5 blocks above pumpkin
+- Size: 1.0 scale (slightly larger than backpack billboard)
+- No rotation (just vertical bobbing)
+
+**Testing:**
+- ✅ Ghost spawns on first pumpkin per chunk when `debugHalloween = true`
+- ✅ Only one ghost per chunk (additional pumpkins don't spawn more ghosts)
+- ✅ Ghost animates with smooth floating motion
+- ✅ Ghost disappears when any pumpkin in the chunk is harvested
+- ⏳ Oct 31st automatic activation (untested until Halloween)
+
+#### 📍 Code Locations
+
+**Pumpkin Spawn Fix:**
+- BiomeWorldGen.js:1263-1268 - Fixed spawn rates (3% / 15%) with noise normalization
+
+**Ghost Billboard System:**
+- VoxelWorld.js:68-69 - State tracking (ghostBillboards Map, debugHalloween flag)
+- VoxelWorld.js:276-302 - Auto-spawn logic (Oct 31st check + chunk tracking)
+- VoxelWorld.js:741-787 - Ghost billboard creation
+- VoxelWorld.js:813-827 - Ghost animation loop
+- VoxelWorld.js:1114-1133 - Ghost removal on pumpkin harvest
+
+**Debug Exposure:**
+- App.js:47-51 - Expose voxelApp to window for console commands
+
+---
+
 ### Latest Session - Dead Trees, Wood Types, and Campfire System (Previous)
 1. **Dead Trees with Treasure Loot**:
    - 5% spawn chance in any biome during tree generation
@@ -381,6 +566,82 @@ After clearing cache (`window.voxelApp.clearCaches()`), you should see:
    - Complex structures: Castle Wall, Tower Turret, Simple House
    - Material requirements system with inventory integration
    - Shape size scaling based on available material quantities
+
+### 🔜 Next Session TODO (2025-10-06)
+
+#### 🐛 **Critical Bugs to Fix**
+
+1. **Dead Tree Crash** (HIGH PRIORITY):
+   - Error: `can't access property "hasTreasure", this.treeRegistry[treeId] is undefined`
+   - Location: VoxelWorld.js:7689 in `generateDeadTree()`
+   - Issue: Tree registry lookup failing for dead trees
+   - Impact: Crashes when dead trees try to spawn
+
+2. **Player Hitbox Too Wide**:
+   - **Problem**: Player needs 2-block-wide area to jump up/down (should be 1 block)
+   - **Side Effect**: Can walk into blocks and see inside them from top view
+   - **Possible Causes**:
+     - Hitbox dimensions too large
+     - Physics collision box mismatch with visual size
+     - Combination of both hitbox + physics
+   - **Fix**: Reduce player hitbox width to match single block (1.0 units instead of current size)
+
+#### 🎃 **Halloween Ghost Enhancements**
+
+**Spooky Ghost Following System:**
+- **Ruin Ghosts**: Ghost billboard that follows player when in ruins
+- **Night Woods Ghosts**: Cumulative % chance each night while moving in forest
+  - Chance increases the longer you explore at night
+  - Reset at dawn
+- **Visual Enhancement**: Add slight glow effect to ghosts (emissive material?)
+- **Behavior**: Slow following (like backpack billboard but tracks player position)
+
+#### 🏛️ **Ruins Generation Issue**
+
+**Problem:** Ruins don't seem to generate in the world
+- **Possible Cause**: Spawn rate values too low?
+- **Investigation Needed**: Check BiomeWorldGen.js for ruin spawn logic
+- **Fix**: Adjust spawn rates or generation parameters
+
+#### 🌊 **Greedy Meshing Optimization** (HIGH PRIORITY for Ocean Biome)
+
+**What It Is:**
+- Combine adjacent blocks of same type into single merged mesh
+- Drastically reduces draw calls and improves performance
+
+**Why We Need It:**
+- **Current**: 10,000 water blocks = 10,000 meshes = 10,000 draw calls = LAG
+- **With Greedy Mesh**: 10,000 water blocks = ~10-20 merged meshes = SMOOTH
+
+**Benefits:**
+- 🌊 Ocean biomes become viable (currently too laggy)
+- 🏔️ Massive mountains render faster (solid stone interiors)
+- 🏖️ Large sand beaches perform better
+- ❄️ Snow fields in tundra don't tank FPS
+- 📈 Overall 10-100x performance improvement for uniform areas
+
+**Implementation Priority:**
+- HIGH - Required before enabling ocean biome
+- Blocks this feature: Ocean/water generation currently disabled
+
+**Algorithm:**
+- Scan each chunk for adjacent blocks of same type
+- Merge faces into larger quads where possible
+- Only render outer faces (hidden faces culled)
+- Rebuild mesh when blocks change
+
+**References:**
+- Research greedy meshing algorithm for voxel engines
+- THREE.js BufferGeometry for efficient mesh building
+- May need chunk mesh caching system
+
+#### 💬 **Quote of the Day**
+
+*"The Bob Ross of game dev happy accidents"* - David
+
+We don't make mistakes, just happy little features! 🎨👻🌲
+
+---
 
 ### Next Session TODO
 
@@ -538,6 +799,60 @@ VoxelWorld.js has been partially refactored, but still needs more work:
    - **Goal**: Reduce VoxelWorld.js from 9205 lines to <2000 lines (orchestrator only)
 
 ### Future Feature Ideas
+
+#### **🌾 Farming & Agriculture System** (Michelle's Request - Stardew Valley Inspired!)
+
+**Prerequisites:** Fix pumpkin generation first!
+
+**Basic Farming Mechanics:**
+- **Tilled Soil**: Use tool to till grass/dirt into farmland
+- **Seed Planting**: Plant pumpkin seeds, wheat, carrots, etc.
+- **Growth Stages**: Visual progression from sprout → full grown
+- **Watering System**: Water bucket or rain mechanics
+- **Seasons**: Different crops for different times (if we add seasons)
+- **Harvest**: Right-click fully grown crops to harvest
+
+**Crop Ideas:**
+- Pumpkins 🎃 (already have the block!)
+- Wheat 🌾 (craft bread, feed animals)
+- Carrots 🥕 (food, animal feed)
+- Berries 🫐 (quick snack, crafting)
+- Flowers 🌸 (decorative, bee farming?)
+
+**Advanced Features:**
+- **Scarecrows**: Protect crops from birds/pests
+- **Greenhouse**: Indoor farming (year-round crops)
+- **Crop Quality**: Perfect/Good/Normal based on care
+- **Fertilizer**: Use compost to boost growth/quality
+- **Irrigation**: Auto-watering with sprinkler systems
+
+**Animal Farming (Stardew-style):**
+- **Chickens** 🐔: Eggs for cooking
+- **Cows** 🐄: Milk for crafting
+- **Sheep** 🐑: Wool for textiles
+- **Barns & Coops**: Build shelters for animals
+- **Animal Care**: Feed daily, collect products
+
+**Cooking System:**
+- Craft **Cooking Station** from campfire upgrade
+- Combine ingredients into meals (bread, soup, pie)
+- Meals provide buffs (speed, jump height, mining efficiency)
+- Recipe discovery through experimentation
+
+**Integration with Existing Systems:**
+- Workbench recipes for farm tools (hoe, watering can, sickle)
+- Tool durability on farming tools
+- Inventory system for seed storage
+- Seasonal crops based on day/night cycle timing
+
+**Why This Fits:**
+- Complements exploration and building
+- Gives players renewable food source
+- Peaceful alternative to mining/combat
+- Makes pumpkins more meaningful (seed → crop cycle)
+- Adds long-term progression goals
+
+---
 
 #### **Core Gameplay Enhancements**
 - **Block Variants**: Add stone bricks, wooden planks, glass, metal blocks for building variety

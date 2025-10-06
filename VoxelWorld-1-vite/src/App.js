@@ -44,8 +44,11 @@ window.addEventListener('DOMContentLoaded', () => {
   showGame();
 
   console.log('Calling initVoxelWorld...');
-  initVoxelWorld(gameContainer, splashScreen).then(() => {
+  initVoxelWorld(gameContainer, splashScreen).then((app) => {
     console.log('✅ VoxelWorld initialized successfully');
+    // Expose app to window for debugging
+    window['voxelApp'] = app;
+    console.log('🐛 voxelApp exposed to window for debugging');
   }).catch(error => {
     console.error('❌ Failed to initialize VoxelWorld:', error);
     console.error('Error stack:', error.stack);

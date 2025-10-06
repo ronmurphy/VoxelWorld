@@ -1257,13 +1257,15 @@ export class BiomeWorldGen {
                 if (!hasSnow && (biome.name === 'Forest' || biome.name === 'Plains' || biome.name.includes('forest') || biome.name.includes('plains'))) {
                     const pumpkinNoise = this.multiOctaveNoise(worldX + 5000, worldZ + 5000, this.noiseParams.microDetail, worldSeed + 5000);
 
-                    // 🎃 HALLOWEEN SPECIAL: 4x spawn rate on October 31st!
+                    // 🎃 HALLOWEEN SPECIAL: 5x spawn rate on October 31st!
                     const today = new Date();
                     const isHalloween = (today.getMonth() === 9 && today.getDate() === 31); // Month is 0-indexed (9 = October)
-                    const baseChance = 0.015; // 1.5% spawn rate (fairly rare)
-                    const pumpkinChance = isHalloween ? baseChance * 4 : baseChance; // 6% on Halloween!
+                    const baseChance = 0.03; // 3% spawn rate (easier to find!)
+                    const pumpkinChance = isHalloween ? baseChance * 5 : baseChance; // 15% on Halloween!
 
-                    if (pumpkinNoise > (1 - pumpkinChance)) {
+                    // Convert noise from [-1, 1] to [0, 1] range for proper probability check
+                    const normalizedNoise = (pumpkinNoise + 1) / 2;
+                    if (normalizedNoise > (1 - pumpkinChance)) {
                         // Place pumpkin on the ground
                         addBlockFn(worldX, height + 1, worldZ, 'pumpkin', false);
 

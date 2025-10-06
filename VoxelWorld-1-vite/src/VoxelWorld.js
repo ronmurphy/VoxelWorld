@@ -65,6 +65,8 @@ class NebulaVoxelApp {
         this.ruinPositions = []; // 🏛️ Track ruin locations for minimap (center position)
         this.exploredChunks = new Set(); // Track all visited chunks for world map
         this.worldMapModal = null; // Full-screen world map modal
+        this.ghostBillboards = new Map(); // 👻 Track Halloween ghost billboards by chunk key
+        this.debugHalloween = false; // 🎃 Debug flag to force Halloween mode
 
         // 🌳 TREE ID SYSTEM: Advanced tree tracking with unique identifiers
         this.nextTreeId = 1; // Incremental unique tree ID generator
@@ -271,9 +273,32 @@ class NebulaVoxelApp {
                 this.waterPositions.push({ x, y, z });
             }
 
-            // 🎃 Track pumpkins for compass navigation
+            // 🎃 Track pumpkins for compass navigation and Halloween ghosts
             if (type === 'pumpkin' && !playerPlaced) {
                 this.pumpkinPositions.push({ x, y, z });
+
+                // 👻 HALLOWEEN SPECIAL: Spawn ghost billboard on first pumpkin per chunk
+                const chunkX = Math.floor(x / this.chunkSize);
+                const chunkZ = Math.floor(z / this.chunkSize);
+                const chunkKey = `${chunkX},${chunkZ}`;
+
+                const isHalloween = this.debugHalloween || (new Date().getMonth() === 9 && new Date().getDate() === 31);
+
+                if (isHalloween && !this.ghostBillboards.has(chunkKey)) {
+                    // Create ghost billboard for first pumpkin in chunk
+                    const ghostBillboard = this.createGhostBillboard(x, y, z);
+                    if (ghostBillboard) {
+                        this.scene.add(ghostBillboard);
+                        this.ghostBillboards.set(chunkKey, {
+                            billboard: ghostBillboard,
+                            pumpkinX: x,
+                            pumpkinY: y,
+                            pumpkinZ: z,
+                            chunkKey: chunkKey
+                        });
+                        console.log(`👻🎃 Halloween ghost spawned at chunk ${chunkKey} above pumpkin (${x},${y},${z})`);
+                    }
+                }
             }
 
             // 💾 Track player modifications for chunk persistence
@@ -713,8 +738,57 @@ class NebulaVoxelApp {
             return sprite;
         };
 
+        // 👻 Create Halloween ghost billboard (Oct 31st only!)
+        this.createGhostBillboard = (x, y, z) => {
+            // Create emoji canvas for ghost
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+
+            // Clear background (transparent)
+            ctx.clearRect(0, 0, 128, 128);
+
+            // Draw ghost emoji
+            ctx.font = '96px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('👻', 64, 64);
+
+            // Create texture and sprite
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.LinearFilter;
+            texture.minFilter = THREE.LinearFilter;
+
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                alphaTest: 0.1,
+                sizeAttenuation: true
+            });
+
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(x, y + 1.5, z); // Float 1.5 blocks above pumpkin
+            sprite.scale.set(1.0, 1.0, 1); // Slightly larger than backpack
+
+            // Add floating animation data
+            sprite.userData = {
+                type: 'ghost',
+                initialY: y + 1.5,
+                animationTime: Math.random() * Math.PI * 2,
+                config: {
+                    float: true,
+                    rotate: false,
+                    floatSpeed: 1.5,
+                    floatAmount: 0.2 // Spooky slow float
+                }
+            };
+
+            return sprite;
+        };
+
         // Animate floating billboards
         this.animateBillboards = (currentTime) => {
+            // Animate block billboards (backpack, shrub, world items)
             for (const key in this.world) {
                 const worldItem = this.world[key];
                 if (worldItem.billboard && worldItem.billboard.userData.type === 'billboard') {
@@ -735,6 +809,22 @@ class NebulaVoxelApp {
                     }
                 }
             }
+
+            // 👻 Animate Halloween ghost billboards
+            this.ghostBillboards.forEach((ghostData) => {
+                const billboard = ghostData.billboard;
+                if (billboard && billboard.userData.type === 'ghost') {
+                    const userData = billboard.userData;
+                    const config = userData.config;
+
+                    // Floating animation
+                    if (config.float) {
+                        userData.animationTime += config.floatSpeed * 0.016;
+                        const offset = Math.sin(userData.animationTime) * config.floatAmount;
+                        billboard.position.y = userData.initialY + offset;
+                    }
+                }
+            });
         };
 
         // 🔥 Animate particle effects for crafted objects
@@ -1018,6 +1108,27 @@ class NebulaVoxelApp {
                     const waterIndex = this.waterPositions.findIndex(w => w.x === x && w.y === y && w.z === z);
                     if (waterIndex !== -1) {
                         this.waterPositions.splice(waterIndex, 1);
+                    }
+                }
+
+                // 👻 Remove ghost billboard if a pumpkin in the chunk is harvested
+                if (blockData.type === 'pumpkin') {
+                    const chunkX = Math.floor(x / this.chunkSize);
+                    const chunkZ = Math.floor(z / this.chunkSize);
+                    const chunkKey = `${chunkX},${chunkZ}`;
+
+                    const ghostData = this.ghostBillboards.get(chunkKey);
+                    if (ghostData) {
+                        // Remove ghost billboard from scene
+                        this.scene.remove(ghostData.billboard);
+                        this.ghostBillboards.delete(chunkKey);
+                        console.log(`👻💀 Ghost billboard removed from chunk ${chunkKey} (pumpkin harvested)`);
+                    }
+
+                    // Remove from pumpkin positions tracking
+                    const pumpkinIndex = this.pumpkinPositions.findIndex(p => p.x === x && p.y === y && p.z === z);
+                    if (pumpkinIndex !== -1) {
+                        this.pumpkinPositions.splice(pumpkinIndex, 1);
                     }
                 }
 
@@ -7487,10 +7598,10 @@ class NebulaVoxelApp {
             // Extending fronds
             directions.forEach(([dx, dz]) => {
                 this.addTreeBlock(treeId, x + dx, topY, z + dz, 'palm_wood-leaves', false);
-                // Sometimes add a second frond block
+                // Sometimes add a second frond block extending outward
                 const extendNoise = this.seededNoise(x + dx + 9000, z + dz + 9000, this.worldSeed);
                 if (extendNoise > 0.2) {
-                    this.addTreeBlock(treeId, x + dx + Math.sign(dx), topY - 1, z + dz + Math.sign(dz), 'palm_wood-leaves', false);
+                    this.addTreeBlock(treeId, x + dx + Math.sign(dx), topY, z + dz + Math.sign(dz), 'palm_wood-leaves', false);
                 }
             });
 
