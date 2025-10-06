@@ -8,6 +8,7 @@ import { InventorySystem } from './InventorySystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
+import { GhostSystem } from './GhostSystem.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -158,6 +159,9 @@ class NebulaVoxelApp {
             console.log('🎨 Enhanced Graphics assets discovered, recreating materials...');
             this.recreateAllMaterials();
         };
+
+        // 👻 Initialize Ghost System (requires scene, so will be set after scene is created)
+        this.ghostSystem = null;
 
         // 🏛️ CENTRALIZED BILLBOARD ITEMS REGISTRY
         // Single source of truth for all billboard/world items
@@ -6901,6 +6905,9 @@ class NebulaVoxelApp {
         // Three.js setup
         this.scene = new THREE.Scene();
 
+        // 👻 Initialize Ghost System now that scene is ready
+        this.ghostSystem = new GhostSystem(this.scene, this.enhancedGraphics);
+
         // 🎯 PHASE 1.2: Physics World Setup
         this.physicsWorld = new CANNON.World();
         this.physicsWorld.gravity.set(0, -9.82, 0); // Earth gravity
@@ -8866,6 +8873,11 @@ class NebulaVoxelApp {
 
             // Animate billboards (even when paused - they should keep floating)
             this.animateBillboards(currentTime);
+
+            // 👻 Update ghost system AI and animations
+            if (this.ghostSystem) {
+                this.ghostSystem.update(deltaTime, this.player.position, this.pumpkinPositions);
+            }
 
             // Check for nearby workbench (even when paused)
             this.checkWorkbenchProximity();

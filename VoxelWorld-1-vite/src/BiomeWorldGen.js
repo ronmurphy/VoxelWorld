@@ -1054,7 +1054,7 @@ export class BiomeWorldGen {
                 const worldZ = Math.floor(chunkZ * chunkSize + z);
 
                 // Get enhanced biome with transitions
-                const biome = this.getBiomeAt(worldX, worldZ, worldSeed);
+                let biome = this.getBiomeAt(worldX, worldZ, worldSeed);
 
                 // Validate biome object with emergency fallback
                 if (!biome || typeof biome.minHeight !== 'number' || typeof biome.maxHeight !== 'number') {

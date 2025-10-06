@@ -153,6 +153,19 @@ export class StructureGenerator {
                 size: size,
                 buried: buried
             });
+
+            // 👻 Spawn ghost at ruin location (80% chance)
+            if (this.voxelWorld.ghostSystem && !buried) {
+                // Use player's Y position for ghost spawn height
+                const spawnY = this.voxelWorld.player ? this.voxelWorld.player.position.y : 10;
+
+                // Spawn immediately (no setTimeout needed)
+                this.voxelWorld.ghostSystem.trySpawnAtRuin(
+                    structureData.worldX,
+                    spawnY,
+                    structureData.worldZ
+                );
+            }
         }
 
         return structureData;

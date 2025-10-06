@@ -19,6 +19,7 @@ export class EnhancedGraphics {
         this.blockTextures = new Map(); // Map<blockType, THREE.Texture or Array<THREE.Texture>>
         this.toolImages = new Map();    // Map<toolType, HTMLImageElement>
         this.timeImages = new Map();    // Map<timePeriod, HTMLImageElement>
+        this.entityImages = new Map();  // Map<entityType, HTMLImageElement>
 
         // Asset paths (relative to document root)
         // Vite publicDir is 'assets', so everything in assets/ becomes root-level
@@ -27,7 +28,8 @@ export class EnhancedGraphics {
         this.assetPaths = {
             blocks: 'art/blocks',
             tools: 'art/tools',
-            time: 'art/time'
+            time: 'art/time',
+            entities: 'art/entities'
         };
 
         console.log('🎨 Final asset paths:', this.assetPaths);
@@ -36,7 +38,8 @@ export class EnhancedGraphics {
         this.availableAssets = {
             blocks: [],
             tools: [],
-            time: []
+            time: [],
+            entities: []
         };
 
         // Texture aliases - map item/block types to texture filenames
@@ -142,7 +145,8 @@ export class EnhancedGraphics {
         this.fileExtensionMap = {
             blocks: {},
             tools: {},
-            time: {}
+            time: {},
+            entities: {}
         };
 
         // Extract base name and extension from filename
@@ -163,7 +167,7 @@ export class EnhancedGraphics {
             // Electron: Use filesystem API to list actual files
             console.log('🔍 Using Electron filesystem API for asset discovery');
 
-            for (const category of ['blocks', 'tools', 'time']) {
+            for (const category of ['blocks', 'tools', 'time', 'entities']) {
                 try {
                     const files = await window.electronAPI.listAssetFiles(category);
                     const baseNames = new Set();
@@ -240,7 +244,8 @@ export class EnhancedGraphics {
             const extensions = {
                 blocks: ['.jpeg', '.jpg', '.png'],
                 tools: ['.png', '.jpg', '.jpeg'],
-                time: ['.png', '.jpg', '.jpeg']
+                time: ['.png', '.jpg', '.jpeg'],
+                entities: ['.png', '.jpg', '.jpeg']
             };
 
             const candidates = {
@@ -250,7 +255,8 @@ export class EnhancedGraphics {
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
                 ],
                 tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 'compass', 'toolbench', 'tool_bench'],
-                time: ['dawn', 'dusk', 'moon', 'night', 'sun']
+                time: ['dawn', 'dusk', 'moon', 'night', 'sun'],
+                entities: ['ghost']
             };
 
             for (const [category, names] of Object.entries(candidates)) {
@@ -266,25 +272,27 @@ export class EnhancedGraphics {
         console.log('✅ Assets discovered:', {
             blocks: this.availableAssets.blocks.length,
             tools: this.availableAssets.tools.length,
-            time: this.availableAssets.time.length
+            time: this.availableAssets.time.length,
+            entities: this.availableAssets.entities.length
         });
     }
 
     /**
-     * Load all asset types (blocks, tools, time)
+     * Load all asset types (blocks, tools, time, entities)
      */
     async _loadAllAssets() {
         const results = await Promise.allSettled([
             this._loadBlockTextures(),
             this._loadToolImages(),
-            this._loadTimeImages()
+            this._loadTimeImages(),
+            this._loadEntityImages()
         ]);
 
         let totalLoaded = 0;
         let totalErrors = 0;
 
         results.forEach((result, index) => {
-            const category = ['blocks', 'tools', 'time'][index];
+            const category = ['blocks', 'tools', 'time', 'entities'][index];
             if (result.status === 'fulfilled') {
                 totalLoaded += result.value.loaded;
                 console.log(`✅ ${category}: ${result.value.loaded} assets loaded`);
@@ -495,6 +503,32 @@ export class EnhancedGraphics {
     }
 
     /**
+     * Load entity image assets
+     */
+    async _loadEntityImages() {
+        const promises = this.availableAssets.entities.map(async (entityType) => {
+            try {
+                const imagePath = `${this.assetPaths.entities}/${entityType}.png`;
+                const image = await this._loadImage(imagePath);
+                // Store both the image and the relative path
+                this.entityImages.set(entityType, {
+                    image: image,
+                    path: imagePath
+                });
+                return { entityType, success: true };
+            } catch (error) {
+                console.warn(`⚠️ Failed to load entity image: ${entityType}`, error);
+                return { entityType, success: false, error };
+            }
+        });
+
+        const results = await Promise.allSettled(promises);
+        const loaded = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+
+        return { loaded, total: this.availableAssets.entities.length };
+    }
+
+    /**
      * Create a THREE.js texture from an image path
      */
     async _loadThreeTexture(imagePath) {
@@ -662,8 +696,28 @@ export class EnhancedGraphics {
             assetsLoaded: this.assetsLoaded,
             blockTexturesCount: this.blockTextures.size,
             toolImagesCount: this.toolImages.size,
-            timeImagesCount: this.timeImages.size
+            timeImagesCount: this.timeImages.size,
+            entityImagesCount: this.entityImages.size
         };
+    }
+
+    /**
+     * Get enhanced entity image or fall back to emoji
+     * @param {string} entityType - Type of entity (ghost, etc.)
+     * @param {string} defaultEmoji - Fallback emoji
+     * @returns {object|null} Image data with path, or null for emoji fallback
+     */
+    getEnhancedEntityImage(entityType, defaultEmoji) {
+        if (!this.isEnabled || !this.assetsLoaded) {
+            return null;
+        }
+
+        const imageData = this.entityImages.get(entityType);
+        if (imageData && imageData.path) {
+            return imageData;
+        }
+
+        return null;
     }
 
     // === CONVENIENCE METHODS WITH PREDEFINED SIZES ===
