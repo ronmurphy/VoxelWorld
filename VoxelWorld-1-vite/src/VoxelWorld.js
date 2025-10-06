@@ -159,6 +159,11 @@ class NebulaVoxelApp {
         this.enhancedGraphics.onReady = () => {
             console.log('🎨 Enhanced Graphics assets discovered, recreating materials...');
             this.recreateAllMaterials();
+
+            // 👻 Reload ghost textures with enhanced graphics
+            if (this.ghostSystem) {
+                this.ghostSystem.reloadGhostTextures();
+            }
         };
 
         // 👻 Initialize Ghost System (requires scene, so will be set after scene is created)
@@ -8054,8 +8059,9 @@ class NebulaVoxelApp {
             console.log(`✅ Tree placement approved at (${worldX},${treeHeight},${worldZ}) - no conflicts detected`);
 
             // 🎲 5% chance to spawn a rare dead tree with treasure!
-            const deadTreeChance = this.seededNoise(worldX + 15000, worldZ + 15000, this.worldSeed);
-            if (deadTreeChance > 0.95) {
+            const deadTreeNoise = this.seededNoise(worldX + 15000, worldZ + 15000, this.worldSeed);
+            const deadTreeChance = (deadTreeNoise + 1) / 2; // Normalize from [-1,1] to [0,1]
+            if (deadTreeChance > 0.95) { // 5% spawn rate
                 console.log(`💀 RARE SPAWN: Dead tree with treasure at (${worldX},${treeHeight},${worldZ})!`);
                 this.generateDeadTree(worldX, treeHeight, worldZ);
                 return; // Don't generate normal tree

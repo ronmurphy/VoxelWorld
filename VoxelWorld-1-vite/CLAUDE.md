@@ -48,6 +48,12 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - **Resource Gathering**: Biome-specific shrubs, ores (iron, gold), and collectibles
 - **Billboard System**: Floating emoji sprites (backpack 🎒, ghosts 👻, shrubs 🌿)
 - **Crafting**: Workbench (shapes) and ToolBench (tools) with recipe systems
+- **Combat System**: Pokemon-inspired crafted monster battles (in development)
+  - Craft monsters from gathered materials at special workbench
+  - Deploy monsters via throwable containers
+  - AI vs AI auto-battles with player providing real-time support (healing, buffs, additional monsters)
+  - Material-based monster types: desert monsters from sand, forest monsters from wood, etc.
+  - Strategic team building and resource management gameplay loop
 - **Mobile Support**: Virtual joysticks with automatic device detection
 - **Performance Scaling**: Automatic render distance adjustment
 

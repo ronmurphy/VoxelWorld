@@ -136,7 +136,8 @@ export class StructureGenerator {
             worldX: chunkX * 16 + offsetX,
             worldZ: chunkZ * 16 + offsetZ,
             size,
-            buried
+            buried,
+            groundY: null  // Will be set when structure is actually generated
         };
 
         // 🚀 Cache positive result
@@ -153,19 +154,6 @@ export class StructureGenerator {
                 size: size,
                 buried: buried
             });
-
-            // 👻 Spawn ghost at ruin location (80% chance)
-            if (this.voxelWorld.ghostSystem && !buried) {
-                // Use player's Y position for ghost spawn height
-                const spawnY = this.voxelWorld.player ? this.voxelWorld.player.position.y : 10;
-
-                // Spawn immediately (no setTimeout needed)
-                this.voxelWorld.ghostSystem.trySpawnAtRuin(
-                    structureData.worldX,
-                    spawnY,
-                    structureData.worldZ
-                );
-            }
         }
 
         return structureData;
@@ -262,6 +250,16 @@ export class StructureGenerator {
         
         // Add interior details (treasure chests)
         this.addInteriorDetails(worldX, worldZ, baseY, width, height, depth, addBlockFn);
+
+        // 👻 Spawn ghost at ruin location (80% chance) using actual ground height
+        if (this.voxelWorld && this.voxelWorld.ghostSystem && !buried) {
+            // Use the actual ground height we calculated for this structure
+            this.voxelWorld.ghostSystem.trySpawnAtRuin(
+                worldX,
+                groundHeight,  // Use actual ground height, not player Y
+                worldZ
+            );
+        }
     }
     
     /**

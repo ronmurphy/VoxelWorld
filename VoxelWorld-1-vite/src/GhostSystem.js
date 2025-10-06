@@ -50,6 +50,44 @@ export class GhostSystem {
     }
 
     /**
+     * Reload all ghost textures (called when enhanced graphics assets finish loading)
+     */
+    reloadGhostTextures() {
+        const entityData = this.enhancedGraphics.getEnhancedEntityImage('ghost');
+
+        if (!entityData || !entityData.path) {
+            console.log('👻 No enhanced ghost texture available for reload');
+            return;
+        }
+
+        let reloadCount = 0;
+        this.ghosts.forEach((ghost) => {
+            // Check if this ghost is using emoji fallback (CanvasTexture)
+            const currentTexture = ghost.sprite.material.map;
+            if (currentTexture instanceof THREE.CanvasTexture) {
+                // Load new PNG texture
+                const newTexture = new THREE.TextureLoader().load(entityData.path);
+                newTexture.magFilter = THREE.LinearFilter;
+                newTexture.minFilter = THREE.LinearFilter;
+
+                // Replace texture
+                const oldTexture = ghost.sprite.material.map;
+                ghost.sprite.material.map = newTexture;
+                ghost.sprite.material.needsUpdate = true;
+
+                // Dispose old canvas texture
+                oldTexture.dispose();
+
+                reloadCount++;
+            }
+        });
+
+        if (reloadCount > 0) {
+            console.log(`👻 Reloaded ${reloadCount} ghost textures with enhanced graphics`);
+        }
+    }
+
+    /**
      * Create a ghost billboard sprite
      * @param {number} x - World X position
      * @param {number} y - World Y position
