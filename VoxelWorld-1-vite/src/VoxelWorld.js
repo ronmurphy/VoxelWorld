@@ -9,6 +9,7 @@ import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
+import { RPGIntegration } from './rpg/RPGIntegration.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -162,6 +163,9 @@ class NebulaVoxelApp {
 
         // 👻 Initialize Ghost System (requires scene, so will be set after scene is created)
         this.ghostSystem = null;
+
+        // 🎲 Initialize RPG System (requires scene, so will be set after scene is created)
+        this.rpgIntegration = null;
 
         // 🏛️ CENTRALIZED BILLBOARD ITEMS REGISTRY
         // Single source of truth for all billboard/world items
@@ -6908,6 +6912,10 @@ class NebulaVoxelApp {
         // 👻 Initialize Ghost System now that scene is ready
         this.ghostSystem = new GhostSystem(this.scene, this.enhancedGraphics);
 
+        // 🎲 Initialize RPG System now that scene is ready
+        this.rpgIntegration = new RPGIntegration(this);
+        this.rpgIntegration.loadStats(); // Load existing stats if any
+
         // 🎯 PHASE 1.2: Physics World Setup
         this.physicsWorld = new CANNON.World();
         this.physicsWorld.gravity.set(0, -9.82, 0); // Earth gravity
@@ -10328,10 +10336,16 @@ class NebulaVoxelApp {
             modal.style.display = 'none';
         };
 
-        const newGame = () => {
+        const newGame = async () => {
+            modal.style.display = 'none';
+
+            // 🎲 Show character creation if RPG system exists
+            if (this.rpgIntegration && this.rpgIntegration.needsCharacterCreation()) {
+                await this.rpgIntegration.startCharacterCreation();
+            }
+
             const seedString = prompt("Enter a seed (leave empty for random):", "");
             this.newGame(seedString);
-            modal.style.display = 'none';
         };
 
         const reRunBenchmark = async () => {
