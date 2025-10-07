@@ -9,8 +9,11 @@ import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
+import { AngryGhostSystem } from './AngryGhostSystem.js';
+import { BattleSystem } from './BattleSystem.js';
 import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
+import { CompanionPortrait } from './ui/CompanionPortrait.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -156,6 +159,9 @@ class NebulaVoxelApp {
         // 📘 Initialize Companion Codex
         this.companionCodex = new CompanionCodex(this);
 
+        // 🖼️ Initialize Companion Portrait HUD
+        this.companionPortrait = new CompanionPortrait(this);
+
         // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
 
@@ -168,10 +174,21 @@ class NebulaVoxelApp {
             if (this.ghostSystem) {
                 this.ghostSystem.reloadGhostTextures();
             }
+
+            // 💀 Reload angry ghost textures with enhanced graphics
+            if (this.angryGhostSystem) {
+                this.angryGhostSystem.reloadGhostTextures();
+            }
         };
 
         // 👻 Initialize Ghost System (requires scene, so will be set after scene is created)
         this.ghostSystem = null;
+
+        // 💀 Initialize Angry Ghost System (hostile ghosts that trigger battles)
+        this.angryGhostSystem = null;
+
+        // ⚔️ Initialize Battle System (Pokemon-style auto-battler)
+        this.battleSystem = null;
 
         // 🎲 Initialize RPG System (requires scene, so will be set after scene is created)
         this.rpgIntegration = null;
@@ -1050,6 +1067,11 @@ class NebulaVoxelApp {
                         // Show journal tutorial for first-time players
                         if (this.showJournalTutorial) {
                             this.showJournalTutorial();
+                        }
+
+                        // 🖼️ Create companion portrait after backpack found
+                        if (this.companionPortrait) {
+                            this.companionPortrait.create();
                         }
                     }
                     // 🔨 Stone Hammer: Special harvesting for stone blocks
@@ -7050,6 +7072,12 @@ class NebulaVoxelApp {
         // 👻 Initialize Ghost System now that scene is ready
         this.ghostSystem = new GhostSystem(this.scene, this.enhancedGraphics);
 
+        // ⚔️ Initialize Battle System now that scene is ready
+        this.battleSystem = new BattleSystem(this);
+
+        // 💀 Initialize Angry Ghost System now that scene is ready
+        this.angryGhostSystem = new AngryGhostSystem(this.scene, this.enhancedGraphics, this.battleSystem);
+
         // 🎲 Initialize RPG System now that scene is ready
         this.rpgIntegration = new RPGIntegration(this);
         this.rpgIntegration.loadStats(); // Load existing stats if any
@@ -8998,6 +9026,11 @@ class NebulaVoxelApp {
             // 👻 Update ghost system AI and animations
             if (this.ghostSystem) {
                 this.ghostSystem.update(deltaTime, this.player.position, this.pumpkinPositions);
+            }
+
+            // 💀 Update angry ghost system - battle triggers
+            if (this.angryGhostSystem) {
+                this.angryGhostSystem.update(deltaTime, this.player.position);
             }
 
             // Check for nearby workbench (even when paused)

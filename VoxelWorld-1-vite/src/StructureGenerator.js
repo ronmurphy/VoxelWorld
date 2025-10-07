@@ -251,14 +251,45 @@ export class StructureGenerator {
         // Add interior details (treasure chests)
         this.addInteriorDetails(worldX, worldZ, baseY, width, height, depth, addBlockFn);
 
-        // 👻 Spawn ghost at ruin location (80% chance) using actual ground height
+        // 👻 Spawn friendly ghost at ruin location (80% chance, 2x at night) using actual ground height
         if (this.voxelWorld && this.voxelWorld.ghostSystem && !buried) {
-            // Use the actual ground height we calculated for this structure
-            this.voxelWorld.ghostSystem.trySpawnAtRuin(
-                worldX,
-                groundHeight,  // Use actual ground height, not player Y
-                worldZ
-            );
+            // Get current game time for night spawn boost
+            const gameTime = this.voxelWorld.gameTime || 12;
+            const isNight = gameTime >= 19 || gameTime < 6;
+            const spawnChance = isNight ? 0.95 : 0.80; // 95% at night, 80% during day
+
+            if (Math.random() < spawnChance) {
+                this.voxelWorld.ghostSystem.spawnGhost(worldX, groundHeight, worldZ, 'ruin');
+            }
+
+            // 🌙 At night, 50% chance for SECOND friendly ghost at same ruin
+            if (isNight && Math.random() < 0.5) {
+                this.voxelWorld.ghostSystem.spawnGhost(
+                    worldX + (Math.random() - 0.5) * 5, // Offset slightly
+                    groundHeight,
+                    worldZ + (Math.random() - 0.5) * 5
+                , 'ruin');
+            }
+        }
+
+        // 💀 Spawn angry ghost at ruin location (60% chance, 90% at night) - triggers battles
+        if (this.voxelWorld && this.voxelWorld.angryGhostSystem && !buried) {
+            const gameTime = this.voxelWorld.gameTime || 12;
+            const isNight = gameTime >= 19 || gameTime < 6;
+            const spawnChance = isNight ? 0.90 : 0.60; // 90% at night, 60% during day
+
+            if (Math.random() < spawnChance) {
+                this.voxelWorld.angryGhostSystem.spawnAngryGhost(worldX, groundHeight, worldZ);
+            }
+
+            // 🌙 At night, 40% chance for SECOND angry ghost at same ruin
+            if (isNight && Math.random() < 0.4) {
+                this.voxelWorld.angryGhostSystem.spawnAngryGhost(
+                    worldX + (Math.random() - 0.5) * 6, // Offset slightly
+                    groundHeight,
+                    worldZ + (Math.random() - 0.5) * 6
+                );
+            }
         }
     }
     

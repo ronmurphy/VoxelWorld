@@ -4,6 +4,160 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-06 Evening - Tutorial System, Companion Codex, & UI Unification
+
+**Status: FULLY IMPLEMENTED**
+
+### 📘 Companion Codex System
+
+**Features:**
+1. **Explorer's Journal Style**: Full-screen open book layout matching World Map aesthetic
+2. **Left Page - Companion List**: Discovered companions with portraits, tiers, active status (⭐)
+3. **Right Page - Details**: Stats (HP/Attack/Defense/Speed), abilities, description, crafting materials
+4. **Set Active Companion**: Click button to designate battle companion, persists to localStorage
+5. **Bookmark Tab Navigation**: Switch between World Map (🗺️) and Companion Codex (📘)
+
+**Implementation:**
+- `src/ui/CompanionCodex.js` (NEW - 547 lines) - Complete Pokedex-style companion registry
+- `VoxelWorld.js:13` - Import CompanionCodex
+- `VoxelWorld.js:157` - Initialize companion codex system
+- `VoxelWorld.js:9407-9417` - C key toggle to open/close codex
+- `VoxelWorld.js:2576-2649` - Added bookmark tabs to World Map
+- `CompanionCodex.js:93-166` - Added bookmark tabs to Codex
+
+**localStorage Structure:**
+```javascript
+{
+  "starterMonster": "rat",
+  "monsterCollection": ["rat"],
+  "activeCompanion": "rat",
+  "firstPlayTime": 1234567890,
+  "tutorialsSeen": { ... }
+}
+```
+
+### 💬 Chat.js Visual Novel System
+
+**Features:**
+1. **Visual Novel Style**: Semi-transparent overlay with companion dialogue box
+2. **Character Portraits**: Loads from entities.json, shows companion face
+3. **Message Sequences**: Multi-message tutorials with "Continue" button
+4. **Completion Callbacks**: Execute code after chat sequence finishes
+5. **Pointer Lock Management**: Releases lock during chat, re-engages smartly
+
+**Implementation:**
+- `src/ui/Chat.js` (NEW - 258 lines) - Reusable dialogue overlay system
+- Explorer's Journal theme (parchment, gold borders, Georgia font)
+- Supports single messages and multi-message sequences
+- Used throughout tutorial system
+
+### 🎓 Comprehensive Tutorial System
+
+**Tutorials Implemented:**
+
+1. **Initial Companion Selection** (`GameIntroOverlay.js`):
+   - Story intro placeholder
+   - Choose starter (Rat, Goblin Grunt, Troglodyte)
+   - 4-message tutorial sequence about controls and backpack
+
+2. **Post-Backpack Discovery** (2 messages):
+   - Message 1: Press M for Map, C for Companion Codex
+   - Message 2: Sun icon shows time, click for Explorer's Menu
+
+3. **First Machete Selection**:
+   - "Oh! That machete belonged to Uncle Beastly! He used to chop down trees with it..."
+   - Explains hold left-click, works on grass/dirt/stone, never dulls
+
+4. **First Workbench Use**:
+   - "That Workbench is really useful! Press E to open it..."
+   - Explains crafting shapes, experimentation
+
+**Tutorial Tracking:**
+- `localStorage.tutorialsSeen` object tracks completed tutorials
+- Each tutorial shows only once per player
+- Completion callbacks mark tutorials as seen
+
+**Implementation:**
+- `App.js:58-131` - All tutorial methods with companion info helper
+- `VoxelWorld.js:1047-1049` - Journal tutorial after backpack
+- `VoxelWorld.js:2254-2260` - Machete tutorial on first selection
+- `VoxelWorld.js:9432-9435` - Workbench tutorial on first open
+
+### 🖱️ Pointer Lock Management Overhaul
+
+**Problem:** Pointer lock was re-engaging when modals/UI were still open, making buttons unclickable.
+
+**Solutions:**
+
+1. **Modal Switching** (CompanionCodex/WorldMap):
+   - `hide(reEngagePointerLock = true)` - Optional parameter
+   - Bookmark tab clicks: `hide(false)` - Don't re-engage
+   - Close buttons/keys: `hide()` - Re-engages (default)
+
+2. **Chat Smart Lock** (Chat.js:236-250):
+   - Checks if workbench/toolbench is open before re-engaging
+   - Releases lock on chat open, re-engages only if no modals active
+
+3. **ESC Key Handling** (VoxelWorld.js:9369-9393):
+   - ESC closes workbench → re-engages pointer lock
+   - ESC closes toolbench → re-engages pointer lock
+   - Handles before `controlsEnabled` check (always works)
+
+**Result:** Seamless transitions between gameplay and UI, no stuck mouse states!
+
+### 🎨 UI Naming Unification
+
+**Changes:**
+- Renamed "Adventurer's Menu" → **"Explorer's Menu"** (VoxelWorld.js:10106)
+- Matches "Explorer's Journal" (World Map) branding
+- Consistent "Explorer" theme throughout all UI
+
+### 📁 Entity Data System
+
+**Files Created:**
+1. **assets/art/entities/entities.json** (NEW):
+   - Simplified auto-battler stats (HP/Attack/Defense/Speed)
+   - 8 entities defined: rat, goblin_grunt, troglodyte, angry_ghost, ghost, vine_creeper, zombie_crawler, skeleton_archer
+   - Includes craft materials, abilities, sprite paths
+   - `starter_choices` array for new player selection
+
+2. **docs/ENTITIES_JSON_MAPPING.md** (NEW - 301 lines):
+   - Complete guide for converting enemies.json → entities.json
+   - Field mapping tables and formulas
+   - Attack calculation methods (3 approaches)
+   - Craft materials tier guidelines
+   - Conversion examples for simple, complex, and boss entities
+
+### 🎮 Game Intro System
+
+**Features:**
+- **GameIntroOverlay.js** (NEW - 303 lines) - First-time player experience
+- Explorer's Journal themed UI with story placeholder
+- Three starter companions with portraits, stats, descriptions
+- Click "Choose" → saves to localStorage → shows tutorial sequence
+- Only appears if no saved game data exists
+
+**Integration:**
+- `App.js:6` - Import GameIntroOverlay
+- `App.js:74-147` - First-time player detection and intro flow
+- `App.js:78-109` - Tutorial chat sequence after companion selection
+- `App.js:105-107` - Spawn backpack in front of player after tutorial
+
+### 🔧 Additional Features
+
+**Backpack Spawn for New Players** (VoxelWorld.js:1320-1353):
+- `spawnStarterBackpack()` method
+- Spawns 2.5 blocks in front of player (camera direction)
+- Called after companion selection tutorial completes
+- Replaces random backpack spawn for first-time players
+
+**C Key Toggle** (VoxelWorld.js:9407-9417):
+- C key now toggles Companion Codex (like M toggles Map)
+- Checks if codex is open, closes if yes, opens if no
+- Consistent behavior with other modals
+
+---
+
 ## 2025-10-05 Evening - Halloween Ghost Billboards & Pumpkin System
 
 **Status: FULLY IMPLEMENTED**

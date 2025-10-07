@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code when working with code in this repository.
 
+**📜 For detailed feature implementation history and changelog, see [CHANGELOG.md](CHANGELOG.md)**
+
 ## Project Overview
 
 VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript, Three.js, and Vite. The application supports both web and Electron desktop deployment with mobile touch controls.
@@ -24,12 +26,15 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 ### Core Components
 
 - **App.js** - Main entry point that handles mode switching between game and workbench
-- **VoxelWorld.js** - Complete 3D voxel world implementation (9200+ lines - needs refactoring)
+- **VoxelWorld.js** - Complete 3D voxel world implementation (10,900+ lines - needs refactoring)
 - **BiomeWorldGen.js** - Climate-based terrain generation with temperature/moisture maps
 - **InventorySystem.js** - Hotbar and backpack management
 - **WorkbenchSystem.js** - Workbench UI and crafting logic
 - **ToolBenchSystem.js** - Tool crafting system
 - **EnhancedGraphics.js** - Optional enhanced texture system
+- **GameIntroOverlay.js** - First-time player companion selection screen
+- **ChatOverlay.js** - Visual novel-style dialogue system for tutorials and companion interactions
+- **CompanionCodex.js** - Pokedex-style companion registry UI
 - **main.js** - Legacy Vite template entry point (not used)
 - **electron.cjs** - Electron main process configuration
 
@@ -48,12 +53,23 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - **Resource Gathering**: Biome-specific shrubs, ores (iron, gold), and collectibles
 - **Billboard System**: Floating emoji sprites (backpack 🎒, ghosts 👻, shrubs 🌿)
 - **Crafting**: Workbench (shapes) and ToolBench (tools) with recipe systems
-- **Combat System**: Pokemon-inspired crafted monster battles (in development)
-  - Craft monsters from gathered materials at special workbench
-  - Deploy monsters via throwable containers
-  - AI vs AI auto-battles with player providing real-time support (healing, buffs, additional monsters)
-  - Material-based monster types: desert monsters from sand, forest monsters from wood, etc.
-  - Strategic team building and resource management gameplay loop
+- **Tutorial System**: Visual novel-style companion dialogue with localStorage tracking
+  - ChatOverlay.js for sequential messages with character portraits
+  - Tutorials: Intro sequence, backpack discovery, machete usage, workbench crafting
+  - One-time tutorials tracked in `localStorage.tutorialsSeen`
+- **Companion System**: Pokemon-style companion collection and management
+  - Starter companion selection (rat, goblin, goblin_grunt)
+  - Companion Codex (C key) - Pokedex-style registry with stats and portraits
+  - Entity data system (entities.json) with portraits in `/art/entities/`
+- **UI Systems**: Explorer-themed modals with bookmark tab navigation
+  - Explorer's Journal (M key) - World map with minimap, pin placement
+  - Companion Codex (C key) - Companion registry and active partner selection
+  - Explorer's Menu - Time/day cycle display, settings, save/load
+  - Bookmark tabs for seamless navigation between Map ↔ Codex
+- **Combat System**: Pokemon-style auto-battler (in development)
+  - Turn-based battles with companion monsters
+  - Ruin encounters and wandering enemies
+  - Battle interface integration pending
 - **Mobile Support**: Virtual joysticks with automatic device detection
 - **Performance Scaling**: Automatic render distance adjustment
 
@@ -76,6 +92,9 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - **Key 5** - Toggle backpack inventory
 - **Q/E** - Navigate hotbar slots
 - **E** - Interact (workbench, toolbench)
+- **M** - Toggle World Map (Explorer's Journal)
+- **C** - Toggle Companion Codex
+- **ESC** - Close modals (workbench, toolbench, backpack)
 
 ### Mobile Controls
 - **Left Joystick** - Movement
@@ -84,7 +103,7 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 
 ## Current Architecture Issues
 
-### VoxelWorld.js (9200+ lines - TOO LARGE)
+### VoxelWorld.js (10,900+ lines - TOO LARGE)
 
 **Still needs extraction:**
 - Physics system (collision, movement, gravity)
@@ -93,6 +112,7 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - UI systems (notifications, minimap, mobile joysticks)
 - Save/load system
 - Main game loop and orchestration
+- Combat system (pending - will be extracted to BattleSystem.js)
 
 **Goal:** Reduce to <2000 lines (orchestrator only)
 
@@ -110,6 +130,13 @@ Block type IDs must stay synchronized across:
 - Use Billboard sprites (SpriteMaterial) instead for floating elements
 - Fresh CanvasTexture instances required for crafted objects (no shared references)
 
+### Pointer Lock Management
+- Pointer lock must be released when opening ANY modal (Map, Codex, Chat, Workbench, ToolBench)
+- Only re-engage pointer lock when CLOSING modals completely (Close button, ESC key, toggle key)
+- DO NOT re-engage when switching between related modals (bookmark tab navigation)
+- Chat.js checks for open workbench/toolbench before re-engaging
+- Bookmark clicks pass `reEngagePointerLock: false` to `hide()` methods
+
 ### Cache Management
 Console utilities (exposed via `window.voxelApp`):
 - `clearCaches()` - Clear caches but preserve saved games
@@ -124,25 +151,35 @@ Console utilities (exposed via `window.voxelApp`):
 
 ## Current Priorities (2025-10-06)
 
-### Critical Bugs
-1. **Dead Tree Crash**: `treeRegistry[treeId]` undefined error in VoxelWorld.js:7689
-2. **Player Hitbox Too Wide**: Needs 2-block gap instead of 1, can walk into blocks
+### Critical Features
+1. **Auto-Battler Combat System**: Pokemon-style companion battles (NEXT PRIORITY)
+   - Battle UI overlay when encountering enemies
+   - Turn-based combat with companion stats (HP, Attack, Defense, Speed)
+   - Player commands (Fight, Items, Switch, Run)
+   - Victory/defeat outcomes with rewards/consequences
 
 ### High Priority Features
 1. **Greedy Meshing**: Required for ocean biome (10,000 water blocks = 10,000 draw calls currently)
 2. **3D Cave Systems**: Perlin worms to carve natural caves in hollow mountains
-3. **Ruins Generation**: Not spawning (check BiomeWorldGen spawn rates)
+3. **Ruins Generation**: Not spawning consistently (check BiomeWorldGen spawn rates)
 
-### Medium Priority
-1. **Biome Labeling Bug**: Shows "Plains" when on mountains (height-based detection issue)
-2. **Terrain Smoothing**: Reduce "Borg cube" artifacts at chunk boundaries
-3. **Drag & Drop Inventory**: Currently only right-click transfer works
-4. **Continue VoxelWorld.js Refactoring**: Extract Physics, PlayerController, UI, SaveLoad
+### Medium Priority Bugs
+1. **Player Hitbox Too Wide**: Needs 2-block gap instead of 1, can walk into blocks
+2. **Biome Labeling Bug**: Shows "Plains" when on mountains (height-based detection issue)
+3. **Terrain Smoothing**: Reduce "Borg cube" artifacts at chunk boundaries
+4. **Drag & Drop Inventory**: Currently only right-click transfer works
+
+### Long-Term Refactoring
+1. **Continue VoxelWorld.js Refactoring**: Extract Physics, PlayerController, UI, SaveLoad (reduce from 10,900+ lines to <2000)
 
 ### Optional Enhancements
-1. **Halloween Ghost Following**: Ruin ghosts and night forest ghosts with cumulative spawn chance
-2. **Floating Islands**: Add special loot, quest markers, visual effects
-3. **Farming System**: Stardew Valley-inspired agriculture (see CHANGELOG.md)
+1. **Companion Portrait UI**: Clickable companion portrait near hotbar
+   - Click to open chat with active companion
+   - Re-read tutorials, get hints, friendly interactions
+   - Show HP/status during battles
+2. **Halloween Ghost Following**: Ruin ghosts and night forest ghosts with cumulative spawn chance
+3. **Floating Islands**: Add special loot, quest markers, visual effects
+4. **Farming System**: Stardew Valley-inspired agriculture (see CHANGELOG.md)
 
 ## Debug Commands
 

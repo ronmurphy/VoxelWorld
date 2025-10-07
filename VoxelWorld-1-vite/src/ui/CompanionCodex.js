@@ -511,6 +511,11 @@ export class CompanionCodex {
         const rightPage = document.getElementById('codex-right-page');
         this.renderCompanionList(leftPage);
         this.renderCompanionDetails(rightPage, companionId);
+
+        // 🖼️ Refresh companion portrait to show new active companion
+        if (this.voxelWorld.companionPortrait) {
+            this.voxelWorld.companionPortrait.refresh();
+        }
     }
 
     /**

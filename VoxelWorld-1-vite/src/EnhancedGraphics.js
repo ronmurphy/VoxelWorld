@@ -256,7 +256,7 @@ export class EnhancedGraphics {
                 ],
                 tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 'compass', 'toolbench', 'tool_bench'],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun'],
-                entities: ['ghost']
+                entities: ['ghost', 'angry_ghost']
             };
 
             for (const [category, names] of Object.entries(candidates)) {
@@ -503,22 +503,58 @@ export class EnhancedGraphics {
     }
 
     /**
-     * Load entity image assets
+     * Load entity image assets (including ready/attack pose variants)
      */
     async _loadEntityImages() {
         const promises = this.availableAssets.entities.map(async (entityType) => {
+            const entityData = {};
+            let hasAnySprite = false;
+
+            // Try to load main entity image (e.g., ghost.png)
             try {
                 const imagePath = `${this.assetPaths.entities}/${entityType}.png`;
                 const image = await this._loadImage(imagePath);
-                // Store both the image and the relative path
-                this.entityImages.set(entityType, {
-                    image: image,
-                    path: imagePath
+                entityData.image = image;
+                entityData.path = imagePath;
+                hasAnySprite = true;
+            } catch (e) {
+                // Base sprite not found, try pose variants
+            }
+
+            // Try to load ready pose variant (e.g., angry_ghost_ready_pose_enhanced.png)
+            try {
+                const readyPath = `${this.assetPaths.entities}/${entityType}_ready_pose_enhanced.png`;
+                const readyImage = await this._loadImage(readyPath);
+                entityData.readyImage = readyImage;
+                entityData.readyPath = readyPath;
+                hasAnySprite = true;
+            } catch (e) {
+                // Ready pose not found, that's okay
+            }
+
+            // Try to load attack pose variant (e.g., angry_ghost_attack_pose_enhanced.png)
+            try {
+                const attackPath = `${this.assetPaths.entities}/${entityType}_attack_pose_enhanced.png`;
+                const attackImage = await this._loadImage(attackPath);
+                entityData.attackImage = attackImage;
+                entityData.attackPath = attackPath;
+                hasAnySprite = true;
+            } catch (e) {
+                // Attack pose not found, that's okay
+            }
+
+            // Only store if we found at least one sprite variant
+            if (hasAnySprite) {
+                this.entityImages.set(entityType, entityData);
+                console.log(`✅ Loaded entity: ${entityType}`, {
+                    base: !!entityData.path,
+                    ready: !!entityData.readyPath,
+                    attack: !!entityData.attackPath
                 });
                 return { entityType, success: true };
-            } catch (error) {
-                console.warn(`⚠️ Failed to load entity image: ${entityType}`, error);
-                return { entityType, success: false, error };
+            } else {
+                console.warn(`⚠️ No sprites found for entity: ${entityType}`);
+                return { entityType, success: false };
             }
         });
 
