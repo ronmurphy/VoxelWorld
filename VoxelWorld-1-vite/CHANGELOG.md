@@ -4,6 +4,111 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-06 Late Night - 3D Arena Battle System
+
+**Status: FULLY IMPLEMENTED**
+
+### ⚔️ Revolutionary 3D Combat System
+
+**Overview:**
+Replaced UI overlay battles with real-time 3D arena combat in the voxel world. Companions and enemies appear as 3D billboards sprites that circle each other, attack, and react to damage. This creates a unique hybrid of Minecraft's voxel world + Pokemon's creature battles + real-time 3D animations.
+
+**Core Features:**
+1. **3D Arena Combat**: Battles take place 4 blocks ahead of player in the voxel world
+2. **Circling Animation**: Combatants orbit around arena center at 2-block radius
+3. **Dynamic Sprite Poses**: Swap between `_ready_pose_enhanced.png` and `_attack_pose_enhanced.png`
+4. **HP Bars**: Billboard sprites with color-coded health (green/yellow/red) above combatants
+5. **Attack Animations**: Lunge forward, flash damage on hit, smooth lerp movement
+6. **Context-Aware Victory Dialogue**: Companion comments based on remaining HP (95%+, 50%+, 25%+, <25%)
+7. **Loot Integration**: Victory dialogue shows drops, adds to inventory on continue
+8. **Free Camera**: Player can look around during combat but movement is disabled
+9. **Turn-Based Logic**: Speed stat + d6 initiative, d20 + attack vs defense, d6 damage rolls
+
+**Implementation:**
+
+- `src/CombatantSprite.js` (NEW - 327 lines) - 3D sprite wrapper with HP bars, animations
+  - `createSprite()` - 2-block tall sprites with ready pose
+  - `createHPBar()` - Canvas-based HP bars with name/HP text
+  - `showAttackPose()` / `showReadyPose()` - Texture swapping for animations
+  - `flashDamage()` - Red flash on hit
+  - `playVictory()` / `playDefeat()` - End-of-battle animations
+  - `update()` - Smooth lerp movement and HP bar following
+
+- `src/BattleArena.js` (NEW - 438 lines) - Full 3D arena orchestrator
+  - `startBattle()` - Initialize arena 4 blocks ahead in player's facing direction
+  - `getCirclePosition()` - Calculate positions on circular orbit
+  - `buildTurnQueue()` - Speed-based initiative system
+  - `updateCircling()` - Continuous rotation around arena center
+  - `executeTurn()` - Attack animations with lunge forward
+  - `resolveCombat()` - Hit/miss calculation, damage application
+  - `showVictoryDialogue()` - HP-based contextual messages
+  - `addLootToInventory()` - Integration with inventory system
+  - `cleanup()` - Re-enable movement, restore pointer lock
+
+- `src/BattleSystem.js` - Redirect to BattleArena instead of UI overlay
+  - Line 142-149: Call `voxelWorld.battleArena.startBattle()` instead of creating UI
+
+- `src/VoxelWorld.js` - Integration with main game loop
+  - Line 13: Import BattleArena
+  - Line 166: `this.battleArena = new BattleArena(this)`
+  - Line 66: `this.movementEnabled = true` - Separate flag for movement vs camera
+  - Line 9044-9046: Update battle arena in animation loop
+  - Line 9063-9067: Skip movement but allow camera when `movementEnabled = false`
+  - Line 11021-11051: `testCombat(enemyId)` debug method
+
+- `src/App.js` - Expose debug command
+  - Line 59-60: Global `window.testCombat()` function
+
+- `src/AngryGhostSystem.js` - Direct PNG loading for angry ghosts
+  - Line 61-89: Load `angry_ghost_ready_pose_enhanced.png` directly, no emoji fallback
+
+- `src/EnhancedGraphics.js` - Support entities with only pose variants
+  - `_loadEntityImages()` - Handle entities without base `.png` (only `_ready_pose_enhanced.png` and `_attack_pose_enhanced.png`)
+
+**File Naming Convention:**
+- `(enemyName)_ready_pose_enhanced.png` - Idle stance during combat
+- `(enemyName)_attack_pose_enhanced.png` - Attack animation frame
+- `(enemyName).jpeg` - Portrait for chat/UI only
+- NO base `.png` files exist (e.g., no `angry_ghost.png`)
+
+**Arena Positioning:**
+- Arena spawns 4 blocks ahead in player's facing direction
+- At player's Y level (feet position)
+- 2-block radius orbit for combatants
+- Combatants positioned at ground level (no elevation)
+- HP bars float 1.5 blocks above sprite heads
+
+**Debug Commands:**
+```javascript
+testCombat()                // Spawn angry_ghost 4 blocks ahead
+testCombat('angry_ghost')   // Same
+testCombat('rat')           // Test with rat
+testCombat('ghost')         // Test with ghost
+```
+
+**Technical Achievements:**
+- Separate `movementEnabled` flag allows camera rotation during combat
+- Clear input buffer prevents rushing forward after combat
+- Texture swapping with proper disposal prevents memory leaks
+- HP percentage-based dialogue adds personality
+- Loot stored before sprite destruction prevents null references
+- Billboard sprites always face camera for readability
+
+**Visual Flow:**
+1. Angry ghost triggers battle within 3-block range
+2. Arena spawns 4 blocks ahead of player
+3. Companion and enemy appear on opposite sides of circle
+4. Combatants circle arena center while idle
+5. Turn timer triggers attack (lunge forward, pose swap)
+6. Damage flash, HP bar updates
+7. Return to circling position
+8. Repeat until knockout
+9. Victory/defeat animations
+10. Context-aware dialogue with loot info
+11. Cleanup, restore controls
+
+---
+
 ## 2025-10-06 Evening - Tutorial System, Companion Codex, & UI Unification
 
 **Status: FULLY IMPLEMENTED**

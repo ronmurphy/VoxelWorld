@@ -63,6 +63,7 @@ class NebulaVoxelApp {
         this.isOnGround = false;
         this.keys = {};
         this.selectedSlot = 0;
+        this.movementEnabled = true; // Separate flag for movement vs camera controls
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
@@ -9051,9 +9052,16 @@ class NebulaVoxelApp {
             // 🌍 Update biome indicator based on player position
             this.updateBiomeIndicator();
 
-            // Always continue animation loop, but skip input processing if paused or controls disabled
-            if (this.isPaused || !this.controlsEnabled) {
+            // Always continue animation loop, but skip input processing if paused
+            if (this.isPaused) {
                 // Still render the scene even when paused
+                this.renderer.render(this.scene, this.camera);
+                return;
+            }
+
+            // Skip movement processing if movement is disabled (e.g., during combat)
+            if (!this.movementEnabled) {
+                // Still render and allow camera movement
                 this.renderer.render(this.scene, this.camera);
                 return;
             }
@@ -11008,6 +11016,38 @@ class NebulaVoxelApp {
             // Start harvesting on mobile touch and hold
             this.startHarvesting(pos.x, pos.y, pos.z);
         }
+    }
+
+    /**
+     * 🎮 DEBUG: Test combat system
+     * Usage: window.voxelApp.testCombat('angry_ghost') or testCombat()
+     * @param {string} enemyId - Enemy ID from entities.json (default: 'angry_ghost')
+     */
+    testCombat(enemyId = 'angry_ghost') {
+        if (!this.battleSystem) {
+            console.error('❌ BattleSystem not initialized!');
+            return;
+        }
+
+        // Calculate enemy position 4 blocks ahead of player at their Y level
+        const playerPos = this.player.position;
+        const playerRotation = this.player.rotation.y;
+
+        // Calculate forward direction vector
+        const forwardX = -Math.sin(playerRotation);
+        const forwardZ = -Math.cos(playerRotation);
+
+        // Spawn enemy 4 blocks ahead at player's Y level
+        const enemyPosition = {
+            x: playerPos.x + (forwardX * 4),
+            y: playerPos.y,
+            z: playerPos.z + (forwardZ * 4)
+        };
+
+        console.log(`🎮 TEST COMBAT: Starting battle with ${enemyId} at (${enemyPosition.x.toFixed(1)}, ${enemyPosition.y.toFixed(1)}, ${enemyPosition.z.toFixed(1)})`);
+
+        // Start battle
+        this.battleSystem.startBattle(enemyId, enemyPosition);
     }
 }
 

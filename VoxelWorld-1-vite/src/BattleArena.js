@@ -60,16 +60,23 @@ export class BattleArena {
 
         this.isActive = true;
 
-        // Calculate arena center between player and enemy at player's Y level
+        // Calculate arena center 4 blocks ahead of player's facing direction
         const playerPos = this.voxelWorld.player.position;
+        const playerRotation = this.voxelWorld.player.rotation.y;
+
+        // Calculate forward direction vector (player rotation.y is yaw)
+        const forwardX = -Math.sin(playerRotation);
+        const forwardZ = -Math.cos(playerRotation);
+
+        // Position arena 4 blocks ahead of player at feet level
         this.arenaCenter.set(
-            (playerPos.x + enemyPosition.x) / 2,
-            playerPos.y, // Use player's Y level for better visibility
-            (playerPos.z + enemyPosition.z) / 2
+            playerPos.x + (forwardX * 4),
+            playerPos.y, // Player Y is feet level
+            playerPos.z + (forwardZ * 4)
         );
 
         // Disable player MOVEMENT but keep camera controls active
-        this.voxelWorld.controlsEnabled = false;
+        this.voxelWorld.movementEnabled = false;
 
         // Clear any built-up movement input
         this.voxelWorld.keys = {};
@@ -106,7 +113,7 @@ export class BattleArena {
     getCirclePosition(angle) {
         return {
             x: this.arenaCenter.x + Math.cos(angle) * this.arenaRadius,
-            y: this.arenaCenter.y + 1.0, // 1 block above ground
+            y: this.arenaCenter.y, // At player's feet level
             z: this.arenaCenter.z + Math.sin(angle) * this.arenaRadius
         };
     }
@@ -412,7 +419,7 @@ export class BattleArena {
             // Clear any buffered input before re-enabling controls
             this.voxelWorld.keys = {};
 
-            this.voxelWorld.controlsEnabled = true;
+            this.voxelWorld.movementEnabled = true;
 
             // Re-engage pointer lock
             if (this.voxelWorld.renderer && this.voxelWorld.renderer.domElement) {

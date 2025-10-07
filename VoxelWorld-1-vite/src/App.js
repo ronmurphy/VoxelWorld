@@ -55,6 +55,10 @@ window.addEventListener('DOMContentLoaded', () => {
     window['voxelApp'] = app;
     console.log('🐛 voxelApp exposed to window for debugging');
 
+    // Add global convenience function for testing combat
+    window['testCombat'] = (enemyId) => app.testCombat(enemyId);
+    console.log('🎮 testCombat() available globally');
+
     // Helper function to get companion info for tutorials
     const getCompanionInfo = async () => {
       const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
