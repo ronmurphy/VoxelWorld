@@ -10000,6 +10000,7 @@ class NebulaVoxelApp {
             padding: 3px;
             margin-bottom: 6px;
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+            width: 106px;
         `;
 
         this.miniMap = document.createElement('canvas');

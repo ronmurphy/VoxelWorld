@@ -14,6 +14,57 @@ export class CompanionCodex {
         this.selectedCompanion = null;
         this.activeCompanion = null;
         this.allCompanions = null;
+        this.companionEquipment = {}; // { companionId: { head: null, body: null, weapon: null, accessory: null } }
+
+        // Equipment stat bonuses
+        this.equipmentBonuses = {
+            // Basic starter items (easy to find, low bonuses)
+            stick: { attack: 1, label: 'Stick', icon: 'art/tools/stick.png' },
+            oak_wood: { defense: 1, label: 'Wood Plank', icon: 'art/tools/wood_plank.png' },
+            pine_wood: { defense: 1, label: 'Wood Plank', icon: 'art/tools/wood_plank.png' },
+            birch_wood: { defense: 1, label: 'Wood Plank', icon: 'art/tools/wood_plank.png' },
+            palm_wood: { defense: 1, label: 'Wood Plank', icon: 'art/tools/wood_plank.png' },
+            dead_wood: { defense: 1, label: 'Wood Plank', icon: 'art/tools/wood_plank.png' },
+            stone: { defense: 1, hp: 2, label: 'Stone', icon: 'art/tools/stone_block.png' },
+            leaf: { speed: 1, label: 'Leaf', icon: 'art/tools/leaf.png' },
+            'oak_wood-leaves': { speed: 1, label: 'Leaves', icon: 'art/tools/leaves.png' },
+            'pine_wood-leaves': { speed: 1, label: 'Leaves', icon: 'art/tools/leaves.png' },
+            'birch_wood-leaves': { speed: 1, label: 'Leaves', icon: 'art/tools/leaves.png' },
+            'palm_wood-leaves': { speed: 1, label: 'Leaves', icon: 'art/tools/leaves.png' },
+            'dead_wood-leaves': { speed: 1, label: 'Leaves', icon: 'art/tools/leaves.png' },
+            sand: { defense: 1, label: 'Sand Block', icon: 'art/tools/sand_block.png' },
+
+            // World discovery items (medium rarity)
+            rustySword: { attack: 2, label: '⚔️ Rusty Sword' },
+            oldPickaxe: { attack: 1, defense: 1, label: '⛏️ Old Pickaxe' },
+            ancientAmulet: { defense: 2, hp: 3, label: '📿 Ancient Amulet' },
+            skull: { attack: 1, label: '💀 Skull' },
+            crystal: { speed: 1, defense: 1, label: '💎 Crystal' },
+            feather: { speed: 2, label: '🪶 Feather' },
+            bone: { defense: 1, label: '🦴 Bone' },
+            fur: { hp: 5, defense: 1, label: '🐻‍❄️ Fur' },
+            iceShard: { attack: 1, speed: 1, label: '❄️ Ice Shard' },
+            mushroom: { hp: 3, label: '🍄 Mushroom' },
+            berry: { hp: 2, label: '🍓 Berry' },
+            flower: { defense: 1, label: '🌸 Flower' },
+
+            // Crafted tools (from ToolBench)
+            combat_sword: { attack: 4, label: '⚔️ Combat Sword', icon: 'art/tools/sword.png' },
+            mining_pick: { attack: 2, defense: 2, label: '⛏️ Mining Pick', icon: 'art/tools/pickaxe.png' },
+            stone_hammer: { attack: 3, defense: 1, label: '🔨 Stone Hammer', icon: 'art/tools/stone_hammer.png' },
+            magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/cryatal.png' },
+            compass: { speed: 1, label: '🧭 Compass', icon: 'art/tools/compass.png' },
+            compass_upgrade: { speed: 2, label: '🧭 Crystal Compass', icon: 'art/tools/compass.png' },
+            speed_boots: { speed: 3, label: '👢 Speed Boots', icon: 'art/tools/boots_speed.png' },
+            grappling_hook: { speed: 2, label: '🕸️ Grappling Hook', icon: 'art/tools/grapple.png' },
+            machete: { attack: 2, label: '🔪 Machete', icon: 'art/tools/machete.png' },
+
+            // Prefixed versions from ToolBench crafting system
+            crafted_combat_sword: { attack: 4, label: '⚔️ Combat Sword', icon: 'art/tools/sword.png' },
+            crafted_mining_pick: { attack: 2, defense: 2, label: '⛏️ Mining Pick', icon: 'art/tools/pickaxe.png' },
+            crafted_magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/cryatal.png' },
+            crafted_grappling_hook: { speed: 2, label: '🕸️ Grappling Hook', icon: 'art/tools/grapple.png' }
+        };
 
         console.log('📘 CompanionCodex system initialized');
     }
@@ -42,7 +93,17 @@ export class CompanionCodex {
             const data = JSON.parse(playerData);
             this.discoveredCompanions = data.monsterCollection || [];
             this.activeCompanion = data.activeCompanion || data.starterMonster || null;
+            this.companionEquipment = data.companionEquipment || {};
         }
+    }
+
+    /**
+     * Save companion equipment to localStorage
+     */
+    saveEquipment() {
+        const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
+        playerData.companionEquipment = this.companionEquipment;
+        localStorage.setItem('NebulaWorld_playerData', JSON.stringify(playerData));
     }
 
     /**
@@ -391,6 +452,54 @@ export class CompanionCodex {
     }
 
     /**
+     * Calculate total stats including equipment bonuses
+     * @param {string} companionId - Companion ID
+     * @returns {object} Stats object with hp, attack, defense, speed
+     */
+    calculateStats(companionId) {
+        const companion = this.allCompanions[companionId];
+        if (!companion) return null;
+
+        const equipment = this.companionEquipment[companionId] || { head: null, body: null, weapon: null, accessory: null };
+        const stats = {
+            hp: companion.hp,
+            attack: companion.attack,
+            defense: companion.defense,
+            speed: companion.speed
+        };
+
+        // Apply equipment bonuses
+        Object.values(equipment).forEach(item => {
+            if (item && this.equipmentBonuses[item]) {
+                const bonuses = this.equipmentBonuses[item];
+                stats.hp += bonuses.hp || 0;
+                stats.attack += bonuses.attack || 0;
+                stats.defense += bonuses.defense || 0;
+                stats.speed += bonuses.speed || 0;
+            }
+        });
+
+        return stats;
+    }
+
+    /**
+     * Get companion stats with equipment bonuses (for combat system)
+     * @param {string} companionId - Companion ID
+     * @returns {object} Stats object with hp, attack, defense, speed
+     */
+    getCompanionStats(companionId) {
+        // Ensure data is loaded
+        if (!this.allCompanions) {
+            console.warn('⚠️ Companion data not loaded, loading now...');
+            // Return base stats from localStorage as fallback
+            const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
+            this.companionEquipment = playerData.companionEquipment || {};
+        }
+
+        return this.calculateStats(companionId);
+    }
+
+    /**
      * Render companion details on the right page
      */
     renderCompanionDetails(rightPage, companionId) {
@@ -405,6 +514,8 @@ export class CompanionCodex {
 
         const companion = this.allCompanions[companionId];
         const isActive = companionId === this.activeCompanion;
+        const stats = this.calculateStats(companionId);
+        const equipment = this.companionEquipment[companionId] || { head: null, body: null, weapon: null, accessory: null };
 
         rightPage.innerHTML = `
             <div style="text-align: center; margin-bottom: 20px;">
@@ -426,11 +537,23 @@ export class CompanionCodex {
                     ⚔️ Combat Stats
                 </h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; color: #2C1810;">
-                    <div><strong>❤️ HP:</strong> ${companion.hp}</div>
-                    <div><strong>⚔️ Attack:</strong> ${companion.attack}</div>
-                    <div><strong>🛡️ Defense:</strong> ${companion.defense}</div>
-                    <div><strong>⚡ Speed:</strong> ${companion.speed}</div>
+                    <div><strong>❤️ HP:</strong> ${stats.hp}${stats.hp > companion.hp ? ` <span style="color: #4CAF50;">(+${stats.hp - companion.hp})</span>` : ''}</div>
+                    <div><strong>⚔️ Attack:</strong> ${stats.attack}${stats.attack > companion.attack ? ` <span style="color: #4CAF50;">(+${stats.attack - companion.attack})</span>` : ''}</div>
+                    <div><strong>🛡️ Defense:</strong> ${stats.defense}${stats.defense > companion.defense ? ` <span style="color: #4CAF50;">(+${stats.defense - companion.defense})</span>` : ''}</div>
+                    <div><strong>⚡ Speed:</strong> ${stats.speed}${stats.speed > companion.speed ? ` <span style="color: #4CAF50;">(+${stats.speed - companion.speed})</span>` : ''}</div>
                     <div style="grid-column: 1 / -1;"><strong>🌟 Tier:</strong> ${companion.tier}</div>
+                </div>
+            </div>
+
+            <div style="background: rgba(255, 255, 255, 0.3); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                <h3 style="margin: 0 0 10px 0; color: #4A3728; font-size: 18px; border-bottom: 1px solid #D4AF37; padding-bottom: 5px;">
+                    🎒 Equipment
+                </h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    ${this.renderEquipmentSlot('head', equipment.head, '🎩')}
+                    ${this.renderEquipmentSlot('body', equipment.body, '👕')}
+                    ${this.renderEquipmentSlot('weapon', equipment.weapon, '⚔️')}
+                    ${this.renderEquipmentSlot('accessory', equipment.accessory, '💍')}
                 </div>
             </div>
 
@@ -491,6 +614,257 @@ export class CompanionCodex {
                 this.setActiveCompanion(companionId);
             });
         }
+
+        // Wire up equipment slot clicks
+        const equipmentSlots = rightPage.querySelectorAll('.equipment-slot');
+        equipmentSlots.forEach(slot => {
+            slot.addEventListener('click', (e) => {
+                // Don't trigger if clicking unequip button
+                if (e.target.classList.contains('unequip-btn')) return;
+
+                const slotName = slot.dataset.slot;
+                this.openEquipmentSelector(companionId, slotName);
+            });
+        });
+
+        // Wire up unequip buttons
+        const unequipBtns = rightPage.querySelectorAll('.unequip-btn');
+        unequipBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const slotName = btn.dataset.slot;
+                this.unequipItem(companionId, slotName);
+                this.renderCompanionDetails(rightPage, companionId);
+                this.voxelWorld.updateHotbarCounts();
+            });
+        });
+    }
+
+    /**
+     * Open item selector to equip items from inventory
+     */
+    openEquipmentSelector(companionId, slotName) {
+        // Get all equippable items from player inventory
+        const equippableItems = [];
+
+        // Check hotbar
+        for (let i = 0; i < 5; i++) {
+            const slot = this.voxelWorld.getHotbarSlot(i);
+            if (slot && slot.itemType && this.equipmentBonuses[slot.itemType]) {
+                equippableItems.push({ location: 'hotbar', index: i, itemType: slot.itemType, quantity: slot.quantity });
+            }
+        }
+
+        // Check backpack
+        for (let i = 0; i < 25; i++) {
+            const slot = this.voxelWorld.getBackpackSlot(i);
+            if (slot && slot.itemType && this.equipmentBonuses[slot.itemType]) {
+                equippableItems.push({ location: 'backpack', index: i, itemType: slot.itemType, quantity: slot.quantity });
+            }
+        }
+
+        if (equippableItems.length === 0) {
+            alert('No equippable items in inventory! Find items like skulls 💀, crystals 💎, or equipment ⚔️ in the world.');
+            return;
+        }
+
+        // Create selection modal
+        const selector = document.createElement('div');
+        selector.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #E8D5B7, #F5E6D3);
+            border: 4px solid #8B4513;
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 10000;
+            max-width: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+        `;
+
+        selector.innerHTML = `
+            <h3 style="margin: 0 0 15px 0; color: #4A3728; text-align: center; font-family: Georgia, serif;">
+                Select Item for ${slotName} Slot
+            </h3>
+            <div id="item-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            <button id="cancel-btn" style="
+                width: 100%;
+                padding: 10px;
+                margin-top: 15px;
+                font-size: 14px;
+                font-family: Georgia, serif;
+                background: #ccc;
+                border: 2px solid #999;
+                border-radius: 6px;
+                cursor: pointer;
+            ">Cancel</button>
+        `;
+
+        document.body.appendChild(selector);
+
+        const itemList = selector.querySelector('#item-list');
+        equippableItems.forEach(item => {
+            const itemBtn = document.createElement('button');
+            const bonuses = this.equipmentBonuses[item.itemType];
+            const bonusText = [];
+            if (bonuses.hp) bonusText.push(`+${bonuses.hp} HP`);
+            if (bonuses.attack) bonusText.push(`+${bonuses.attack} ATK`);
+            if (bonuses.defense) bonusText.push(`+${bonuses.defense} DEF`);
+            if (bonuses.speed) bonusText.push(`+${bonuses.speed} SPD`);
+
+            itemBtn.style.cssText = `
+                padding: 12px;
+                font-size: 14px;
+                text-align: left;
+                background: rgba(212, 175, 55, 0.2);
+                border: 2px solid #D4AF37;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            `;
+
+            // Show icon for crafted tools with ❓ fallback
+            let itemIconHtml = '';
+            if (bonuses.icon) {
+                itemIconHtml = `
+                    <img src="${bonuses.icon}" alt="${bonuses.label}"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';"
+                        style="width: 32px; height: 32px; image-rendering: pixelated;">
+                    <span style="display: none; font-size: 24px;">❓</span>
+                `;
+            }
+
+            itemBtn.innerHTML = `
+                ${itemIconHtml}
+                <div style="flex: 1;">
+                    <div style="font-weight: bold; color: #2C1810; margin-bottom: 4px;">${bonuses.label}</div>
+                    <div style="font-size: 12px; color: #666;">${bonusText.join(', ')}</div>
+                </div>
+            `;
+
+            itemBtn.addEventListener('mouseover', () => {
+                itemBtn.style.background = 'rgba(212, 175, 55, 0.4)';
+            });
+
+            itemBtn.addEventListener('mouseout', () => {
+                itemBtn.style.background = 'rgba(212, 175, 55, 0.2)';
+            });
+
+            itemBtn.addEventListener('click', () => {
+                // Remove item from inventory
+                if (item.location === 'hotbar') {
+                    const slot = this.voxelWorld.getHotbarSlot(item.index);
+                    this.voxelWorld.setHotbarSlot(item.index, slot.quantity > 1 ? slot.itemType : null, slot.quantity - 1);
+                } else {
+                    const slot = this.voxelWorld.getBackpackSlot(item.index);
+                    this.voxelWorld.setBackpackSlot(item.index, slot.quantity > 1 ? slot.itemType : null, slot.quantity - 1);
+                }
+
+                // Equip item
+                this.equipItem(companionId, slotName, item.itemType);
+
+                // Update UI
+                const rightPage = document.getElementById('codex-right-page');
+                this.renderCompanionDetails(rightPage, companionId);
+                this.voxelWorld.updateHotbarCounts();
+
+                // Close selector
+                selector.remove();
+            });
+
+            itemList.appendChild(itemBtn);
+        });
+
+        // Cancel button
+        selector.querySelector('#cancel-btn').addEventListener('click', () => {
+            selector.remove();
+        });
+    }
+
+    /**
+     * Render a single equipment slot
+     */
+    renderEquipmentSlot(slotName, itemType, slotIcon) {
+        const itemData = itemType ? this.equipmentBonuses[itemType] : null;
+        const itemLabel = itemData?.label || (itemType || 'Empty');
+        const isEmpty = !itemType;
+
+        // Show item icon if it exists (for crafted tools), otherwise show ❓ emoji fallback
+        let itemIconHtml = '';
+        if (itemData?.icon && !isEmpty) {
+            // Use ❓ emoji as fallback if image fails to load
+            itemIconHtml = `<img src="${itemData.icon}" alt="${itemLabel}"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';"
+                style="width: 32px; height: 32px; vertical-align: middle; margin-right: 4px; image-rendering: pixelated;">
+                <span style="display: none; font-size: 24px; margin-right: 4px;">❓</span>`;
+        }
+
+        return `
+            <div class="equipment-slot" data-slot="${slotName}" style="
+                background: ${isEmpty ? 'rgba(0, 0, 0, 0.2)' : 'rgba(212, 175, 55, 0.2)'};
+                border: 2px ${isEmpty ? 'dashed' : 'solid'} ${isEmpty ? '#999' : '#D4AF37'};
+                border-radius: 6px;
+                padding: 8px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                position: relative;
+            ">
+                <div style="font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px;">
+                    ${slotIcon} ${slotName}
+                </div>
+                <div style="font-size: 13px; color: #2C1810; font-weight: ${isEmpty ? 'normal' : 'bold'}; display: flex; align-items: center;">
+                    ${itemIconHtml}
+                    <span>${itemLabel.replace(/^[⚔️⛏️🔨📿🧭💀💎🪶🦴🐻‍❄️❄️🍄🍓🌸]\s*/, '')}</span>
+                </div>
+                ${!isEmpty ? `<div style="position: absolute; top: 4px; right: 4px; font-size: 10px; cursor: pointer; color: #c0392b;" class="unequip-btn" data-slot="${slotName}">✖</div>` : ''}
+            </div>
+        `;
+    }
+
+    /**
+     * Equip an item to a companion
+     */
+    equipItem(companionId, slotName, itemType) {
+        if (!this.companionEquipment[companionId]) {
+            this.companionEquipment[companionId] = { head: null, body: null, weapon: null, accessory: null };
+        }
+
+        // Return old item if replacing
+        const oldItem = this.companionEquipment[companionId][slotName];
+        if (oldItem) {
+            this.voxelWorld.inventory.addToInventory(oldItem, 1);
+        }
+
+        // Equip new item
+        this.companionEquipment[companionId][slotName] = itemType;
+        this.saveEquipment();
+
+        console.log(`✅ Equipped ${itemType} to ${companionId}'s ${slotName} slot`);
+        return oldItem;
+    }
+
+    /**
+     * Unequip an item from a companion
+     */
+    unequipItem(companionId, slotName) {
+        if (!this.companionEquipment[companionId]) return null;
+
+        const item = this.companionEquipment[companionId][slotName];
+        if (item) {
+            this.companionEquipment[companionId][slotName] = null;
+            this.saveEquipment();
+            this.voxelWorld.inventory.addToInventory(item, 1);
+            console.log(`✅ Unequipped ${item} from ${companionId}'s ${slotName} slot`);
+        }
+
+        return item;
     }
 
     /**

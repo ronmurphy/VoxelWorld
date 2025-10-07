@@ -61,6 +61,14 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
   - Starter companion selection (rat, goblin, goblin_grunt)
   - Companion Codex (C key) - Pokedex-style registry with stats and portraits
   - Entity data system (entities.json) with portraits in `/art/entities/`
+  - Equipment system: 4 slots per companion (head, body, weapon, accessory)
+  - Equippable items (33 total):
+    - **Starter items** (easy to find): stick (+1 ATK), wood blocks (+1 DEF), stone (+1 DEF/+2 HP), leaves (+1 SPD), sand (+1 DEF), leaf (+1 SPD)
+    - **World discovery**: rustySword (+2 ATK), oldPickaxe (+1 ATK/DEF), ancientAmulet (+2 DEF/+3 HP), skull (+1 ATK), crystal (+1 SPD/DEF), feather (+2 SPD), bone (+1 DEF), fur (+5 HP/+1 DEF), iceShard (+1 ATK/SPD), mushroom (+3 HP), berry (+2 HP), flower (+1 DEF)
+    - **Crafted tools**: combat_sword (+4 ATK), mining_pick (+2 ATK/DEF), stone_hammer (+3 ATK/+1 DEF), magic_amulet (+3 DEF/+8 HP/+1 SPD), compass (+1 SPD), compass_upgrade (+2 SPD), speed_boots (+3 SPD), grappling_hook (+2 SPD), machete (+2 ATK)
+  - Equipment stored in localStorage, managed through Codex UI
+  - Combat stats automatically calculated with equipment bonuses
+  - Crafted tools display pixel art icons from `/art/tools/` with ❓ emoji fallback for missing images
 - **UI Systems**: Explorer-themed modals with bookmark tab navigation
   - Explorer's Journal (M key) - World map with minimap, pin placement
   - Companion Codex (C key) - Companion registry and active partner selection
