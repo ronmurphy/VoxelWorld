@@ -1,0 +1,160 @@
+{
+  "monsters": {
+    "rat": {
+      "name": "Rat",
+      "type": "enemy",
+      "tier": 1,
+      "hp": 8,
+      "attack": 3,
+      "defense": 13,
+      "speed": 5,
+      "abilities": ["Pack Tactics", "Quick Strike"],
+      "sprite_ready": "rat_ready_pose_enhanced.png",
+      "sprite_attack": "rat_attack_pose_enhanced.png",
+      "sprite_portrait": "rat.jpeg",
+      "description": "A scrappy tunnel rat, fast and agile.",
+      "craftable": true,
+      "craft_materials": {
+        "dead_wood": 2,
+        "leaf": 3
+      }
+    },
+    "goblin_grunt": {
+      "name": "Goblin Grunt",
+      "type": "enemy",
+      "tier": 1,
+      "hp": 12,
+      "attack": 4,
+      "defense": 12,
+      "speed": 4,
+      "abilities": ["Club Smash", "Cowardly Retreat"],
+      "sprite_ready": "goblin_grunt_ready_pose_enhanced.png",
+      "sprite_attack": "goblin_grunt_attack_pose_enhanced.png",
+      "sprite_portrait": "goblin_grunt.jpeg",
+      "description": "Small green warrior with a pineapple club.",
+      "craftable": true,
+      "craft_materials": {
+        "dead_wood": 3,
+        "stone": 2
+      }
+    },
+    "troglodyte": {
+      "name": "Troglodyte",
+      "type": "enemy",
+      "tier": 1,
+      "hp": 15,
+      "attack": 4,
+      "defense": 13,
+      "speed": 2,
+      "abilities": ["Stench Cloud", "Stone Club"],
+      "sprite_ready": "troglodyte_ready_pose_enhanced.png",
+      "sprite_attack": "troglodyte_attack_pose_enhanced.png",
+      "sprite_portrait": "troglodyte.jpeg",
+      "description": "Primitive cave dweller, slow but tough.",
+      "craftable": true,
+      "craft_materials": {
+        "stone": 4,
+        "dead_wood": 1
+      }
+    },
+    "angry_ghost": {
+      "name": "Angry Ghost",
+      "type": "enemy",
+      "tier": 2,
+      "hp": 10,
+      "attack": 5,
+      "defense": 14,
+      "speed": 6,
+      "abilities": ["Phase Strike", "Haunting Wail"],
+      "sprite_ready": "angry_ghost_ready_pose_enhanced.png",
+      "sprite_attack": "angry_ghost_attack_pose_enhanced.png",
+      "sprite_portrait": "angry_ghost.jpeg",
+      "description": "Vengeful spirit guarding ancient dead trees.",
+      "craftable": false,
+      "drops": ["skull", "dead_wood-leaves"]
+    },
+    "ghost": {
+      "name": "Ghost",
+      "type": "friendly",
+      "tier": 1,
+      "hp": 8,
+      "attack": 3,
+      "defense": 12,
+      "speed": 5,
+      "abilities": ["Floating", "Spooky Presence"],
+      "sprite_ready": "ghost.png",
+      "sprite_attack": null,
+      "sprite_portrait": null,
+      "description": "Friendly spirit from ruins, curious and helpful.",
+      "craftable": true,
+      "craft_materials": {
+        "skull": 1,
+        "dead_wood-leaves": 3
+      }
+    },
+    "vine_creeper": {
+      "name": "Vine Creeper",
+      "type": "enemy",
+      "tier": 2,
+      "hp": 20,
+      "attack": 5,
+      "defense": 14,
+      "speed": 2,
+      "abilities": ["Thorny Vine", "Grapple"],
+      "sprite_ready": null,
+      "sprite_attack": null,
+      "sprite_portrait": "vine_creeper.jpeg",
+      "description": "Plant creature that emerges from giant pods.",
+      "craftable": true,
+      "craft_materials": {
+        "flower": 5,
+        "oak_wood": 3
+      }
+    },
+    "zombie_crawler": {
+      "name": "Zombie Crawler",
+      "type": "enemy",
+      "tier": 2,
+      "hp": 15,
+      "attack": 4,
+      "defense": 11,
+      "speed": 2,
+      "abilities": ["Bite", "Undead Fortitude"],
+      "sprite_ready": "zombie_crawler_ready_pose_enhanced.png",
+      "sprite_attack": "zombie_crawler_attack_pose_enhanced.png",
+      "sprite_portrait": "zombie_crawler.jpeg",
+      "description": "Shambling undead, slow but relentless.",
+      "craftable": true,
+      "craft_materials": {
+        "dead_wood": 4,
+        "bone": 2
+      }
+    },
+    "skeleton_archer": {
+      "name": "Skeleton Archer",
+      "type": "enemy",
+      "tier": 2,
+      "hp": 10,
+      "attack": 6,
+      "defense": 13,
+      "speed": 5,
+      "abilities": ["Bone Bow", "Precise Shot"],
+      "sprite_ready": "skeleton_archer_ready_pose_enhanced.png",
+      "sprite_attack": "skeleton_archer_attack_pose_enhanced.png",
+      "sprite_portrait": "skeleton_archer.jpeg",
+      "description": "Skeletal marksman, strikes from range.",
+      "craftable": true,
+      "craft_materials": {
+        "bone": 3,
+        "dead_wood": 2
+      }
+    }
+  },
+  "starter_choices": ["rat", "goblin_grunt", "troglodyte"],
+  "combat_rules": {
+    "turn_order": "Determined by speed stat + random(1-6)",
+    "hit_chance": "attack_roll(1-20) + attack vs defense",
+    "damage": "Base damage 1d6, modified by attack stat",
+    "abilities": "Special moves with cooldowns or one-time use"
+  }
+}

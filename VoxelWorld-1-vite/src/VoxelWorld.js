@@ -10,6 +10,7 @@ import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
 import { RPGIntegration } from './rpg/RPGIntegration.js';
+import { CompanionCodex } from './ui/CompanionCodex.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -151,6 +152,9 @@ class NebulaVoxelApp {
 
         // 🎒 Initialize Advanced InventorySystem
         this.inventory = new InventorySystem(this);
+
+        // 📘 Initialize Companion Codex
+        this.companionCodex = new CompanionCodex(this);
 
         // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
@@ -1042,6 +1046,11 @@ class NebulaVoxelApp {
                         this.showToolButtons(); // Show tool menu buttons
                         console.log(`Found backpack! Hotbar unlocked!`);
                         this.updateStatus(`🎒 Found backpack! Inventory system unlocked!`, 'discovery');
+
+                        // Show journal tutorial for first-time players
+                        if (this.showJournalTutorial) {
+                            this.showJournalTutorial();
+                        }
                     }
                     // 🔨 Stone Hammer: Special harvesting for stone blocks
                     else if (hasStoneHammer && blockData.type === 'stone') {
@@ -1315,6 +1324,41 @@ class NebulaVoxelApp {
             this.addBlock(backpackX, groundY, backpackZ, 'backpack', false);
             this.backpackPosition = { x: backpackX, z: backpackZ }; // Store for minimap
             console.log(`Backpack spawned at ${backpackX}, ${groundY}, ${backpackZ}`);
+        };
+
+        // Spawn backpack in front of player (for first-time tutorial)
+        this.spawnStarterBackpack = () => {
+            if (this.hasBackpack) return; // Don't spawn if already found
+
+            // Get player position and camera direction
+            const px = Math.floor(this.player.position.x);
+            const py = Math.floor(this.player.position.y);
+            const pz = Math.floor(this.player.position.z);
+
+            // Get camera forward direction (where player is looking)
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+
+            // Spawn 2-3 blocks in front of player at ground level
+            const distance = 2.5;
+            const backpackX = Math.floor(px + cameraDirection.x * distance);
+            const backpackZ = Math.floor(pz + cameraDirection.z * distance);
+
+            // Find ground level at that position
+            let groundY = py;
+            for (let y = py + 2; y >= py - 5; y--) {
+                const key = `${backpackX},${y},${backpackZ}`;
+                if (this.world[key]) {
+                    groundY = y + 1; // Place on top of ground
+                    break;
+                }
+            }
+
+            // Place backpack on ground
+            this.addBlock(backpackX, groundY, backpackZ, 'backpack', false);
+            this.backpackPosition = { x: backpackX, z: backpackZ }; // Store for minimap
+            console.log(`🎒 Starter backpack spawned at ${backpackX}, ${groundY}, ${backpackZ}`);
+            this.updateStatus('📦 Your companion has brought you an Explorer\'s Pack!', 'discovery');
         };
 
         // Generate random loot when backpack is found
@@ -2206,6 +2250,14 @@ class NebulaVoxelApp {
                 slot.style.border = index === this.selectedSlot ?
                     '2px solid #FFD700' : '2px solid #666';
             });
+
+            // Check for first-time machete selection tutorial
+            const selectedItem = this.getHotbarSlot(this.selectedSlot);
+            if (selectedItem && selectedItem.itemType === 'machete') {
+                if (this.showMacheteTutorial) {
+                    this.showMacheteTutorial();
+                }
+            }
         };
 
         // Update hotbar item counts and icons
@@ -2528,6 +2580,81 @@ class NebulaVoxelApp {
                 border-style: ridge;
                 border-width: 10px;
             `;
+
+            // Create bookmark tabs container (on the left edge)
+            const bookmarkTabs = document.createElement('div');
+            bookmarkTabs.style.cssText = `
+                position: absolute;
+                left: -40px;
+                top: 150px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                z-index: 1001;
+            `;
+
+            // Map bookmark tab (active)
+            const mapTab = document.createElement('div');
+            mapTab.className = 'bookmark-tab active';
+            mapTab.title = 'World Map (M)';
+            mapTab.style.cssText = `
+                width: 40px;
+                height: 80px;
+                background: linear-gradient(90deg, #D4AF37, #F4E4A6);
+                border: 3px solid #654321;
+                border-right: none;
+                border-radius: 8px 0 0 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: default;
+                font-size: 24px;
+                box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(212, 175, 55, 0.5);
+            `;
+            mapTab.textContent = '🗺️';
+
+            // Codex bookmark tab
+            const codexTab = document.createElement('div');
+            codexTab.className = 'bookmark-tab';
+            codexTab.title = 'Companion Codex (C)';
+            codexTab.style.cssText = `
+                width: 40px;
+                height: 80px;
+                background: linear-gradient(90deg, #8B4513, #A0522D);
+                border: 3px solid #654321;
+                border-right: none;
+                border-radius: 8px 0 0 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-size: 24px;
+                transition: all 0.2s ease;
+                box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.5);
+            `;
+            codexTab.textContent = '📘';
+
+            codexTab.addEventListener('mouseover', () => {
+                codexTab.style.left = '5px';
+                codexTab.style.background = 'linear-gradient(90deg, #A0522D, #CD853F)';
+            });
+
+            codexTab.addEventListener('mouseout', () => {
+                codexTab.style.left = '0';
+                codexTab.style.background = 'linear-gradient(90deg, #8B4513, #A0522D)';
+            });
+
+            codexTab.addEventListener('click', () => {
+                this.closeWorldMap(false); // Don't re-engage pointer lock, we're switching tabs
+                // Open companion codex
+                if (this.companionCodex) {
+                    setTimeout(() => this.companionCodex.show(), 100);
+                }
+            });
+
+            bookmarkTabs.appendChild(mapTab);
+            bookmarkTabs.appendChild(codexTab);
+            this.worldMapModal.appendChild(bookmarkTabs);
 
             // Create book layout container
             const bookContainer = document.createElement('div');
@@ -3036,7 +3163,7 @@ class NebulaVoxelApp {
         };
 
         // 🗺️ Close world map with animation
-        this.closeWorldMap = () => {
+        this.closeWorldMap = (reEngagePointerLock = true) => {
             this.worldMapModal.style.transform = 'scale(0.8)';
             this.worldMapModal.style.opacity = '0';
             setTimeout(() => {
@@ -3046,8 +3173,8 @@ class NebulaVoxelApp {
                 this.controlsEnabled = true;
                 console.log('✅ Re-enabled input controls after closing Explorer\'s Journal');
 
-                // Re-request pointer lock after closing journal
-                if (this.controlsEnabled) {
+                // Only re-request pointer lock if closing completely (not switching tabs)
+                if (reEngagePointerLock && this.controlsEnabled) {
                     setTimeout(() => {
                         this.renderer.domElement.requestPointerLock();
                     }, 100);
@@ -4692,16 +4819,22 @@ class NebulaVoxelApp {
             }
 
             // 💀 TREASURE LOOT: Check if this dead tree has treasure
-            if (treeMetadata.hasTreasure && treeMetadata.treasureLoot) {
-                console.log(`💀🎁 Dead tree has treasure! Distributing loot...`);
+            if (treeMetadata.hasTreasure) {
+                console.log(`💀🎁 Dead tree has treasure! Spawning world item...`);
 
-                treeMetadata.treasureLoot.forEach(lootItem => {
-                    this.inventory.addToInventory(lootItem.type, lootItem.count);
-                    const lootIcon = this.getItemIcon(lootItem.type);
-                    console.log(`💰 Treasure loot: ${lootItem.count}x ${lootItem.type} ${lootIcon}`);
-                });
+                // Pick random item from BILLBOARD_ITEMS
+                const billboardKeys = Object.keys(this.BILLBOARD_ITEMS);
+                const randomKey = billboardKeys[Math.floor(Math.random() * billboardKeys.length)];
+                const itemData = this.BILLBOARD_ITEMS[randomKey];
 
-                this.updateStatus(`💀💎 Dead tree treasure found! Check your inventory!`, 'discovery');
+                // Spawn billboard item near player
+                const spawnX = this.player.position.x + (Math.random() - 0.5) * 3; // ±1.5 blocks from player
+                const spawnZ = this.player.position.z + (Math.random() - 0.5) * 3;
+                const spawnY = this.player.position.y;
+
+                this.createWorldItem(spawnX, spawnY, spawnZ, randomKey, itemData.emoji);
+
+                this.updateStatus(`💀💎 Dead tree treasure spawned nearby!`, 'discovery');
             }
 
             // 🍃 MACHETE LEAF COLLECTION: Check if player has machete for leaf harvesting
@@ -7683,56 +7816,30 @@ class NebulaVoxelApp {
             this.treePositions.push({ x, z, type: 'dead', treeId });
             console.log(`💀 Generated Dead tree ID ${treeId} at (${x}, ${y}, ${z}) - Contains treasure!`);
 
-            // Short stumpy dead tree (1-3 blocks tall)
-            const height = 1 + Math.floor(this.seededNoise(x + 13000, z + 13000, this.worldSeed) * 3); // 1-3 blocks tall
+            // Short stumpy dead tree (1-2 blocks tall only)
+            const height = 1 + Math.floor(this.seededNoise(x + 13000, z + 13000, this.worldSeed) * 2); // 1-2 blocks tall
 
             // Generate dead trunk
             for (let h = 0; h < height; h++) {
                 this.addTreeBlock(treeId, x, y + h, z, 'dead_wood', false);
             }
 
-            // Add 1-2 withered leaves randomly for spooky effect
-            const topY = y + height;
-            const leafCount = Math.floor(this.seededNoise(x + 14000, z + 14000, this.worldSeed) * 2) + 1; // 1-2 leaves
+            // Create 3x3 grid of dead leaves on the ground around the tree
+            // Leaves are placed at ground level (y) in a grid pattern
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    // Skip the center block where the trunk is
+                    if (dx === 0 && dz === 0) continue;
 
-            const possiblePositions = [
-                [1, 0], [-1, 0], [0, 1], [0, -1],  // Cardinal
-                [1, 1], [-1, -1], [1, -1], [-1, 1] // Diagonal
-            ];
-
-            for (let i = 0; i < leafCount; i++) {
-                const pos = possiblePositions[i % possiblePositions.length];
-                this.addTreeBlock(treeId, x + pos[0], topY, z + pos[1], 'dead_wood-leaves', false);
+                    // Place withered leaves on ground around tree
+                    this.addTreeBlock(treeId, x + dx, y, z + dz, 'dead_wood-leaves', false);
+                }
             }
 
-            // 🎁 Mark this tree as containing treasure loot
+            // 🎁 Mark this tree as containing treasure (will spawn billboard item on harvest)
             this.treeRegistry[treeId].hasTreasure = true;
-            this.treeRegistry[treeId].treasureLoot = this.generateDeadTreeLoot();
 
-            console.log(`💀 Dead tree ${treeId} completed with ${height} trunk blocks, ${leafCount} withered leaves, and treasure loot`);
-        };
-
-        // Generate treasure loot for dead trees
-        this.generateDeadTreeLoot = () => {
-            const loot = [];
-
-            // Always give dead wood (2-4 pieces)
-            const deadWoodCount = 2 + Math.floor(Math.random() * 3);
-            loot.push({ type: 'dead_wood', count: deadWoodCount });
-
-            // 50% chance for wood from another biome (exploration reward!)
-            if (Math.random() > 0.5) {
-                const exoticWoods = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood'];
-                const randomWood = exoticWoods[Math.floor(Math.random() * exoticWoods.length)];
-                loot.push({ type: randomWood, count: 1 + Math.floor(Math.random() * 2) }); // 1-2 pieces
-            }
-
-            // 30% chance for rare item (future: could be special items)
-            if (Math.random() > 0.7) {
-                loot.push({ type: 'stone', count: 2 + Math.floor(Math.random() * 4) }); // 2-5 stone for now
-            }
-
-            return loot;
+            console.log(`💀 Dead tree ${treeId} completed with ${height} trunk blocks and 3x3 leaf grid on ground - treasure inside!`);
         };
 
         // 🌳 ANCIENT TREE SYSTEM - Rare majestic trees with thick trunks
@@ -9259,6 +9366,32 @@ class NebulaVoxelApp {
                 return;
             }
 
+            // ESC key: Close workbench if open (handle before controlsEnabled check)
+            if (key === 'escape' && this.workbenchSystem && this.workbenchSystem.isOpen) {
+                this.workbenchSystem.close();
+                // Re-engage pointer lock after closing workbench
+                setTimeout(() => {
+                    if (this.renderer && this.renderer.domElement) {
+                        this.renderer.domElement.requestPointerLock();
+                    }
+                }, 100);
+                e.preventDefault();
+                return;
+            }
+
+            // ESC key: Close toolbench if open (handle before controlsEnabled check)
+            if (key === 'escape' && this.toolBenchSystem && this.toolBenchSystem.isOpen) {
+                this.toolBenchSystem.close();
+                // Re-engage pointer lock after closing toolbench
+                setTimeout(() => {
+                    if (this.renderer && this.renderer.domElement) {
+                        this.renderer.domElement.requestPointerLock();
+                    }
+                }, 100);
+                e.preventDefault();
+                return;
+            }
+
             if (!this.controlsEnabled) return;
 
             // Movement keys
@@ -9304,11 +9437,29 @@ class NebulaVoxelApp {
                 this.toggleWorldMap();
                 e.preventDefault();
             }
+            // 📘 C key for Companion Codex (toggle)
+            if (key === 'c') {
+                if (this.companionCodex) {
+                    // Check if codex is currently open
+                    if (this.companionCodex.codexElement) {
+                        this.companionCodex.hide(); // Close it (will re-engage pointer lock)
+                    } else {
+                        this.companionCodex.show(); // Open it
+                    }
+                }
+                e.preventDefault();
+            }
             if (key === 'e') {
                 // Check if player has backpack (workbench should be available after backpack found)
                 if (this.hasBackpack) {
                     // Direct workbench access - player can always craft after finding backpack
                     this.workbenchSystem.open(0, 0, 0);
+
+                    // Show workbench tutorial on first use
+                    if (this.showWorkbenchTutorial) {
+                        this.showWorkbenchTutorial();
+                    }
+
                     e.preventDefault();
                 } else if (this.currentNearbyWorkbench) {
                     // Legacy: placed workbench nearby
@@ -9952,7 +10103,7 @@ class NebulaVoxelApp {
                         text-align: center;
                         text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
                         letter-spacing: 1px;
-                    ">📜 Adventurer's Menu</h2>
+                    ">📜 Explorer's Menu</h2>
                 </div>
 
                 <!-- Tab Navigation -->
