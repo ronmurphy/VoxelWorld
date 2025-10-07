@@ -544,7 +544,7 @@ export class ToolBenchSystem {
             cursor: pointer;
         `;
 
-        const emoji = this.voxelWorld.getItemIcon(item);
+        const emoji = this.voxelWorld.getItemIcon(item, 'status');
         const name = item.charAt(0).toUpperCase() + item.slice(1).replace('_', ' ');
 
         element.innerHTML = `
@@ -676,7 +676,7 @@ export class ToolBenchSystem {
                     const allItems = this.voxelWorld.getAllMaterialsFromSlots();
                     for (const [playerItem, count] of Object.entries(allItems)) {
                         if (count > 0 && this.itemMatches(item, playerItem)) {
-                            displayIcon = this.voxelWorld.getItemIcon(playerItem);
+                            displayIcon = this.voxelWorld.getItemIcon(playerItem, 'status');
                             break;
                         }
                     }
@@ -902,7 +902,9 @@ export class ToolBenchSystem {
         }
         this.voxelWorld.inventoryMetadata[itemId] = metadata;
 
-        this.voxelWorld.addToInventory(itemId, 1);
+        // Add the number of charges as quantity (e.g., 10 grappling hooks = 10 charges)
+        const quantity = blueprint.charges || 1;
+        this.voxelWorld.addToInventory(itemId, quantity);
     }
 
     /**

@@ -6,6 +6,7 @@ import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
+import { AnimationSystem } from './AnimationSystem.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
@@ -166,6 +167,9 @@ class NebulaVoxelApp {
 
         // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
+
+        // ✨ Initialize Animation System
+        this.animationSystem = new AnimationSystem(this);
 
         // 🎨 Set up Enhanced Graphics ready callback
         this.enhancedGraphics.onReady = () => {
@@ -2124,6 +2128,23 @@ class NebulaVoxelApp {
         };
 
         this.getItemIcon = (itemType, context = 'inventory') => {
+            // ⚡ TOOLBENCH TOOLS: Check for ToolBench crafted tools FIRST (before general crafted_ parsing)
+            // These are special items like crafted_grappling_hook, crafted_speed_boots, etc.
+            const toolBenchTools = [
+                'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword', 
+                'crafted_mining_pick', 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick'
+            ];
+            
+            if (toolBenchTools.includes(itemType)) {
+                if (context === 'status') {
+                    return this.enhancedGraphics.getStatusToolIcon(itemType, '🔧');
+                } else if (context === 'hotbar') {
+                    return this.enhancedGraphics.getHotbarToolIcon(itemType, '🔧');
+                } else {
+                    return this.enhancedGraphics.getInventoryToolIcon(itemType, '🔧');
+                }
+            }
+
             // Check if this is a crafted item (starts with "crafted_")
             if (itemType.startsWith('crafted_')) {
                 // Parse crafted item format: "crafted_wood_cube_3x2x4"
@@ -8985,6 +9006,11 @@ class NebulaVoxelApp {
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
 
+            // ✨ Update Animation System
+            if (this.animationSystem) {
+                this.animationSystem.update(deltaTime);
+            }
+
             // 🎯 PHASE 1.3: Physics Update Loop
             if (this.physicsWorld) {
                 this.physicsWorld.step(deltaTime);
@@ -9645,22 +9671,42 @@ class NebulaVoxelApp {
                                                selectedBlock === 'crafted_grappling_hook';
                         
                         if (isGrapplingHook) {
-                            // Teleport player to target block + 2Y (like ender pearl)
-                            console.log(`🕸️ DEBUG placePos:`, placePos, `x=${placePos.x}, y=${placePos.y}, z=${placePos.z}`);
-                            
+                            // Calculate target position
                             const targetX = Math.floor(placePos.x);
                             const targetY = Math.floor(placePos.y) + 2;  // +2 blocks above target to avoid collision
                             const targetZ = Math.floor(placePos.z);
 
-                            console.log(`🕸️ Grappling hook! Teleporting from (${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}) to (${targetX}, ${targetY}, ${targetZ})`);
+                            // Get current player position
+                            const startPos = {
+                                x: this.player.position.x,
+                                y: this.player.position.y,
+                                z: this.player.position.z
+                            };
 
+                            const endPos = {
+                                x: targetX,
+                                y: targetY,
+                                z: targetZ
+                            };
+
+                            console.log(`🕸️ Grappling hook! Animating from (${startPos.x.toFixed(1)}, ${startPos.y.toFixed(1)}, ${startPos.z.toFixed(1)}) to (${endPos.x}, ${endPos.y}, ${endPos.z})`);
+
+                            // ✨ TRAJECTORY ANIMATION: Smooth arc animation with bezier curve
+                            this.animationSystem.animateGrapplingHook(startPos, endPos, 0.8, () => {
+                                // Animation complete callback
+                                this.updateStatus(`🕸️ Grappled to (${endPos.x}, ${endPos.y}, ${endPos.z})!`, 'craft');
+                            });
+
+                            /* 💾 BACKUP: Old instant teleport code (commented out)
                             // Instant teleport (like ender pearl - could add smooth animation later)
                             this.player.position.x = targetX;
                             this.player.position.y = targetY;
                             this.player.position.z = targetZ;
                             this.player.velocity = 0;  // Reset velocity to prevent fall damage (velocity is a number, not an object!)
+                            this.updateStatus(`🕸️ Grappled to (${targetX}, ${targetY}, ${targetZ})!`, 'craft');
+                            */
 
-                            // Consume one grappling hook charge (unlimited for now)
+                            // Consume one grappling hook charge
                             selectedSlot.quantity--;
 
                             // Clear slot if empty
@@ -9670,7 +9716,6 @@ class NebulaVoxelApp {
 
                             this.updateHotbarCounts();
                             this.updateBackpackInventoryDisplay();
-                            this.updateStatus(`🕸️ Grappled to (${targetX}, ${targetY}, ${targetZ})!`, 'craft');
                             console.log(`🕸️ Grappling hook used, ${selectedSlot.quantity} charges remaining`);
                             return; // Don't continue to block placement
                         }

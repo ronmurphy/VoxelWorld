@@ -649,8 +649,24 @@ export class EnhancedGraphics {
             return defaultEmoji;
         }
 
-        // Try direct lookup first (no alias needed since we load both names)
-        const imageData = this.toolImages.get(toolType);
+        // Apply alias mapping for lookup (e.g., crafted_grappling_hook → grapple)
+        const lookupKey = this.textureAliases[toolType] || toolType;
+
+        // Try direct lookup first
+        let imageData = this.toolImages.get(lookupKey);
+        
+        // If not found, try fuzzy matching - find any loaded tool that contains the lookup key
+        if (!imageData) {
+            for (const [loadedTool, data] of this.toolImages.entries()) {
+                // Check if either the loaded tool contains the lookup key, or vice versa
+                if (loadedTool.includes(lookupKey) || lookupKey.includes(loadedTool)) {
+                    imageData = data;
+                    console.log(`🔍 Fuzzy match: "${toolType}" → "${lookupKey}" matched with loaded tool "${loadedTool}"`);
+                    break;
+                }
+            }
+        }
+        
         if (imageData && imageData.path) {
             // Return HTML img element with proper scaling using relative path
             return `<img src="${imageData.path}" style="width: ${size}px; height: ${size}px; object-fit: contain; vertical-align: middle;" alt="${toolType}">`;

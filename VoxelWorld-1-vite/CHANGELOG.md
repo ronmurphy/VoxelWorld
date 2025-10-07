@@ -4,6 +4,72 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-07 - Grappling Hook & Animation System
+
+**Status: FULLY IMPLEMENTED**
+
+### 🕸️ Grappling Hook with Trajectory Animation
+
+**Overview:**
+Implemented a fully functional grappling hook item that teleports the player with smooth bezier curve trajectory animation. This is the first feature in the new AnimationSystem.js, which will centralize all animations (explosions, particles, billboards, tree falling, etc.) to reduce VoxelWorld.js complexity.
+
+**Core Features:**
+1. **ToolBench Crafting**: Craft from 3 leaves + 1 feather, gives 10 charges
+2. **Trajectory Animation**: Smooth bezier curve arc with apex calculation (like Spider-Man!)
+3. **Visual Trajectory Line**: Light gray line shows flight path, fades out during animation
+4. **Apex Calculation**: Arc height scales with distance (minimum 5 blocks, max distance * 0.3)
+5. **Physics Integration**: Resets velocity during flight to prevent interference
+6. **Icon System**: Enhanced graphics support with fuzzy matching for crafted items
+7. **Non-Placeable**: Properly prevents grappling hook from being placed as block
+
+**Implementation:**
+
+- `src/AnimationSystem.js` (NEW - 177 lines) - Centralized animation management
+  - `update()` - Frame-by-frame animation updates integrated with game loop
+  - `animateGrapplingHook()` - Bezier curve trajectory with apex calculation
+  - Quadratic Bezier formula: B(t) = (1-t)² * P0 + 2(1-t)t * P1 + t² * P2
+  - Trajectory line with 30 segments, fades from opacity 0.8 → 0
+  - Auto-cleanup: removes line from scene, disposes geometry/material
+  - Placeholder methods for future: explosions, billboards, particles, tree falling
+
+- `src/VoxelWorld.js` - Integration and fixes
+  - Line 8-9: Import AnimationSystem
+  - Line 172: Initialize `this.animationSystem = new AnimationSystem(this)`
+  - Line 9008-9011: Update animation system in game loop
+  - Line 9668-9719: Grappling hook with trajectory animation (instant teleport commented as backup)
+  - Line 2129-2145: ToolBench tools check BEFORE crafted_ parsing to prevent Material Icons fallback
+  - Line 9708-9710: Non-placeable items includes all grapple variants
+
+- `src/ToolBenchSystem.js` - Charges system
+  - Line 900: `createConsumable()` now gives `blueprint.charges` quantity (10 for grappling hook)
+  - Line 549, 681: Pass context to `getItemIcon()` for proper enhanced graphics display
+
+- `src/EnhancedGraphics.js` - Icon system improvements
+  - Line 47-52: Texture aliases map grappling_hook/crafted_grappling_hook → grapple.png
+  - Line 653-668: Fuzzy matching - if exact lookup fails, check if loaded tools contain lookup key
+
+**Technical Details:**
+- **Animation Duration**: 0.8 seconds (configurable)
+- **Bezier Curve**: Quadratic (3 control points: start, apex, end)
+- **Apex Formula**: `max(max(startY, endY) + 5, max(startY, endY) + distance * 0.3)`
+- **Line Rendering**: THREE.Line with 30 BufferGeometry points
+- **Memory Management**: Proper disposal of geometry/material on animation complete
+
+**Fixes Along the Way:**
+- Fixed player.velocity NaN bug (was setting object instead of number)
+- Fixed crafted items showing Material Icons instead of enhanced graphics
+- Added Math.floor() to prevent float coordinate bugs
+- Fixed duplicate `if` statement causing syntax error
+
+**Next Steps (TODO):**
+- Extract explosion animation → `animateExplosion()`
+- Extract billboard floats → `animateBillboard()`
+- Extract particle effects → `animateParticles()`
+- Extract tree falling → `animateTreeFall()` (note: uses Cannon.js physics)
+- Optional: Camera tilt based on trajectory velocity vector
+
+---
+
 ## 2025-10-06 Late Night - 3D Arena Battle System
 
 **Status: FULLY IMPLEMENTED**
