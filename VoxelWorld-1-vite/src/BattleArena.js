@@ -353,6 +353,12 @@ export class BattleArena {
         ], () => {
             // Add loot to inventory
             this.addLootToInventory();
+
+            // Reset battle flag so player can enter new battles
+            if (this.voxelWorld && this.voxelWorld.battleSystem) {
+                this.voxelWorld.battleSystem.inBattle = false;
+                console.log('✅ Battle flag reset - ready for new battle');
+            }
         });
     }
 
@@ -370,6 +376,12 @@ export class BattleArena {
             character: companionId,
             name: companionName,
             text: `We... we lost. I'm sorry. Let's rest up and try again!`
+        }, () => {
+            // Reset battle flag so player can enter new battles
+            if (this.voxelWorld && this.voxelWorld.battleSystem) {
+                this.voxelWorld.battleSystem.inBattle = false;
+                console.log('✅ Battle flag reset - ready for new battle');
+            }
         });
     }
 
