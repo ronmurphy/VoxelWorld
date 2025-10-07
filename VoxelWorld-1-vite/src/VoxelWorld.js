@@ -11,6 +11,7 @@ import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
 import { AngryGhostSystem } from './AngryGhostSystem.js';
 import { BattleSystem } from './BattleSystem.js';
+import { BattleArena } from './BattleArena.js';
 import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
@@ -189,6 +190,9 @@ class NebulaVoxelApp {
 
         // ⚔️ Initialize Battle System (Pokemon-style auto-battler)
         this.battleSystem = null;
+
+        // 🏟️ Initialize Battle Arena (3D arena combat)
+        this.battleArena = null;
 
         // 🎲 Initialize RPG System (requires scene, so will be set after scene is created)
         this.rpgIntegration = null;
@@ -7075,6 +7079,9 @@ class NebulaVoxelApp {
         // ⚔️ Initialize Battle System now that scene is ready
         this.battleSystem = new BattleSystem(this);
 
+        // 🏟️ Initialize Battle Arena now that scene is ready
+        this.battleArena = new BattleArena(this);
+
         // 💀 Initialize Angry Ghost System now that scene is ready
         this.angryGhostSystem = new AngryGhostSystem(this.scene, this.enhancedGraphics, this.battleSystem);
 
@@ -9031,6 +9038,11 @@ class NebulaVoxelApp {
             // 💀 Update angry ghost system - battle triggers
             if (this.angryGhostSystem) {
                 this.angryGhostSystem.update(deltaTime, this.player.position);
+            }
+
+            // 🏟️ Update battle arena - 3D combat animations
+            if (this.battleArena) {
+                this.battleArena.update(deltaTime);
             }
 
             // Check for nearby workbench (even when paused)

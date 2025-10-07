@@ -45,41 +45,10 @@ export class AngryGhostSystem {
 
     /**
      * Reload all angry ghost textures (called when enhanced graphics assets finish loading)
+     * Note: Not needed anymore - we load ready pose directly in spawnAngryGhost()
      */
     reloadGhostTextures() {
-        const entityData = this.enhancedGraphics.getEnhancedEntityImage('angry_ghost');
-
-        if (!entityData || !(entityData.readyPath || entityData.path)) {
-            console.log('💀 No enhanced angry ghost texture available for reload');
-            return;
-        }
-
-        let reloadCount = 0;
-        this.angryGhosts.forEach((ghost) => {
-            // Check if this ghost is using emoji fallback (CanvasTexture)
-            const currentTexture = ghost.sprite.material.map;
-            if (currentTexture instanceof THREE.CanvasTexture) {
-                // Load new PNG texture (prefer ready pose)
-                const spritePath = entityData.readyPath || entityData.path;
-                const newTexture = new THREE.TextureLoader().load(spritePath);
-                newTexture.magFilter = THREE.LinearFilter;
-                newTexture.minFilter = THREE.LinearFilter;
-
-                // Replace texture
-                const oldTexture = ghost.sprite.material.map;
-                ghost.sprite.material.map = newTexture;
-                ghost.sprite.material.needsUpdate = true;
-
-                // Dispose old canvas texture
-                oldTexture.dispose();
-
-                reloadCount++;
-            }
-        });
-
-        if (reloadCount > 0) {
-            console.log(`💀 Reloaded ${reloadCount} angry ghost textures with enhanced graphics`);
-        }
+        console.log('💀 Angry ghost textures loaded directly from ready pose - no reload needed');
     }
 
     /**
@@ -92,30 +61,22 @@ export class AngryGhostSystem {
     spawnAngryGhost(x, y, z) {
         let texture;
 
-        // Try to load enhanced graphics first (prefer ready pose)
-        const entityData = this.enhancedGraphics.getEnhancedEntityImage('angry_ghost');
+        // Try to load ready pose directly (no base sprite exists)
+        const readyPath = 'art/entities/angry_ghost_ready_pose_enhanced.png';
 
-        if (entityData && (entityData.readyPath || entityData.path)) {
-            // Use ready pose if available, otherwise fall back to main sprite
-            const spritePath = entityData.readyPath || entityData.path;
-            texture = new THREE.TextureLoader().load(spritePath);
+        try {
+            texture = new THREE.TextureLoader().load(readyPath);
             texture.magFilter = THREE.LinearFilter;
             texture.minFilter = THREE.LinearFilter;
-            console.log(`💀 Using enhanced angry ghost texture: ${spritePath}`);
-        } else {
-            // Fall back to emoji on canvas (angry red ghost)
+            console.log(`💀 Using angry ghost ready pose: ${readyPath}`);
+        } catch (error) {
+            // Fall back to emoji on canvas
             const canvas = document.createElement('canvas');
             canvas.width = 128;
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
 
-            // Red circle background for angry effect
-            ctx.fillStyle = 'rgba(255, 50, 50, 0.3)';
-            ctx.beginPath();
-            ctx.arc(64, 64, 50, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw emoji ghost
+            // Draw emoji ghost (no red tint - stealth!)
             ctx.font = '100px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';

@@ -81,40 +81,19 @@ export class BattleSystem {
 
         console.log(`⚔️ Battle started: ${companionStats.name} vs ${enemyStats.name}`);
 
-        // Create battle participants with current HP
-        this.playerCompanion = {
-            id: companionId,
-            ...companionStats,
-            currentHP: companionStats.hp,
-            isPlayer: true,
-        };
-
-        this.currentEnemy = {
-            id: enemyId,
-            ...enemyStats,
-            currentHP: enemyStats.hp,
-            isPlayer: false,
-            position: enemyPosition,
-        };
-
-        // Release pointer lock for battle UI
-        if (document.pointerLockElement) {
-            document.exitPointerLock();
+        // 🏟️ Use Battle Arena for 3D combat instead of UI overlay
+        if (this.voxelWorld.battleArena) {
+            this.inBattle = true;
+            await this.voxelWorld.battleArena.startBattle(
+                companionStats,
+                companionId,
+                enemyStats,
+                enemyId,
+                enemyPosition
+            );
+        } else {
+            console.error('❌ BattleArena not initialized!');
         }
-        this.voxelWorld.controlsEnabled = false;
-
-        // Build turn queue based on speed
-        this.buildTurnQueue();
-
-        // Create battle UI
-        this.createBattleUI();
-
-        this.inBattle = true;
-        this.currentTurnIndex = 0;
-        this.battleLog = [];
-
-        // Start first turn
-        this.nextTurn();
     }
 
     /**
