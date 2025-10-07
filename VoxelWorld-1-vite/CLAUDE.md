@@ -172,8 +172,7 @@ Console utilities (exposed via `window.voxelApp`):
 3. **Ruins Generation**: Not spawning consistently (check BiomeWorldGen spawn rates)
 
 ### Medium Priority Bugs
-1. **Player Hitbox Too Wide**: Needs 2-block gap instead of 1, can walk into blocks
-2. **Biome Labeling Bug**: Shows "Plains" when on mountains (height-based detection issue)
+1. **Biome Labeling Bug**: Shows "Plains" when on mountains (height-based detection issue)
 3. **Terrain Smoothing**: Reduce "Borg cube" artifacts at chunk boundaries
 4. **Drag & Drop Inventory**: Currently only right-click transfer works
 

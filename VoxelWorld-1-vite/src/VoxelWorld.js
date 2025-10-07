@@ -6188,6 +6188,8 @@ class NebulaVoxelApp {
         window.giveItem = (itemName, quantity = 1) => {
             // Valid items (tools, crafted items, special items)
             const validItems = [
+                // Exploring items
+                'feather', 'stone', 'skull','mushroom','flower','berry','leaf','fur',
                 // Tools from ToolBench
                 'stone_hammer', 'machete', 'stick', 'compass', 'compass_upgrade',
                 // Workbench items
@@ -9136,10 +9138,10 @@ class NebulaVoxelApp {
             // ========== END RAYCAST UTILITIES ==========
 
             // ========== HITBOX COLLISION SYSTEM ==========
-            // Player hitbox dimensions
-            const PLAYER_WIDTH = 0.6;
+            // Player hitbox dimensions (reduced width/depth for 1-block passage)
+            const PLAYER_WIDTH = 0.3;  // Was 0.6 - now fits through 1-block gaps
             const PLAYER_HEIGHT = 1.8;
-            const PLAYER_DEPTH = 0.6;
+            const PLAYER_DEPTH = 0.3;  // Was 0.6 - now fits through 1-block gaps
 
             // Create player hitbox at given position
             const createPlayerHitbox = (x, y, z) => {
@@ -9243,12 +9245,12 @@ class NebulaVoxelApp {
                 const newX = currentPos.x + dir.x * moveSpeed;
                 const newZ = currentPos.z + dir.z * moveSpeed;
 
-                // Create player hitbox excluding bottom to avoid ground collision
+                // Create player hitbox for horizontal collision (full height)
                 const createHorizontalHitbox = (x, z) => {
                     return {
                         minX: x - PLAYER_WIDTH / 2,
                         maxX: x + PLAYER_WIDTH / 2,
-                        minY: currentPos.y - PLAYER_HEIGHT / 2 + 0.1, // Slightly above ground
+                        minY: currentPos.y - PLAYER_HEIGHT / 2, // Full height including feet
                         maxY: currentPos.y + PLAYER_HEIGHT / 2,
                         minZ: z - PLAYER_DEPTH / 2,
                         maxZ: z + PLAYER_DEPTH / 2
