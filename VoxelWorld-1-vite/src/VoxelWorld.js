@@ -2222,7 +2222,7 @@ class NebulaVoxelApp {
 
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools
-            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 'tool_bench'].includes(itemType)) {
+            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 'tool_bench', 'grappling_hook', 'crafted_grappling_hook'].includes(itemType)) {
                 if (context === 'status') {
                     return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
                 } else if (context === 'hotbar') {
@@ -5772,7 +5772,7 @@ class NebulaVoxelApp {
                 if (slotData.itemType && slotData.quantity > 0) {
                     // Has an item
                     filledSlots++;
-                    const iconContent = this.getItemIcon(slotData.itemType);
+                    const iconContent = this.getItemIcon(slotData.itemType, 'inventory');
                     const name = this.formatItemName(slotData.itemType);
 
                     // Store item type for transfers
@@ -6191,7 +6191,7 @@ class NebulaVoxelApp {
                 // Exploring items
                 'feather', 'stone', 'skull','mushroom','flower','berry','leaf','fur',
                 // Tools from ToolBench
-                'stone_hammer', 'machete', 'stick', 'compass', 'compass_upgrade',
+                'stone_hammer', 'machete', 'stick', 'compass', 'compass_upgrade', 'grapple_hook',
                 // Workbench items
                 'workbench', 'backpack', 'tool_bench',
                 // Crafted items start with 'crafted_' prefix (allow any)
@@ -9637,10 +9637,49 @@ class NebulaVoxelApp {
                     const selectedBlock = selectedSlot?.itemType;
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
-                        // 🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
+                        // �️ GRAPPLING HOOK: Check if item is a grappling hook (ender pearl style teleport)
+                        const metadata = this.inventoryMetadata?.[selectedBlock];
+                        const isGrapplingHook = metadata?.isGrapplingHook || 
+                                               selectedBlock === 'grapple_hook' || 
+                                               selectedBlock === 'grappling_hook' || 
+                                               selectedBlock === 'crafted_grappling_hook';
+                        
+                        if (isGrapplingHook) {
+                            // Teleport player to target block + 2Y (like ender pearl)
+                            console.log(`🕸️ DEBUG placePos:`, placePos, `x=${placePos.x}, y=${placePos.y}, z=${placePos.z}`);
+                            
+                            const targetX = Math.floor(placePos.x);
+                            const targetY = Math.floor(placePos.y) + 2;  // +2 blocks above target to avoid collision
+                            const targetZ = Math.floor(placePos.z);
+
+                            console.log(`🕸️ Grappling hook! Teleporting from (${this.player.position.x.toFixed(1)}, ${this.player.position.y.toFixed(1)}, ${this.player.position.z.toFixed(1)}) to (${targetX}, ${targetY}, ${targetZ})`);
+
+                            // Instant teleport (like ender pearl - could add smooth animation later)
+                            this.player.position.x = targetX;
+                            this.player.position.y = targetY;
+                            this.player.position.z = targetZ;
+                            this.player.velocity = 0;  // Reset velocity to prevent fall damage (velocity is a number, not an object!)
+
+                            // Consume one grappling hook charge (unlimited for now)
+                            selectedSlot.quantity--;
+
+                            // Clear slot if empty
+                            if (selectedSlot.quantity === 0) {
+                                selectedSlot.itemType = '';
+                            }
+
+                            this.updateHotbarCounts();
+                            this.updateBackpackInventoryDisplay();
+                            this.updateStatus(`🕸️ Grappled to (${targetX}, ${targetY}, ${targetZ})!`, 'craft');
+                            console.log(`🕸️ Grappling hook used, ${selectedSlot.quantity} charges remaining`);
+                            return; // Don't continue to block placement
+                        }
+
+                        // �🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
                         const nonPlaceableItems = [
                             'machete', 'stone_hammer', 'workbench', 'backpack',
-                            'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
+                            'grapple_hook', 'grappling_hook', 'crafted_grappling_hook', 'speed_boots', 'crafted_speed_boots', 
+                            'combat_sword', 'crafted_combat_sword', 'mining_pick', 'crafted_mining_pick',
                             'healing_potion', 'light_orb', 'magic_amulet',
                             'backpack_upgrade_1', 'backpack_upgrade_2', 'machete_upgrade',
                             'compass', 'compass_upgrade'

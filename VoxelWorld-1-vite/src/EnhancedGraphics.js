@@ -45,7 +45,9 @@ export class EnhancedGraphics {
         // Texture aliases - map item/block types to texture filenames
         // Use when code uses different names than files (e.g., tool_bench → toolbench)
         this.textureAliases = {
-            tool_bench: 'toolbench'  // Code uses tool_bench, file is toolbench.png
+            tool_bench: 'toolbench',              // Code uses tool_bench, file is toolbench.png
+            grappling_hook: 'grapple',            // Code uses grappling_hook, file is grapple.png
+            crafted_grappling_hook: 'grapple'     // Crafted version also maps to grapple.png
         };
 
         // UI element size configurations

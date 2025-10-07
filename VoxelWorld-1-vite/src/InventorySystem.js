@@ -353,7 +353,7 @@ export class InventorySystem {
 
             if (slotData.itemType && slotData.quantity > 0) {
                 const iconContent = this.voxelWorld.getItemIcon ?
-                    this.voxelWorld.getItemIcon(slotData.itemType) : '❓';
+                    this.voxelWorld.getItemIcon(slotData.itemType, 'hotbar') : '❓';
                 const name = this.formatItemName(slotData.itemType);
 
                 // Create item icon
