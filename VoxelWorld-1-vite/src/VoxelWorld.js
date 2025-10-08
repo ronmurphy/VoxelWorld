@@ -9,6 +9,7 @@ import { HotbarSystem } from './HotbarSystem.js';
 import { BackpackSystem } from './BackpackSystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { AnimationSystem } from './AnimationSystem.js';
+import { PlayerItemsSystem } from './PlayerItemsSystem.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
@@ -136,6 +137,7 @@ class NebulaVoxelApp {
         this.container = container;
         this.controlsEnabled = true;
         this.isPaused = false;
+        this.isTorchAllowed = false;  // 🔦 Set by day/night cycle (dusk/night only)
         this.eventListeners = [];
         // Device detection and mobile controls
         this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
@@ -201,6 +203,9 @@ class NebulaVoxelApp {
 
         // ✨ Initialize Animation System
         this.animationSystem = new AnimationSystem(this);
+
+        // 🔦 Initialize Player Items System (torch, machete, etc.)
+        this.playerItemsSystem = new PlayerItemsSystem(this);
 
         // 🎨 Set up Enhanced Graphics ready callback
         this.enhancedGraphics.onReady = () => {
@@ -8424,6 +8429,10 @@ class NebulaVoxelApp {
             this.dayNightCycle.directionalLight.color.copy(color);
             this.dayNightCycle.ambientLight.intensity = ambientIntensity;
             
+            // 🔦 Set torch allowed flag (dusk/night = 5pm-6am)
+            const time = this.dayNightCycle.currentTime;
+            this.isTorchAllowed = (time >= 17 || time < 6);
+            
             // 🌫️ Update fog based on time of day
             const chunkSize = 64;
             if (this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6) {
@@ -8830,6 +8839,11 @@ class NebulaVoxelApp {
             // ✨ Update Animation System
             if (this.animationSystem) {
                 this.animationSystem.update(deltaTime);
+            }
+
+            // 🔦 Update Player Items System (torch lighting, etc.)
+            if (this.playerItemsSystem) {
+                this.playerItemsSystem.update(deltaTime);
             }
 
             // 🎯 PHASE 1.3: Physics Update Loop

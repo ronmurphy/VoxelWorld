@@ -1030,7 +1030,20 @@ export class ToolBenchSystem {
             };
         }
         
-        this.voxelWorld.addToInventory(itemId, 1);
+        // Tools should go to equipment slots (5-7) if possible, otherwise backpack
+        if (blueprint.isTool && this.voxelWorld.hotbarSystem) {
+            const success = this.voxelWorld.hotbarSystem.addToolToEquipment(itemId, 1);
+            if (!success) {
+                // Equipment slots full, add to backpack
+                this.voxelWorld.addToInventory(itemId, 1);
+                console.log(`🎒 Equipment full - ${blueprint.name} added to backpack`);
+            } else {
+                console.log(`⚔️ ${blueprint.name} equipped to player bar`);
+            }
+        } else {
+            // Non-tools go to regular inventory
+            this.voxelWorld.addToInventory(itemId, 1);
+        }
     }
 
     /**

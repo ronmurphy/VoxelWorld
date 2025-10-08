@@ -187,6 +187,7 @@ export class HotbarSystem {
             // Only handle wheel when hotbar is visible and game is active
             if (!this.hotbarElement || this.hotbarElement.style.display === 'none') return;
             if (this.voxelWorld.isPaused) return;
+            if (!this.voxelWorld.controlsEnabled) return; // Disable when modals open
 
             // Prevent page scroll when using wheel for hotbar
             if (e.deltaY !== 0) {
