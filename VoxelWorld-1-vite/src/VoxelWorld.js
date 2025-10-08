@@ -145,7 +145,10 @@ class NebulaVoxelApp {
         this.movementSpeed = 1.0;     // Can upgrade to 1.5 (speed boots)
         this.harvestSpeed = 1.0;      // Can upgrade to 1.5 (machete upgrade)
 
-        // 🌍 Initialize Advanced BiomeWorldGen System (reverted for performance)
+        // �️ Fog settings
+        this.useHardFog = false; // Set to true for Silent Hill-style hard fog wall
+
+        // �🌍 Initialize Advanced BiomeWorldGen System (reverted for performance)
         this.biomeWorldGen = new BiomeWorldGen(this);
 
         // 👷 Initialize Web Worker-based chunk generation
@@ -7097,6 +7100,36 @@ class NebulaVoxelApp {
         // Three.js setup
         this.scene = new THREE.Scene();
 
+        // 🌫️ Helper function to update fog
+        this.updateFog = (fogColor = null) => {
+            const chunkSize = 64;
+            let fogStart, fogEnd;
+
+            if (this.useHardFog) {
+                // Hard fog (Silent Hill style): Very short gradient, almost a wall
+                fogStart = this.renderDistance * chunkSize;
+                fogEnd = (this.renderDistance + 0.5) * chunkSize;
+            } else {
+                // Soft fog: Gradual fade over 2 chunks
+                fogStart = (this.renderDistance + 1) * chunkSize;
+                fogEnd = (this.renderDistance + 3) * chunkSize;
+            }
+
+            const color = fogColor !== null ? fogColor : (this.scene.background ? this.scene.background.getHex() : 0x87CEEB);
+            this.scene.fog = new THREE.Fog(color, fogStart, fogEnd);
+        };
+
+        // 🌫️ Toggle fog type (for scary areas)
+        this.toggleHardFog = (enable) => {
+            this.useHardFog = enable;
+            this.updateFog();
+            console.log(`🌫️ Fog mode: ${this.useHardFog ? 'HARD (Silent Hill)' : 'SOFT (gradual)'}`);
+        };
+
+        // 🌫️ Initialize fog based on render distance
+        this.updateFog(0x87CEEB); // Sky blue fog
+        console.log(`🌫️ Fog initialized (render distance: ${this.renderDistance})`);
+
         // 👻 Initialize Ghost System now that scene is ready
         this.ghostSystem = new GhostSystem(this.scene, this.enhancedGraphics);
 
@@ -8618,6 +8651,22 @@ class NebulaVoxelApp {
             this.dayNightCycle.directionalLight.intensity = intensity;
             this.dayNightCycle.directionalLight.color.copy(color);
             this.dayNightCycle.ambientLight.intensity = ambientIntensity;
+            
+            // 🌫️ Update fog based on time of day
+            const chunkSize = 64;
+            if (this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6) {
+                // Night fog (7pm-6am): Shorter range, dark color for creepy atmosphere
+                const nightFogColor = new THREE.Color(0x0a0a0f); // Very dark
+                const nightFogStart = (this.renderDistance + 1) * chunkSize;
+                const nightFogEnd = (this.renderDistance + 3) * chunkSize;
+                this.scene.fog = new THREE.Fog(nightFogColor.getHex(), nightFogStart, nightFogEnd);
+            } else {
+                // Day fog: Normal range, matches sky
+                const fogStart = (this.renderDistance + 1) * chunkSize;
+                const fogEnd = (this.renderDistance + 3) * chunkSize;
+                this.scene.fog = new THREE.Fog(skyColor.getHex(), fogStart, fogEnd);
+            }
+            
             this.scene.background = skyColor;
 
             // Update time indicator icon and color
@@ -10674,6 +10723,15 @@ class NebulaVoxelApp {
             // Save user preference
             localStorage.setItem('voxelWorld_renderDistancePref', next.toString());
             this.renderDistance = next;
+
+            // 🌫️ Update fog for new render distance
+            const chunkSize = 64;
+            const fogStart = (this.renderDistance + 1) * chunkSize;
+            const fogEnd = (this.renderDistance + 3) * chunkSize;
+            const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
+            const fogColor = isNight ? 0x0a0a0f : this.scene.background.getHex();
+            this.scene.fog = new THREE.Fog(fogColor, fogStart, fogEnd);
+            console.log(`🌫️ Fog updated for render distance ${this.renderDistance}: ${fogStart} to ${fogEnd}`);
 
             // Update button text
             modalRenderDistanceBtn.textContent = `🔭 Render Distance: ${next}`;
