@@ -16,6 +16,20 @@ let worldSeed = 0;
 let biomes = null;
 let noiseParams = null;
 
+// 🎨 BLOCK COLOR REGISTRY - Must match VoxelWorld.js blockTypes!
+// Used for LOD chunks to get exact block colors instead of biome gradients
+const BLOCK_COLORS = {
+    grass: 0x228B22,      // Forest green
+    sand: 0xF4A460,       // Sandy brown
+    stone: 0x696969,      // Dim gray
+    snow: 0xFFFFFF,       // Pure white
+    dirt: 0x8B4513,       // Brown
+    water: 0x1E90FF,      // Blue
+    iron: 0x708090,       // Slate gray
+    gold: 0xFFD700,       // Gold
+    bedrock: 0x1a1a1a     // Very dark gray
+};
+
 // Initialize worker
 self.onmessage = function(e) {
     const { type, data } = e.data;
@@ -27,6 +41,10 @@ self.onmessage = function(e) {
 
         case 'GENERATE_CHUNK':
             generateChunk(data);
+            break;
+
+        case 'GENERATE_LOD_CHUNK':
+            generateLODChunk(data);
             break;
 
         case 'CLEAR_CACHE':
@@ -210,6 +228,74 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
             waterMap   // 🌊 Include water map to prevent trees on water
         }
     }, [positions.buffer, blockTypes.buffer, colors.buffer, flags.buffer, heightMap.buffer, waterMap.buffer]);
+}
+
+/**
+ * 🎨 Generate LOD chunk (simplified colored blocks for visual horizon)
+ * Returns: { chunkX, chunkZ, colorBlocks: [{ x, y, z, color }] }
+ */
+function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
+    const colorBlocks = [];
+
+    // Sample every block position (but only surface blocks)
+    for (let x = 0; x < chunkSize; x++) {
+        for (let z = 0; z < chunkSize; z++) {
+            const worldX = Math.floor(chunkX * chunkSize + x);
+            const worldZ = Math.floor(chunkZ * chunkSize + z);
+
+            // Get biome at this location
+            const biome = getBiomeAt(worldX, worldZ);
+
+            // Generate terrain height
+            const terrainData = generateMultiNoiseTerrain(worldX, worldZ);
+
+            // Scale noise to biome height range
+            const biomeHeightCenter = (biome.maxHeight + biome.minHeight) / 2;
+            const biomeHeightRange = (biome.maxHeight - biome.minHeight) / 2;
+            const generatorHeight = terrainData.height * biomeHeightRange;
+            const rawHeight = biomeHeightCenter + generatorHeight;
+
+            const height = Math.floor(Math.max(0, Math.min(12, rawHeight + 2)));
+
+            // 🎨 CRITICAL FIX: Use actual BLOCK colors instead of biome gradient!
+            // This matches full chunk generation logic for seamless transition
+            
+            // Check for snow (same logic as full chunks)
+            const snowNoise = multiOctaveNoise(
+                worldX + 2000,
+                worldZ + 2000,
+                noiseParams.microDetail,
+                worldSeed + 2000
+            );
+            const hasSnow = (biome.name.includes('Mountain') || biome.name.includes('Tundra') || biome.name.includes('Forest')) &&
+                           height >= biome.maxHeight - 1 &&
+                           snowNoise > -0.2;
+
+            // Determine actual surface block type
+            const surfaceBlockType = hasSnow ? 'snow' : biome.surfaceBlock;
+            
+            // Get BLOCK color (not biome gradient!)
+            const blockColor = BLOCK_COLORS[surfaceBlockType] || BLOCK_COLORS.grass;
+
+            // Add surface block with actual block color
+            colorBlocks.push({
+                x: worldX,
+                y: height,
+                z: worldZ,
+                color: blockColor
+            });
+        }
+    }
+
+    // Send LOD data back to main thread
+    self.postMessage({
+        type: 'LOD_CHUNK_READY',
+        data: {
+            chunkX,
+            chunkZ,
+            colorBlocks
+        }
+    });
 }
 
 function clearCache() {

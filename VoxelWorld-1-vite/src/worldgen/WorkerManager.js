@@ -108,6 +108,10 @@ export class WorkerManager {
                 this.handleChunkReady(data);
                 break;
 
+            case 'LOD_CHUNK_READY':
+                this.handleLODChunkReady(data);
+                break;
+
             case 'CACHE_CLEARED':
                 console.log('✅ Worker cache cleared');
                 break;
@@ -150,6 +154,36 @@ export class WorkerManager {
 
         // Process next queued request
         this.processQueue();
+    }
+
+    /**
+     * 🎨 Handle LOD chunk generation complete
+     */
+    handleLODChunkReady(lodData) {
+        const { chunkX, chunkZ, colorBlocks } = lodData;
+        const key = `lod_${chunkX},${chunkZ}`;
+
+        // 💾 Save LOD chunk to disk asynchronously (non-blocking)
+        this.saveLODChunkToDisk(chunkX, chunkZ, colorBlocks);
+
+        // Trigger callback if pending
+        const callback = this.pendingRequests.get(key);
+        if (callback) {
+            callback(lodData);
+            this.pendingRequests.delete(key);
+        }
+    }
+
+    /**
+     * 💾 Save LOD chunk to disk (non-blocking)
+     */
+    async saveLODChunkToDisk(chunkX, chunkZ, colorBlocks) {
+        try {
+            await this.persistence.saveLODChunk(chunkX, chunkZ, colorBlocks);
+            this.stats.savedToDisk++;
+        } catch (error) {
+            console.error(`❌ Failed to save LOD chunk (${chunkX}, ${chunkZ}) to disk:`, error);
+        }
     }
 
     /**
@@ -371,6 +405,43 @@ export class WorkerManager {
                     data: request
                 });
             }
+        }
+    }
+
+    /**
+     * 🎨 Request LOD chunk generation (simplified colored blocks for visual horizon)
+     * Returns: { chunkX, chunkZ, colorBlocks: [{ x, y, z, color }] }
+     */
+    async requestLODChunk(chunkX, chunkZ, chunkSize, callback) {
+        const key = `lod_${chunkX},${chunkZ}`;
+
+        // Check if already pending
+        if (this.pendingRequests.has(key)) {
+            return;
+        }
+
+        // 💾 Check disk storage FIRST (major speed boost!)
+        try {
+            const colorBlocks = await this.persistence.loadLODChunk(chunkX, chunkZ);
+            if (colorBlocks) {
+                this.stats.loadedFromDisk++;
+                // Return cached LOD data immediately
+                callback({ chunkX, chunkZ, colorBlocks });
+                return;
+            }
+        } catch (error) {
+            console.error(`❌ Failed to load LOD chunk (${chunkX}, ${chunkZ}) from disk:`, error);
+        }
+
+        // Not on disk, generate via worker
+        this.pendingRequests.set(key, callback);
+
+        // Send to worker
+        if (this.worker && this.isWorkerReady) {
+            this.worker.postMessage({
+                type: 'GENERATE_LOD_CHUNK',
+                data: { chunkX, chunkZ, chunkSize }
+            });
         }
     }
 

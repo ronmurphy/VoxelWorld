@@ -70,7 +70,7 @@ export class ChunkPersistence {
      */
     async initIndexedDB() {
         return new Promise((resolve, reject) => {
-            const request = indexedDB.open('VoxelWorld', 1);
+            const request = indexedDB.open('VoxelWorld', 2); // Increment version for new store
 
             request.onerror = () => {
                 console.error('❌ Failed to open IndexedDB:', request.error);
@@ -97,6 +97,14 @@ export class ChunkPersistence {
                     const modStore = db.createObjectStore('modifications', { keyPath: 'key' });
                     modStore.createIndex('worldSeed', 'worldSeed', { unique: false });
                     modStore.createIndex('timestamp', 'timestamp', { unique: false });
+                }
+
+                // 🎨 LOD chunks store
+                if (!db.objectStoreNames.contains('lod')) {
+                    const lodStore = db.createObjectStore('lod', { keyPath: 'key' });
+                    lodStore.createIndex('chunkX', 'chunkX', { unique: false });
+                    lodStore.createIndex('chunkZ', 'chunkZ', { unique: false });
+                    lodStore.createIndex('timestamp', 'timestamp', { unique: false });
                 }
 
                 console.log('📊 IndexedDB schema upgraded');
@@ -370,5 +378,91 @@ export class ChunkPersistence {
             request.onsuccess = () => resolve(request.result || []);
             request.onerror = () => reject(request.error);
         });
+    }
+
+    /**
+     * 🎨 Save LOD chunk to disk/IndexedDB
+     * LOD chunks are simple colorBlocks arrays: [{ x, y, z, color }]
+     * 
+     * @param {number} chunkX - Chunk X coordinate
+     * @param {number} chunkZ - Chunk Z coordinate
+     * @param {Array} colorBlocks - Array of { x, y, z, color } objects
+     */
+    async saveLODChunk(chunkX, chunkZ, colorBlocks) {
+        await this.initPromise;
+
+        try {
+            // Serialize LOD data to JSON (simpler than binary for small LOD chunks)
+            const lodData = JSON.stringify({
+                chunkX,
+                chunkZ,
+                colorBlocks,
+                timestamp: Date.now()
+            });
+
+            if (this.isElectron) {
+                // Electron: Save to filesystem with 'lod_' prefix
+                const filename = `lod_${chunkX}_${chunkZ}.json`;
+                const filepath = this.path.join(this.chunksDir, filename);
+                await this.fs.writeFile(filepath, lodData, 'utf8');
+                // console.log(`💾 Saved LOD chunk (${chunkX}, ${chunkZ}) to disk`);
+            } else {
+                // Browser: Save to IndexedDB 'lod' store
+                const key = `lod_${chunkX}_${chunkZ}`;
+                await this.writeIndexedDB('lod', {
+                    key,
+                    chunkX,
+                    chunkZ,
+                    data: lodData,
+                    timestamp: Date.now()
+                });
+                // console.log(`💾 Saved LOD chunk (${chunkX}, ${chunkZ}) to IndexedDB`);
+            }
+        } catch (error) {
+            console.error(`❌ Failed to save LOD chunk (${chunkX}, ${chunkZ}):`, error);
+        }
+    }
+
+    /**
+     * 🎨 Load LOD chunk from disk/IndexedDB
+     * 
+     * @param {number} chunkX - Chunk X coordinate
+     * @param {number} chunkZ - Chunk Z coordinate
+     * @returns {Promise<Array|null>} colorBlocks array or null if not found
+     */
+    async loadLODChunk(chunkX, chunkZ) {
+        await this.initPromise;
+
+        try {
+            let lodData;
+
+            if (this.isElectron) {
+                // Electron: Load from filesystem
+                const filename = `lod_${chunkX}_${chunkZ}.json`;
+                const filepath = this.path.join(this.chunksDir, filename);
+
+                try {
+                    await this.fs.access(filepath);
+                } catch {
+                    return null; // File doesn't exist
+                }
+
+                const jsonData = await this.fs.readFile(filepath, 'utf8');
+                lodData = JSON.parse(jsonData);
+            } else {
+                // Browser: Load from IndexedDB
+                const key = `lod_${chunkX}_${chunkZ}`;
+                const record = await this.readIndexedDB('lod', key);
+                if (!record) return null;
+
+                lodData = JSON.parse(record.data);
+            }
+
+            // console.log(`💾 Loaded LOD chunk (${chunkX}, ${chunkZ}) from disk`);
+            return lodData.colorBlocks;
+        } catch (error) {
+            console.error(`❌ Failed to load LOD chunk (${chunkX}, ${chunkZ}):`, error);
+            return null;
+        }
     }
 }

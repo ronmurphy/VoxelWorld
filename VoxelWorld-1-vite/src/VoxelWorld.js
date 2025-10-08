@@ -19,6 +19,7 @@ import { BattleArena } from './BattleArena.js';
 import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
+import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -6926,7 +6927,11 @@ class NebulaVoxelApp {
         this.rpgIntegration = new RPGIntegration(this);
         this.rpgIntegration.loadStats(); // Load existing stats if any
 
-        // 🎯 PHASE 1.2: Physics World Setup
+        // � Initialize LOD System for extended visual horizon (TEST VERSION)
+        // This will render simplified colored chunks beyond renderDistance
+        this.lodManager = null; // Will be initialized after scene and camera are fully ready
+
+        // �🎯 PHASE 1.2: Physics World Setup
         this.physicsWorld = new CANNON.World();
         this.physicsWorld.gravity.set(0, -9.82, 0); // Earth gravity
         this.physicsWorld.broadphase = new CANNON.NaiveBroadphase(); // Simple collision detection
@@ -7031,7 +7036,11 @@ class NebulaVoxelApp {
         this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
         this.camera.position.set(0, 10, 20);
 
-        // 🎮 Get user's GPU preference (default to low-power for broader compatibility)
+        // � Initialize LOD Manager now that camera is ready
+        this.lodManager = new ChunkLODManager(this);
+        console.log('🎨 LOD Manager initialized - Visual Horizon enabled!');
+
+        // �🎮 Get user's GPU preference (default to low-power for broader compatibility)
         const gpuPreference = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
 
         this.renderer = new THREE.WebGLRenderer({
@@ -8141,7 +8150,7 @@ class NebulaVoxelApp {
             this.loadedChunks.delete(chunkKey);
         };
 
-        const updateChunks = () => {
+        const updateChunks = async () => {
             const playerChunkX = Math.floor(this.player.position.x / this.chunkSize);
             const playerChunkZ = Math.floor(this.player.position.z / this.chunkSize);
 
@@ -8181,6 +8190,11 @@ class NebulaVoxelApp {
             if (this.workerInitialized && this.frameCount % 60 === 0) {
                 const maxCacheRadius = this.renderDistance * 2; // 2x render distance
                 this.workerManager.cleanupDistantChunks(playerChunkX, playerChunkZ, maxCacheRadius);
+            }
+
+            // 🎨 Update LOD chunks (visual horizon beyond render distance)
+            if (this.lodManager && this.lodManager.enabled) {
+                await this.lodManager.updateLODChunks(playerChunkX, playerChunkZ);
             }
         };
 
@@ -10752,6 +10766,56 @@ class NebulaVoxelApp {
         if (this.isMobile) {
             this.createMobileJoysticks(contentArea);
         }
+
+        // 🎨 LOD SYSTEM DEBUG COMMANDS (TEST VERSION)
+        // Usage in browser console:
+        // voxelWorld.toggleLOD() - Enable/disable LOD system
+        // voxelWorld.setVisualDistance(5) - Set how far LOD chunks extend
+        // voxelWorld.getLODStats() - Get LOD performance stats
+        if (typeof window !== 'undefined') {
+            window.voxelWorld = this; // Expose for debugging
+            console.log('🎮 Debug commands available:');
+            console.log('  voxelWorld.toggleLOD() - Toggle LOD system');
+            console.log('  voxelWorld.setVisualDistance(n) - Set LOD distance');
+            console.log('  voxelWorld.getLODStats() - Get LOD stats');
+        }
+    }
+
+    // 🎨 LOD SYSTEM - Debug convenience methods
+    toggleLOD() {
+        if (!this.lodManager) {
+            console.warn('❌ LOD Manager not initialized');
+            return false;
+        }
+        return this.lodManager.toggle();
+    }
+
+    setVisualDistance(distance) {
+        if (!this.lodManager) {
+            console.warn('❌ LOD Manager not initialized');
+            return;
+        }
+        this.lodManager.setVisualDistance(distance);
+        
+        // Update fog to cover new visual distance
+        if (!this.useHardFog) {
+            // Soft fog should cover from renderDistance to visualDistance
+            const chunkSize = this.chunkSize;
+            const fogStart = (this.renderDistance + 1) * chunkSize;
+            const fogEnd = (this.renderDistance + distance) * chunkSize;
+            this.scene.fog = new THREE.Fog(this.scene.background.getHex(), fogStart, fogEnd);
+            console.log(`🌫️ Fog adjusted for LOD: ${fogStart} to ${fogEnd} blocks`);
+        }
+    }
+
+    getLODStats() {
+        if (!this.lodManager) {
+            console.warn('❌ LOD Manager not initialized');
+            return null;
+        }
+        const stats = this.lodManager.getStats();
+        console.table(stats);
+        return stats;
     }
 
     // Create mobile virtual joysticks
