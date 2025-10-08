@@ -5,6 +5,7 @@ import { ToolBenchSystem } from './ToolBenchSystem.js';
 import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
+import { HotbarSystem } from './HotbarSystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { AnimationSystem } from './AnimationSystem.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
@@ -114,6 +115,23 @@ class NebulaVoxelApp {
 
         this.addToInventory = (itemType, quantity) => this.inventory.addToInventory(itemType, quantity);
 
+        // 🎯 Check if a tool is equipped in equipment slots (for harvesting checks)
+        this.hasEquippedTool = (toolType) => {
+            if (!this.hotbarSystem) return false;
+            const activeTools = this.hotbarSystem.getActiveTools();
+            return activeTools.some(tool => tool.itemType === toolType);
+        };
+
+        // 🎯 Check if player has a tool (either selected in hotbar OR equipped)
+        this.hasTool = (toolType) => {
+            // Check selected hotbar slot
+            const selectedSlot = this.getHotbarSlot(this.selectedSlot);
+            if (selectedSlot && selectedSlot.itemType === toolType) return true;
+            
+            // Check equipment slots
+            return this.hasEquippedTool(toolType);
+        };
+
         this.container = container;
         this.controlsEnabled = true;
         this.isPaused = false;
@@ -161,6 +179,9 @@ class NebulaVoxelApp {
 
         // 🎒 Initialize Advanced InventorySystem
         this.inventory = new InventorySystem(this);
+
+        // 🎯 Initialize HotbarSystem (8 slots: 5 inventory + 3 equipment)
+        this.hotbarSystem = new HotbarSystem(this, this.inventory);
 
         // 📘 Initialize Companion Codex
         this.companionCodex = new CompanionCodex(this);
@@ -1052,11 +1073,10 @@ class NebulaVoxelApp {
 
                 // 🎯 Only give items if this is actual player harvesting (not chunk cleanup)
                 if (giveItems) {
-                    // Check active tool in selected slot (with safety check)
-                    const selectedSlot = this.inventory?.hotbarSlots?.[this.selectedSlot];
-                    const hasStoneHammer = selectedSlot && selectedSlot.itemType === 'stone_hammer';
+                    // Check active tool (inventory OR equipment)
+                    const hasStoneHammer = this.hasTool('stone_hammer');
 
-                    console.log(`🔨 Harvesting block ${blockData.type}, tool: ${selectedSlot?.itemType}, hasStoneHammer: ${hasStoneHammer}`);
+                    console.log(`🔨 Harvesting block ${blockData.type}, hasStoneHammer: ${hasStoneHammer}`);
 
                     // Check if it's a shrub for harvesting
                     if (blockData.type === 'shrub') {
@@ -1402,10 +1422,14 @@ class NebulaVoxelApp {
             // Helper function for random range
             const randomRange = (min, max) => Math.floor(this.seededRandom() * (max - min + 1)) + min;
 
-            // CRITICAL: Add essential tools FIRST to guarantee hotbar slots
-            console.log('🔧 Adding essential tools first...');
-            // NOTE: Workbench is now UI-only tool, not in inventory
-            this.inventory.addToInventory('machete', 1);    // ESSENTIAL - needed for leaf harvesting!
+            // CRITICAL: Add machete to EQUIPMENT SLOT (not regular inventory)
+            console.log('🔧 Adding essential machete to equipment slot...');
+            if (this.hotbarSystem) {
+                this.hotbarSystem.addToolToEquipment('machete', 1);
+            } else {
+                // Fallback if hotbar system not ready
+                this.inventory.addToInventory('machete', 1);
+            }
 
             // Guaranteed starter materials (but smaller amounts to fit in hotbar + backpack)
             const woodCount = randomRange(4, 8);  // Reduced from 8-16
@@ -1826,7 +1850,11 @@ class NebulaVoxelApp {
         this.showHotbarTutorial = () => {
             // Create hotbar if it doesn't exist
             if (!this.hotbarElement) {
-                this.createHotbar();
+                // OLD: this.createHotbar();
+                // NEW: Use HotbarSystem
+                this.hotbarSystem.createUI();
+                this.hotbarElement = this.hotbarSystem.hotbarElement;
+                
                 // Connect UI elements to InventorySystem
                 this.inventory.setUIElements(this.hotbarElement, this.backpackInventoryElement);
             }
@@ -1974,8 +2002,9 @@ class NebulaVoxelApp {
             }
         };
 
+        // ============ OLD HOTBAR CODE - BACKUP (Replaced by HotbarSystem.js) ============
         // Create the hotbar UI element
-        this.createHotbar = () => {
+        /* this.createHotbar = () => {
             this.hotbarElement = document.createElement('div');
             this.hotbarElement.style.cssText = `
                 position: fixed;
@@ -2071,7 +2100,8 @@ class NebulaVoxelApp {
 
             // Add to the container
             this.container.appendChild(this.hotbarElement);
-        };
+        }; */
+        // ============ END OLD HOTBAR CODE ============
 
         // Duplicate function definitions removed - using the original correct implementations above
 
@@ -2447,10 +2477,31 @@ class NebulaVoxelApp {
                     slot.style.borderColor = '#444';
                 });
 
-                // Right-click handler for item transfer to hotbar (using InventorySystem)
+                // Right-click handler for item transfer (Ctrl+Right for equipment, normal for hotbar)
                 slot.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
-                    this.inventory.transferItemToHotbar(i);
+                    
+                    // Ctrl+Right-click = send to equipment slot (if it's a tool)
+                    if (e.ctrlKey) {
+                        const backpackSlot = this.inventory.backpackSlots[i];
+                        if (backpackSlot && backpackSlot.itemType && backpackSlot.quantity > 0) {
+                            if (this.hotbarSystem && this.hotbarSystem.isToolItem(backpackSlot.itemType)) {
+                                const success = this.hotbarSystem.addToolToEquipment(backpackSlot.itemType, backpackSlot.quantity);
+                                if (success) {
+                                    // Remove from backpack
+                                    backpackSlot.itemType = '';
+                                    backpackSlot.quantity = 0;
+                                    this.updateBackpackInventoryDisplay();
+                                    this.updateStatus(`Equipped ${backpackSlot.itemType}`, 'info');
+                                }
+                            } else {
+                                this.updateStatus(`Only tools can be equipped!`, 'warning');
+                            }
+                        }
+                    } else {
+                        // Normal right-click = send to hotbar
+                        this.inventory.transferItemToHotbar(i);
+                    }
                 });
 
                 // Store slot reference in InventorySystem
@@ -2466,10 +2517,13 @@ class NebulaVoxelApp {
 
             // Info footer
             const footer = document.createElement('div');
-            footer.textContent = 'Right-click items to transfer • Hotbar ↔ Backpack';
+            footer.innerHTML = `
+                <div style="margin-bottom: 4px;">Right-click: Transfer to hotbar</div>
+                <div style="opacity: 0.8;">Ctrl+Right-click: Equip tool (⚔️ slots)</div>
+            `;
             footer.style.cssText = `
                 color: rgba(255, 255, 255, 0.6);
-                font-family: monospace;
+                font-family: Georgia, serif;
                 font-size: 11px;
                 text-align: center;
                 border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -4893,9 +4947,8 @@ class NebulaVoxelApp {
                 this.updateStatus(`💀💎 Dead tree treasure spawned nearby!`, 'discovery');
             }
 
-            // 🍃 MACHETE LEAF COLLECTION: Check if player has machete for leaf harvesting
-            const selectedSlot = this.getHotbarSlot(this.selectedSlot);
-            const hasMachete = selectedSlot && selectedSlot.itemType === 'machete';
+            // 🍃 MACHETE LEAF COLLECTION: Check if player has machete (inventory OR equipment)
+            const hasMachete = this.hasTool('machete');
 
             if (hasMachete && treeMetadata.leafBlocks.length > 0) {
                 // Collect all leaf types from this tree
@@ -5109,9 +5162,8 @@ class NebulaVoxelApp {
 
         // 🍃 Create falling leaf blocks with machete-based leaf collection
         this.createFallingLeaves = (leafBlocks) => {
-            // 🔪 Check if player has machete equipped for leaf collection
-            const selectedSlot = this.getHotbarSlot(this.selectedSlot);
-            const hasMachete = selectedSlot && selectedSlot.itemType === 'machete';
+            // 🔪 Check if player has machete (inventory OR equipment) for leaf collection
+            const hasMachete = this.hasTool('machete');
 
             // Count leaves for machete collection
             let collectedLeaves = 0;
@@ -6033,8 +6085,7 @@ class NebulaVoxelApp {
 
                 // 🔪 MACHETE LEAF HARVESTING: Check if we're harvesting leaves with machete
                 if (this.isLeafBlock(blockType)) {
-                    const selectedSlot = this.getHotbarSlot(this.selectedSlot);
-                    const hasMachete = selectedSlot && selectedSlot.itemType === 'machete';
+                    const hasMachete = this.hasTool('machete');
 
                     if (hasMachete) {
                         // Machete allows leaf collection

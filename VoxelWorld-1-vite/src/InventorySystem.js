@@ -342,11 +342,22 @@ export class InventorySystem {
     }
 
     updateHotbarCounts() {
+        // 🎯 DELEGATED: Hotbar UI now managed by HotbarSystem
+        if (this.voxelWorld && this.voxelWorld.hotbarSystem) {
+            this.voxelWorld.hotbarSystem.updateUI();
+            return;
+        }
+
+        // Legacy fallback (for old system compatibility)
         if (!this.hotbarElement) return;
 
         const slots = this.hotbarElement.querySelectorAll('.hotbar-slot');
         slots.forEach((slot, index) => {
+            // Safety check: only update if slot data exists
+            if (index >= this.hotbarSlots.length) return;
+            
             const slotData = this.hotbarSlots[index];
+            if (!slotData) return;
 
             // Clear current content
             slot.innerHTML = '';

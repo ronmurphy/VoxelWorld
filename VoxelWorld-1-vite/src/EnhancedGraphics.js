@@ -65,7 +65,7 @@ export class EnhancedGraphics {
 
         // UI element size configurations
         this.uiSizes = {
-            hotbarIcon: 16,     // Small icons in hotbar slots
+            hotbarIcon: 36,     // Large icons in hotbar slots (matches emoji size)
             inventoryIcon: 20,  // Medium icons in backpack inventory
             statusIcon: 24,     // Icons in status messages
             timeIndicator: 32,  // Main time indicator in top-left

@@ -1923,10 +1923,14 @@ export class WorkbenchSystem {
             // Unlock tool bench UI
             this.voxelWorld.hasToolBench = true;
 
-            // Show tool bench button
+            // Show tool bench button with updated icon
             if (this.voxelWorld.toolBenchButton) {
                 this.voxelWorld.toolBenchButton.style.display = 'block';
-                console.log('🔧 Tool bench button enabled');
+                
+                // Update icon to use PNG (with emoji fallback)
+                this.voxelWorld.updateToolButtonIcon(this.voxelWorld.toolBenchButton, 'tool_bench', '🔧');
+                
+                console.log('🔧 Tool bench button enabled with updated icon');
             }
 
             // Update UI
