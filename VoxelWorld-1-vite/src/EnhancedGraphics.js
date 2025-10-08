@@ -47,7 +47,20 @@ export class EnhancedGraphics {
         this.textureAliases = {
             tool_bench: 'toolbench',              // Code uses tool_bench, file is toolbench.png
             grappling_hook: 'grapple',            // Code uses grappling_hook, file is grapple.png
-            crafted_grappling_hook: 'grapple'     // Crafted version also maps to grapple.png
+            crafted_grappling_hook: 'grapple',    // Crafted version also maps to grapple.png
+            magic_amulet: 'cryatal',              // magic_amulet uses cryatal.png (typo in filename)
+            crafted_magic_amulet: 'cryatal',      // Crafted version also maps to cryatal.png
+            crafted_club: 'club',                 // Crafted versions
+            crafted_stone_spear: 'stone_spear',
+            crafted_torch: 'torch',
+            crafted_wood_shield: 'wood_shield',
+            crafted_combat_sword: 'sword',
+            crafted_mining_pick: 'pickaxe',
+            crafted_stone_hammer: 'stone_hammer',
+            crafted_machete: 'machete',
+            crafted_compass: 'compass',
+            crafted_compass_upgrade: 'compass',
+            crafted_speed_boots: 'boots_speed'
         };
 
         // UI element size configurations
@@ -256,7 +269,11 @@ export class EnhancedGraphics {
                     'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
                 ],
-                tools: ['backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 'compass', 'toolbench', 'tool_bench'],
+                tools: [
+                    'backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 
+                    'compass', 'toolbench', 'tool_bench', 'grapple', 'sword', 'pickaxe',
+                    'boots_speed', 'cryatal', 'club', 'stone_spear', 'torch', 'wood_shield'
+                ],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun'],
                 entities: ['ghost', 'angry_ghost']
             };

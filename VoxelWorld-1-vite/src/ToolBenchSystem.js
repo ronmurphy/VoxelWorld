@@ -30,6 +30,9 @@ export class ToolBenchSystem {
         this.blueprints = this.defineBlueprints();
 
         console.log('🔧 ToolBenchSystem initialized with', Object.keys(this.blueprints).length, 'blueprints');
+        
+        // Load saved upgrades from previous sessions
+        this.loadSavedUpgrades();
     }
 
     /**
@@ -202,6 +205,61 @@ export class ToolBenchSystem {
                 isCompass: true,
                 canReassign: true,
                 isUpgrade: true
+            },
+
+            // ⚔️ NEW COMBAT TOOLS
+            club: {
+                name: '🏏 Wooden Club',
+                items: { stick: 3, bone: 2 },
+                description: 'Heavy blunt weapon for crushing blows',
+                clues: {
+                    stick: 'Three branches bound, heavy and stout...',
+                    bone: 'Two remnants of beasts, to deal damage out...'
+                },
+                category: 'combat',
+                isTool: true
+            },
+
+            stone_spear: {
+                name: '🗡️ Stone Spear',
+                items: { stick: 2, stone: 3, feather: 1 },
+                description: 'Sharp piercing weapon for ranged attacks',
+                clues: {
+                    stick: 'Two shafts of wood, long and true...',
+                    stone: 'Three sharpened rocks, to pierce straight through...',
+                    feather: 'A flight of grace, to guide the throw...'
+                },
+                category: 'combat',
+                isTool: true
+            },
+
+            // 💡 LIGHTING TOOLS
+            torch: {
+                name: '🔥 Torch',
+                items: { stick: 1, coal: 2 },
+                description: 'Portable light source to illuminate the darkness',
+                clues: {
+                    stick: 'A single branch to hold the flame...',
+                    coal: 'Two embers black, to light the game...'
+                },
+                category: 'utility',
+                isTool: true,
+                isConsumable: true,
+                charges: 20
+            },
+
+            // 🛡️ DEFENSE TOOLS
+            wood_shield: {
+                name: '🛡️ Wooden Shield',
+                items: { oak_wood: 4, pine_wood: 4, iron: 1 },
+                description: 'Sturdy shield to block incoming attacks',
+                clues: {
+                    oak_wood: 'Four planks of oak, strong and wide...',
+                    pine_wood: 'Four planks of pine, to stand with pride...',
+                    iron: 'A single metal grip, to brace and hide...'
+                },
+                category: 'defense',
+                isTool: true
             }
         };
     }
@@ -612,6 +670,8 @@ export class ToolBenchSystem {
             combat: [],
             harvesting: [],
             consumable: [],
+            utility: [],      // Added for torch and other utility items
+            defense: [],      // Added for shields and defensive items
             special: []
         };
 
@@ -881,6 +941,45 @@ export class ToolBenchSystem {
         // Special handling for backpack stack size
         if (blueprint.upgradeType === 'backpackStackSize') {
             this.voxelWorld.inventory.STACK_LIMIT = blueprint.upgradeValue;
+        }
+
+        // 💾 Save upgrade to localStorage so it persists
+        this.saveUpgradeToPersistence(blueprint.upgradeType, blueprint.upgradeValue);
+    }
+
+    /**
+     * Save upgrade to localStorage
+     */
+    saveUpgradeToPersistence(upgradeType, upgradeValue) {
+        const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
+        
+        if (!playerData.upgrades) {
+            playerData.upgrades = {};
+        }
+        
+        playerData.upgrades[upgradeType] = upgradeValue;
+        localStorage.setItem('NebulaWorld_playerData', JSON.stringify(playerData));
+        
+        console.log(`💾 Saved ${upgradeType} = ${upgradeValue} to localStorage`);
+    }
+
+    /**
+     * Load saved upgrades from localStorage
+     */
+    loadSavedUpgrades() {
+        const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
+        
+        if (playerData.upgrades) {
+            for (const [upgradeType, value] of Object.entries(playerData.upgrades)) {
+                this.voxelWorld[upgradeType] = value;
+                
+                // Special handling for backpack stack size
+                if (upgradeType === 'backpackStackSize') {
+                    this.voxelWorld.inventory.STACK_LIMIT = value;
+                }
+                
+                console.log(`✅ Loaded upgrade: ${upgradeType} = ${value}`);
+            }
         }
     }
 

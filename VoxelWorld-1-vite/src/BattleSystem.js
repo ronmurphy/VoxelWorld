@@ -72,11 +72,36 @@ export class BattleSystem {
         // Get player's active companion
         const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
         const companionId = playerData.activeCompanion || playerData.starterMonster || 'rat';
-        const companionStats = data.monsters[companionId];
+        const companionBaseStats = data.monsters[companionId];
 
-        if (!companionStats) {
+        if (!companionBaseStats) {
             console.error(`❌ Unknown companion: ${companionId}`);
             return;
+        }
+
+        // 🎒 Get companion stats WITH equipment bonuses from CompanionCodex
+        let companionStats = { ...companionBaseStats }; // Start with base stats
+        let companionSpecialEffects = [];
+        
+        if (this.voxelWorld.companionCodex) {
+            const statsWithEquipment = this.voxelWorld.companionCodex.getCompanionStats(companionId);
+            if (statsWithEquipment) {
+                // Merge equipment-enhanced stats, keeping name/description from base
+                companionStats = {
+                    ...companionBaseStats,
+                    hp: statsWithEquipment.hp,
+                    attack: statsWithEquipment.attack,
+                    defense: statsWithEquipment.defense,
+                    speed: statsWithEquipment.speed
+                };
+                console.log(`⚔️ Equipment bonuses applied! HP: ${companionStats.hp}, ATK: ${companionStats.attack}, DEF: ${companionStats.defense}, SPD: ${companionStats.speed}`);
+            }
+            
+            // Get special combat effects
+            companionSpecialEffects = this.voxelWorld.companionCodex.getSpecialCombatEffects(companionId);
+            if (companionSpecialEffects.length > 0) {
+                console.log(`✨ Special effects active:`, companionSpecialEffects.map(e => e.description).join(', '));
+            }
         }
 
         console.log(`⚔️ Battle started: ${companionStats.name} vs ${enemyStats.name}`);
@@ -89,7 +114,8 @@ export class BattleSystem {
                 companionId,
                 enemyStats,
                 enemyId,
-                enemyPosition
+                enemyPosition,
+                companionSpecialEffects  // Pass special effects to arena
             );
         } else {
             console.error('❌ BattleArena not initialized!');

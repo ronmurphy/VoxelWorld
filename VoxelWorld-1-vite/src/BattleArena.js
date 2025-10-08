@@ -49,14 +49,18 @@ export class BattleArena {
      * @param {object} enemyData - Enemy stats from entities.json
      * @param {string} enemyId - Enemy ID
      * @param {object} enemyPosition - {x, y, z} enemy position in world
+     * @param {array} companionSpecialEffects - Array of special combat effects
      */
-    async startBattle(companionData, companionId, enemyData, enemyId, enemyPosition) {
+    async startBattle(companionData, companionId, enemyData, enemyId, enemyPosition, companionSpecialEffects = []) {
         if (this.isActive) {
             console.log('⚔️ Battle already active!');
             return;
         }
 
         console.log(`⚔️ Arena Battle: ${companionData.name} vs ${enemyData.name}`);
+        
+        // Store special effects for companion
+        this.companionSpecialEffects = companionSpecialEffects;
 
         this.isActive = true;
 

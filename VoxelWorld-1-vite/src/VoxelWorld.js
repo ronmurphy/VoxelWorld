@@ -2135,7 +2135,12 @@ class NebulaVoxelApp {
             // These are special items like crafted_grappling_hook, crafted_speed_boots, etc.
             const toolBenchTools = [
                 'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword', 
-                'crafted_mining_pick', 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick'
+                'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
+                'crafted_compass', 'crafted_compass_upgrade', 'crafted_machete',
+                'crafted_club', 'crafted_stone_spear', 'crafted_torch', 'crafted_wood_shield',
+                'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
+                'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade', 'machete',
+                'club', 'stone_spear', 'torch', 'wood_shield'
             ];
             
             if (toolBenchTools.includes(itemType)) {
@@ -6210,30 +6215,60 @@ class NebulaVoxelApp {
         // 🎁 DEBUG UTILITY: Give item to inventory
         // Can be called from browser console: giveItem("stone_hammer")
         window.giveItem = (itemName, quantity = 1) => {
-            // Valid items (tools, crafted items, special items)
+            // Valid items - comprehensive list of all discovery items, tools, and crafted items
             const validItems = [
-                // Exploring items
-                'feather', 'stone', 'skull','mushroom','flower','berry','leaf','fur',
-                // Tools from ToolBench
-                'stone_hammer', 'machete', 'stick', 'compass', 'compass_upgrade', 'grapple_hook',
-                // Workbench items
+                // 🌍 Discovery/Exploring items (treasure items)
+                'skull', 'mushroom', 'flower', 'berry', 'leaf',
+                'crystal', 'oreNugget', 'wheat', 'feather', 'bone',
+                'shell', 'fur', 'iceShard',
+                'rustySword', 'oldPickaxe', 'ancientAmulet',
+                
+                // 🔧 Base tools and materials
+                'stone', 'stick', 'iron', 'gold', 'coal',
+                'machete', 'stone_hammer', 'compass', 'compass_upgrade',
+                'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
+                'magic_amulet', 'club', 'stone_spear', 'torch', 'wood_shield',
+                
+                // 🏗️ Workbench/ToolBench items
                 'workbench', 'backpack', 'tool_bench',
-                // Crafted items start with 'crafted_' prefix (allow any)
+                
+                // 🎨 Crafted items (with crafted_ prefix) - allow any starting with 'crafted_'
+                'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword',
+                'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
+                'crafted_compass', 'crafted_compass_upgrade', 'crafted_machete',
+                'crafted_club', 'crafted_stone_spear', 'crafted_torch', 'crafted_wood_shield',
+                'crafted_backpack_upgrade_1', 'crafted_backpack_upgrade_2',
+                'crafted_healing_potion', 'crafted_light_orb'
             ];
 
             // Check if item is valid or starts with 'crafted_'
             if (!validItems.includes(itemName) && !itemName.startsWith('crafted_')) {
                 console.error(`❌ Invalid item: "${itemName}"`);
-                console.log('Valid items:', validItems.join(', '));
-                console.log('Or any crafted item (starts with "crafted_")');
+                console.log('%c📋 Valid Discovery Items:', 'font-weight: bold; color: #FF9800;');
+                console.log('  skull, mushroom, flower, berry, leaf, crystal, oreNugget, wheat');
+                console.log('  feather, bone, shell, fur, iceShard, rustySword, oldPickaxe, ancientAmulet');
+                console.log('%c🔧 Valid Tools:', 'font-weight: bold; color: #2196F3;');
+                console.log('  stone, stick, iron, gold, coal, machete, stone_hammer, compass');
+                console.log('  grappling_hook, speed_boots, combat_sword, mining_pick, magic_amulet');
+                console.log('  club, stone_spear, torch, wood_shield');
+                console.log('%c🎨 Valid Crafted Items:', 'font-weight: bold; color: #9C27B0;');
+                console.log('  Any tool with "crafted_" prefix (e.g., crafted_grappling_hook)');
+                console.log('  Or use the tools list above with crafted_ prefix');
                 return;
             }
 
             // Add to inventory
             const added = this.inventory.addToInventory(itemName, quantity);
             if (added > 0) {
+                // Get the icon for visual feedback
+                const icon = this.getItemIcon(itemName, 'status');
+                const displayName = this.formatItemName(itemName);
+                
                 console.log(`✅ Gave ${added}x ${itemName}`);
-                this.updateStatus(`🎁 Debug: Gave ${added}x ${itemName}`, 'success');
+                this.updateStatus(`🎁 Debug: Gave ${added}x ${icon} ${displayName}`, 'success');
+                
+                // Update hotbar to show the new item with icon
+                this.updateHotbarCounts();
             } else {
                 console.warn(`⚠️ Could not add ${itemName} - inventory might be full`);
             }
@@ -6261,9 +6296,58 @@ class NebulaVoxelApp {
             }
         };
 
-        console.log('💡 Debug utilities available:');
+        // 📋 LIST ITEMS UTILITY: Show all available items organized by category
+        // Can be called from browser console: listItems()
+        window.listItems = () => {
+            console.log('%c� All Available Items for giveItem() Command', 'font-size: 16px; font-weight: bold; color: #4CAF50;');
+            console.log('');
+            
+            console.log('%c🌍 Discovery Items (Find in the world):', 'font-weight: bold; color: #FF9800;');
+            console.log('  Desert: skull, sand');
+            console.log('  Forest: mushroom, flower, berry, leaf');
+            console.log('  Mountain: crystal, oreNugget');
+            console.log('  Plains: wheat, feather, bone');
+            console.log('  Tundra: fur, iceShard');
+            console.log('  Rare (any biome): rustySword, oldPickaxe, ancientAmulet');
+            console.log('');
+            
+            console.log('%c🔧 Base Tools & Materials:', 'font-weight: bold; color: #2196F3;');
+            console.log('  Materials: stone, stick, iron, gold, coal');
+            console.log('  Basic Tools: machete, stone_hammer');
+            console.log('  Navigation: compass, compass_upgrade');
+            console.log('  Movement: grappling_hook, speed_boots');
+            console.log('  Combat: combat_sword, mining_pick, club, stone_spear, wood_shield');
+            console.log('  Magic: magic_amulet');
+            console.log('  Utility: torch');
+            console.log('');
+            
+            console.log('%c🏗️ Workbench Items:', 'font-weight: bold; color: #795548;');
+            console.log('  workbench, tool_bench, backpack');
+            console.log('');
+            
+            console.log('%c🎨 Crafted Items (use crafted_ prefix):', 'font-weight: bold; color: #9C27B0;');
+            console.log('  crafted_grappling_hook, crafted_speed_boots');
+            console.log('  crafted_combat_sword, crafted_mining_pick, crafted_stone_hammer');
+            console.log('  crafted_magic_amulet, crafted_compass, crafted_compass_upgrade');
+            console.log('  crafted_machete, crafted_club, crafted_stone_spear');
+            console.log('  crafted_torch, crafted_wood_shield');
+            console.log('  crafted_backpack_upgrade_1, crafted_backpack_upgrade_2');
+            console.log('  crafted_healing_potion, crafted_light_orb');
+            console.log('');
+            
+            console.log('%c💡 Usage Examples:', 'font-weight: bold; color: #FFC107;');
+            console.log('  giveItem("crystal", 5)          - Give 5 crystals');
+            console.log('  giveItem("crafted_grappling_hook", 1) - Give grappling hook');
+            console.log('  giveItem("rustySword", 1)       - Give rusty sword');
+            console.log('');
+            
+            return '✅ Item list displayed above ⬆️';
+        };
+
+        console.log('�💡 Debug utilities available:');
         console.log('  giveItem("stone_hammer") - adds item to inventory');
         console.log('  giveBlock("stone", 64) - adds blocks to inventory');
+        console.log('  listItems() - show all available items');
         console.log('  makeRuins("small") - generates test ruin near player (small/medium/large/colossal)');
         console.log('  clearSeed() - clears saved seed and generates new random world on refresh');
         console.log('  setSeed(12345) - sets a specific seed for the world');
@@ -6278,11 +6362,12 @@ class NebulaVoxelApp {
             console.log('%c📦 Item & Block Commands:', 'font-weight: bold; color: #2196F3;');
             console.log('  giveItem("name", quantity)     - Add item to inventory');
             console.log('    Examples: giveItem("stone_hammer"), giveItem("workbench", 5)');
-            console.log('    Valid items: stone_hammer, machete, stick, compass, compass_upgrade,');
-            console.log('                 workbench, backpack, tool_bench, crafted_* items');
+            console.log('    Type listItems() to see all available items');
             console.log('');
             console.log('  giveBlock("name", quantity)    - Add blocks to inventory');
             console.log('    Examples: giveBlock("stone", 64), giveBlock("dirt", 100)');
+            console.log('');
+            console.log('  listItems()                    - Show all available items organized by category');
             console.log('');
             
             console.log('%c🏛️ World Generation Commands:', 'font-weight: bold; color: #FF9800;');
@@ -9143,7 +9228,8 @@ class NebulaVoxelApp {
                 return;
             }
 
-            const speed = 4.0; // Units per second
+            // Base speed modified by movementSpeed upgrade (1.0 default, 1.5 with speed boots)
+            const speed = 4.0 * this.movementSpeed; // Units per second
             const jumpSpeed = 9.0; // Jump velocity - increased for 2-block obstacles, was 8.0
             const gravity = 20.0; // Gravity acceleration
             

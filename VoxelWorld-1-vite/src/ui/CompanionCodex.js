@@ -58,12 +58,59 @@ export class CompanionCodex {
             speed_boots: { speed: 3, label: '👢 Speed Boots', icon: 'art/tools/boots_speed.png' },
             grappling_hook: { speed: 2, label: '🕸️ Grappling Hook', icon: 'art/tools/grapple.png' },
             machete: { attack: 2, label: '🔪 Machete', icon: 'art/tools/machete.png' },
+            
+            // New tools
+            club: { attack: 3, label: '🏏 Wooden Club', icon: 'art/tools/club.png' },
+            stone_spear: { attack: 4, speed: 1, label: '🗡️ Stone Spear', icon: 'art/tools/stone_spear.png' },
+            torch: { speed: 1, label: '🔥 Torch', icon: 'art/tools/torch.png' },
+            wood_shield: { defense: 3, label: '🛡️ Wooden Shield', icon: 'art/tools/wood_shield.png' },
 
             // Prefixed versions from ToolBench crafting system
             crafted_combat_sword: { attack: 4, label: '⚔️ Combat Sword', icon: 'art/tools/sword.png' },
             crafted_mining_pick: { attack: 2, defense: 2, label: '⛏️ Mining Pick', icon: 'art/tools/pickaxe.png' },
             crafted_magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/cryatal.png' },
-            crafted_grappling_hook: { speed: 2, label: '🕸️ Grappling Hook', icon: 'art/tools/grapple.png' }
+            crafted_grappling_hook: { speed: 2, label: '🕸️ Grappling Hook', icon: 'art/tools/grapple.png' },
+            crafted_club: { attack: 3, label: '🏏 Wooden Club', icon: 'art/tools/club.png' },
+            crafted_stone_spear: { attack: 4, speed: 1, label: '🗡️ Stone Spear', icon: 'art/tools/stone_spear.png' },
+            crafted_torch: { speed: 1, label: '🔥 Torch', icon: 'art/tools/torch.png' },
+            crafted_wood_shield: { defense: 3, label: '🛡️ Wooden Shield', icon: 'art/tools/wood_shield.png' }
+        };
+
+        // ⚔️ Special combat effects for equipment
+        // These provide unique battle mechanics beyond stat bonuses
+        this.specialCombatEffects = {
+            // Speed-based effects
+            speed_boots: { effect: 'double_attack', description: 'Attack twice per turn' },
+            crafted_speed_boots: { effect: 'double_attack', description: 'Attack twice per turn' },
+            
+            feather: { effect: 'extra_turn', chance: 0.25, description: '25% chance for extra turn' },
+            
+            // Defense effects
+            wood_shield: { effect: 'block', chance: 0.30, description: '30% chance to block attack' },
+            crafted_wood_shield: { effect: 'block', chance: 0.30, description: '30% chance to block attack' },
+            
+            // Attack effects
+            combat_sword: { effect: 'critical', chance: 0.20, description: '20% critical hit (2x damage)' },
+            crafted_combat_sword: { effect: 'critical', chance: 0.20, description: '20% critical hit (2x damage)' },
+            
+            stone_spear: { effect: 'pierce', description: 'Ignore 50% of enemy defense' },
+            crafted_stone_spear: { effect: 'pierce', description: 'Ignore 50% of enemy defense' },
+            
+            club: { effect: 'stun', chance: 0.15, description: '15% chance to stun (skip enemy turn)' },
+            crafted_club: { effect: 'stun', chance: 0.15, description: '15% chance to stun (skip enemy turn)' },
+            
+            // Magic effects
+            magic_amulet: { effect: 'heal', value: 3, description: 'Heal 3 HP each turn' },
+            crafted_magic_amulet: { effect: 'heal', value: 3, description: 'Heal 3 HP each turn' },
+            
+            torch: { effect: 'burn', chance: 0.20, description: '20% chance to burn (damage over time)' },
+            crafted_torch: { effect: 'burn', chance: 0.20, description: '20% chance to burn (damage over time)' },
+            
+            // Ice effects
+            iceShard: { effect: 'freeze', chance: 0.15, description: '15% chance to freeze (skip turn)' },
+            
+            // Ancient items
+            ancientAmulet: { effect: 'dodge', chance: 0.20, description: '20% chance to dodge attacks' }
         };
 
         console.log('📘 CompanionCodex system initialized');
@@ -497,6 +544,28 @@ export class CompanionCodex {
         }
 
         return this.calculateStats(companionId);
+    }
+
+    /**
+     * Get special combat effects for a companion
+     * @param {string} companionId - Companion ID
+     * @returns {array} Array of special effects from equipped items
+     */
+    getSpecialCombatEffects(companionId) {
+        const equipment = this.companionEquipment[companionId] || { head: null, body: null, weapon: null, accessory: null };
+        const effects = [];
+
+        // Check each equipped item for special effects
+        Object.values(equipment).forEach(item => {
+            if (item && this.specialCombatEffects[item]) {
+                effects.push({
+                    item: item,
+                    ...this.specialCombatEffects[item]
+                });
+            }
+        });
+
+        return effects;
     }
 
     /**
