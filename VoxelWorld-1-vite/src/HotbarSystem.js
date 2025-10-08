@@ -616,8 +616,6 @@ export class HotbarSystem {
     handleDragOver(e, slotIndex) {
         e.preventDefault(); // Required to allow drop
         
-        console.log(`🎯 Hotbar drag over slot ${slotIndex}`);
-        
         // Try to get drag data from dataTransfer (for backpack sources)
         let dragData = null;
         try {
@@ -636,7 +634,6 @@ export class HotbarSystem {
         }
 
         if (!dragData) {
-            console.log('⚠️ No drag data available in dragover');
             return;
         }
 
@@ -656,7 +653,6 @@ export class HotbarSystem {
             e.dataTransfer.dropEffect = 'none';
             const slot = e.target.closest('.hotbar-slot');
             if (slot) slot.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
-            console.log('❌ Invalid drop - not a tool');
             return;
         }
 
@@ -664,7 +660,6 @@ export class HotbarSystem {
         e.dataTransfer.dropEffect = 'move';
         const slot = e.target.closest('.hotbar-slot');
         if (slot) slot.style.backgroundColor = 'rgba(0, 255, 0, 0.2)';
-        console.log('✅ Valid drop zone');
     }
 
     /**
@@ -683,8 +678,6 @@ export class HotbarSystem {
      */
     handleDrop(e, targetIndex) {
         e.preventDefault();
-        
-        console.log(`🎯 Hotbar drop on slot ${targetIndex}`);
         
         const slot = e.target.closest('.hotbar-slot');
         if (slot) {

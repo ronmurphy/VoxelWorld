@@ -340,17 +340,14 @@ export class BackpackSystem {
             slot.addEventListener('dragleave', (e) => this.handleBackpackDragLeave(e));
         });
         
-        console.log('🎒 Drag & drop enabled for backpack slots');
+        // Drag & drop enabled for backpack slots
     }
 
     handleBackpackDragStart(e, sourceIndex) {
         const sourceSlot = this.voxelWorld.inventory.backpackSlots[sourceIndex];
         
-        console.log(`🎒 Drag start attempt - Index: ${sourceIndex}, Slot:`, sourceSlot);
-        
         // Only allow dragging if slot has an item
         if (!sourceSlot.itemType || sourceSlot.quantity === 0) {
-            console.log(`⚠️ Cannot drag - slot is empty`);
             e.preventDefault();
             return;
         }
@@ -387,7 +384,6 @@ export class BackpackSystem {
         // Visual feedback - dim source slot
         e.target.style.opacity = '0.5';
         e.target.style.cursor = 'grabbing';
-        console.log(`📦 Drag started from backpack slot ${sourceIndex}: ${sourceSlot.itemType}`);
     }
 
     handleBackpackDragOver(e, targetIndex) {
@@ -414,8 +410,6 @@ export class BackpackSystem {
             console.error('❌ Failed to parse drag data:', err);
             return;
         }
-
-        console.log(`📦 Drop on backpack slot ${targetIndex} from ${dragData.source} slot ${dragData.sourceIndex}`);
 
         if (dragData.source === 'backpack') {
             // Backpack to backpack - swap slots
@@ -445,8 +439,6 @@ export class BackpackSystem {
                 slotData.element.style.borderColor = '#8B4513';
             }
         });
-        
-        console.log('📦 Backpack drag ended');
     }
 
     handleBackpackDragLeave(e) {
@@ -473,8 +465,6 @@ export class BackpackSystem {
 
         // Update UI
         this.updateBackpackInventoryDisplay();
-        
-        console.log(`🔄 Swapped backpack slots ${sourceIndex} ↔ ${targetIndex}`);
     }
 
     transferFromHotbarToBackpack(hotbarIndex, backpackIndex) {
@@ -489,7 +479,6 @@ export class BackpackSystem {
         const backpackSlot = this.voxelWorld.inventory.backpackSlots[backpackIndex];
 
         if (!hotbarSlot.itemType || hotbarSlot.quantity === 0) {
-            console.log('⚠️ Source hotbar slot is empty');
             return;
         }
 
@@ -511,7 +500,5 @@ export class BackpackSystem {
         // Update both UIs
         hotbarSystem.updateUI();
         this.updateBackpackInventoryDisplay();
-        
-        console.log(`🔄 Transferred from hotbar ${hotbarIndex} to backpack ${backpackIndex}`);
     }
 }
