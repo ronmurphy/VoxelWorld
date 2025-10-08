@@ -10504,13 +10504,13 @@ class NebulaVoxelApp {
             this.renderDistance = next;
 
             // 🌫️ Update fog for new render distance
-            const chunkSize = 64;
+            const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
             const fogStart = (this.renderDistance + 1) * chunkSize;
             const fogEnd = (this.renderDistance + 3) * chunkSize;
             const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
             const fogColor = isNight ? 0x0a0a0f : this.scene.background.getHex();
             this.scene.fog = new THREE.Fog(fogColor, fogStart, fogEnd);
-            console.log(`🌫️ Fog updated for render distance ${this.renderDistance}: ${fogStart} to ${fogEnd}`);
+            console.log(`🌫️ Fog updated for render distance ${this.renderDistance}: ${fogStart} to ${fogEnd}, chunkSize: ${chunkSize}`);
 
             // Update button text
             modalRenderDistanceBtn.textContent = `🔭 Render Distance: ${next}`;
