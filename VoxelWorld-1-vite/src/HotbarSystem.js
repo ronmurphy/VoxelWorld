@@ -616,27 +616,55 @@ export class HotbarSystem {
     handleDragOver(e, slotIndex) {
         e.preventDefault(); // Required to allow drop
         
-        // Check if this is a valid drop target
-        const dragData = this.dragSourceIndex !== undefined ? {
-            sourceIndex: this.dragSourceIndex,
-            sourceType: this.dragSourceType
-        } : null;
+        console.log(`🎯 Hotbar drag over slot ${slotIndex}`);
+        
+        // Try to get drag data from dataTransfer (for backpack sources)
+        let dragData = null;
+        try {
+            const textData = e.dataTransfer.getData('text/plain');
+            if (textData) {
+                dragData = JSON.parse(textData);
+            }
+        } catch (err) {
+            // Fallback to internal drag source (hotbar to hotbar)
+            if (this.dragSourceIndex !== undefined) {
+                dragData = {
+                    source: this.dragSourceType || 'hotbar',
+                    sourceIndex: this.dragSourceIndex
+                };
+            }
+        }
 
-        if (!dragData) return;
+        if (!dragData) {
+            console.log('⚠️ No drag data available in dragover');
+            return;
+        }
 
-        const sourceSlot = this.slots[dragData.sourceIndex];
+        // For backpack sources, we need to validate against the backpack item
+        let sourceItemType = null;
+        if (dragData.source === 'backpack') {
+            sourceItemType = dragData.itemType;
+        } else {
+            const sourceSlot = this.slots[dragData.sourceIndex];
+            sourceItemType = sourceSlot?.itemType;
+        }
+
         const isEquipmentTarget = this.isEquipmentSlot(slotIndex);
 
         // Validate equipment slot drops
-        if (isEquipmentTarget && !this.isToolItem(sourceSlot?.itemType)) {
+        if (isEquipmentTarget && !this.isToolItem(sourceItemType)) {
             e.dataTransfer.dropEffect = 'none';
-            e.target.closest('.hotbar-slot').style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+            const slot = e.target.closest('.hotbar-slot');
+            if (slot) slot.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+            console.log('❌ Invalid drop - not a tool');
             return;
         }
 
         // Valid drop zone - highlight
         e.dataTransfer.dropEffect = 'move';
-        e.target.closest('.hotbar-slot').style.backgroundColor = 'rgba(0, 255, 0, 0.2)';
+        const slot = e.target.closest('.hotbar-slot');
+        if (slot) slot.style.backgroundColor = 'rgba(0, 255, 0, 0.2)';
+        console.log('✅ Valid drop zone');
     }
 
     /**
@@ -655,6 +683,8 @@ export class HotbarSystem {
      */
     handleDrop(e, targetIndex) {
         e.preventDefault();
+        
+        console.log(`🎯 Hotbar drop on slot ${targetIndex}`);
         
         const slot = e.target.closest('.hotbar-slot');
         if (slot) {

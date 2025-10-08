@@ -346,8 +346,11 @@ export class BackpackSystem {
     handleBackpackDragStart(e, sourceIndex) {
         const sourceSlot = this.voxelWorld.inventory.backpackSlots[sourceIndex];
         
+        console.log(`🎒 Drag start attempt - Index: ${sourceIndex}, Slot:`, sourceSlot);
+        
         // Only allow dragging if slot has an item
         if (!sourceSlot.itemType || sourceSlot.quantity === 0) {
+            console.log(`⚠️ Cannot drag - slot is empty`);
             e.preventDefault();
             return;
         }
