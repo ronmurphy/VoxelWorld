@@ -2,8 +2,10 @@ backpack.png
 backpack_2.png
 boots_speed.png
 club.png
+coal.png
 compass.png
 cryatal.png
+fur.png
 grapple.png
 items.txt
 machete.png

@@ -6879,21 +6879,24 @@ class NebulaVoxelApp {
 
         // 🌫️ Helper function to update fog
         this.updateFog = (fogColor = null) => {
-            const chunkSize = 64;
+            const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
             let fogStart, fogEnd;
 
             if (this.useHardFog) {
-                // Hard fog (Silent Hill style): Very short gradient, almost a wall
-                fogStart = this.renderDistance * chunkSize;
-                fogEnd = (this.renderDistance + 0.5) * chunkSize;
+                // Hard fog (Silent Hill style): Ends at render distance - 1 chunk (hard wall effect)
+                // This creates a fog wall just inside the render boundary
+                fogStart = (this.renderDistance - 0.5) * chunkSize; // Start close to edge
+                fogEnd = this.renderDistance * chunkSize; // End exactly at render distance
             } else {
-                // Soft fog: Gradual fade over 2 chunks
+                // Soft fog: Gradual fade over 2 chunks beyond render distance
                 fogStart = (this.renderDistance + 1) * chunkSize;
                 fogEnd = (this.renderDistance + 3) * chunkSize;
             }
 
             const color = fogColor !== null ? fogColor : (this.scene.background ? this.scene.background.getHex() : 0x87CEEB);
             this.scene.fog = new THREE.Fog(color, fogStart, fogEnd);
+            
+            console.log(`🌫️ Fog updated: ${this.useHardFog ? 'HARD' : 'SOFT'} (start: ${fogStart.toFixed(1)}, end: ${fogEnd.toFixed(1)}, renderDist: ${this.renderDistance}, chunkSize: ${chunkSize})`);
         };
 
         // 🌫️ Toggle fog type (for scary areas)
@@ -8433,19 +8436,21 @@ class NebulaVoxelApp {
             const time = this.dayNightCycle.currentTime;
             this.isTorchAllowed = (time >= 17 || time < 6);
             
-            // 🌫️ Update fog based on time of day
-            const chunkSize = 64;
-            if (this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6) {
-                // Night fog (7pm-6am): Shorter range, dark color for creepy atmosphere
-                const nightFogColor = new THREE.Color(0x0a0a0f); // Very dark
-                const nightFogStart = (this.renderDistance + 1) * chunkSize;
-                const nightFogEnd = (this.renderDistance + 3) * chunkSize;
-                this.scene.fog = new THREE.Fog(nightFogColor.getHex(), nightFogStart, nightFogEnd);
+            // 🌫️ Update fog based on time of day and fog mode
+            const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
+            const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
+            const fogColor = isNight ? 0x0a0a0f : skyColor.getHex(); // Dark at night, sky color during day
+            
+            if (this.useHardFog) {
+                // Silent Hill hard fog: Ends at render distance (moves with player)
+                const hardFogStart = (this.renderDistance - 0.5) * chunkSize;
+                const hardFogEnd = this.renderDistance * chunkSize;
+                this.scene.fog = new THREE.Fog(fogColor, hardFogStart, hardFogEnd);
             } else {
-                // Day fog: Normal range, matches sky
-                const fogStart = (this.renderDistance + 1) * chunkSize;
-                const fogEnd = (this.renderDistance + 3) * chunkSize;
-                this.scene.fog = new THREE.Fog(skyColor.getHex(), fogStart, fogEnd);
+                // Soft fog: Gradual fade beyond render distance
+                const softFogStart = (this.renderDistance + 1) * chunkSize;
+                const softFogEnd = (this.renderDistance + 3) * chunkSize;
+                this.scene.fog = new THREE.Fog(fogColor, softFogStart, softFogEnd);
             }
             
             this.scene.background = skyColor;
@@ -10188,7 +10193,7 @@ class NebulaVoxelApp {
                                     text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
                                     box-shadow: 0 2px 4px rgba(0,0,0,0.4);
                                     transition: all 0.2s;
-                                ">🎲 Start New World</button>
+                                ">� Start New Game</button>
                                 <button id="modal-delete-btn" style="
                                     padding: 10px 16px;
                                     background: linear-gradient(180deg, #9a4a4a, #8a3a3a);
@@ -10463,26 +10468,20 @@ class NebulaVoxelApp {
         };
 
         const newGame = async () => {
-            modal.style.display = 'none';
-
-            // 🎲 Show character creation if RPG system exists
-            if (this.rpgIntegration && this.rpgIntegration.needsCharacterCreation()) {
-                await this.rpgIntegration.startCharacterCreation();
+            // ⚠️ Show warning about save deletion
+            const confirmed = confirm(
+                "⚠️ Warning: This will delete all progress!\n\n" +
+                "Starting a new game will erase your current save data.\n" +
+                "Continue?"
+            );
+            
+            if (!confirmed) {
+                return; // User cancelled
             }
-
-            // 🧪 Skip seed prompt if DEBUG_SEED is active
-            const USE_DEBUG_SEED = true;
-            const DEBUG_SEED = 12345;
-
-            let seedString = "";
-            if (!USE_DEBUG_SEED) {
-                seedString = prompt("Enter a seed (leave empty for random):", "");
-            } else {
-                seedString = DEBUG_SEED.toString();
-                console.log('🧪 DEBUG_SEED active - skipping seed prompt, using:', DEBUG_SEED);
-            }
-
-            this.newGame(seedString);
+            
+            // Clear save data and reload
+            localStorage.removeItem('NebulaWorld_playerData');
+            location.reload();
         };
 
         const reRunBenchmark = async () => {

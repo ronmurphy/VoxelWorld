@@ -272,7 +272,8 @@ export class EnhancedGraphics {
                 tools: [
                     'backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 
                     'compass', 'toolbench', 'tool_bench', 'grapple', 'sword', 'pickaxe',
-                    'boots_speed', 'cryatal', 'club', 'stone_spear', 'torch', 'wood_shield'
+                    'boots_speed', 'cryatal', 'club', 'stone_spear', 'torch', 'wood_shield',
+                    'coal', 'gold', 'iron', 'feather', 'fur'  // Materials added to tools folder
                 ],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun'],
                 entities: ['ghost', 'angry_ghost']
