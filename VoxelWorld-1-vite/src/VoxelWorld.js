@@ -6,6 +6,7 @@ import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
 import { HotbarSystem } from './HotbarSystem.js';
+import { BackpackSystem } from './BackpackSystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { AnimationSystem } from './AnimationSystem.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
@@ -182,6 +183,12 @@ class NebulaVoxelApp {
 
         // 🎯 Initialize HotbarSystem (8 slots: 5 inventory + 3 equipment)
         this.hotbarSystem = new HotbarSystem(this, this.inventory);
+
+        // 🎒 Initialize BackpackSystem
+        this.backpackSystem = new BackpackSystem(this);
+        // Wire up methods for compatibility
+        this.createBackpackInventory = () => this.backpackSystem.createBackpackInventory();
+        this.updateBackpackInventoryDisplay = () => this.backpackSystem.updateBackpackInventoryDisplay();
 
         // 📘 Initialize Companion Codex
         this.companionCodex = new CompanionCodex(this);
@@ -2354,15 +2361,15 @@ class NebulaVoxelApp {
 
         // Toggle backpack inventory slide-down
         this.toggleBackpackInventory = () => {
-            if (!this.backpackInventoryElement) {
+            if (!this.backpackSystem.backpackInventoryElement) {
                 this.createBackpackInventory();
             }
 
-            const isVisible = this.backpackInventoryElement.style.transform.includes('translateY(0px)');
+            const isVisible = this.backpackSystem.backpackInventoryElement.style.transform.includes('translateY(0px)');
 
             if (isVisible) {
                 // Slide up (hide) and re-enable pointer lock
-                this.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(-100%)';
+                this.backpackSystem.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(-100%)';
                 this.updateStatus('Backpack closed');
 
                 // Re-request pointer lock after a short delay
@@ -2373,9 +2380,9 @@ class NebulaVoxelApp {
                 }, 100);
             } else {
                 // Slide down (show) and release pointer lock
-                this.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(0px)';
+                this.backpackSystem.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(0px)';
                 this.updateBackpackInventoryDisplay();
-                this.updateStatus('Backpack opened - 5x5 grid storage');
+                this.updateStatus('Backpack opened - 20 slots (4x5 grid) • 50 per stack');
 
                 // Exit pointer lock to allow cursor interaction
                 if (document.pointerLockElement) {
@@ -2385,6 +2392,12 @@ class NebulaVoxelApp {
         };
 
         // 🎒 RESTORED: Polished backpack UI from copy.js connected to InventorySystem backend
+        // ===============================================================
+        // 🗑️ OLD BACKPACK CODE - REPLACED BY BackpackSystem.js
+        // This code has been extracted to src/BackpackSystem.js for better organization
+        // Kept here as backup - can be deleted once new system is verified
+        // ===============================================================
+        /*
         this.createBackpackInventory = () => {
             this.backpackInventoryElement = document.createElement('div');
             this.backpackInventoryElement.style.cssText = `
@@ -2551,6 +2564,10 @@ class NebulaVoxelApp {
             // Add to container
             this.container.appendChild(this.backpackInventoryElement);
         };
+        */
+        // ===============================================================
+        // END OLD BACKPACK CODE
+        // ===============================================================
 
         // ===============================================================
         // NOTE: Old workbench modal code removed - WorkbenchSystem.js is now used
@@ -5830,6 +5847,10 @@ class NebulaVoxelApp {
         };
 
         // 🔄 UPDATED: Backpack display connected to InventorySystem backend
+        // ===============================================================
+        // 🗑️ OLD BACKPACK UPDATE CODE - REPLACED BY BackpackSystem.js
+        // ===============================================================
+        /*
         this.updateBackpackInventoryDisplay = () => {
             // Ensure backpack UI is created before updating
             if (!this.backpackInventoryElement) {
@@ -5930,6 +5951,10 @@ class NebulaVoxelApp {
             // Silent backpack updates - UI shows the state
             // console.log(`🎒 Backpack updated: ${filledSlots} filled slots out of ${this.inventory.backpackSlots.length} total`);
         };
+        */
+        // ===============================================================
+        // END OLD BACKPACK UPDATE CODE
+        // ===============================================================
 
         // 🗑️ REMOVED: Transfer methods now handled by InventorySystem.js
         // Use this.inventory.transferItemToBackpack() and this.inventory.transferItemToHotbar() instead

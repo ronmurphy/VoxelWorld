@@ -385,17 +385,17 @@ export class HotbarSystem {
                 quantityDisplay.style.cssText = `
                     position: absolute;
                     bottom: 4px;
-                    left: 4px;
+                    right: 4px;
                     font-size: 11px;
                     font-weight: bold;
                     text-align: center;
-                    color: #2F1B14;
+                    color: #4a2511;
                     font-family: Georgia, serif;
-                    text-shadow: 1px 1px 2px rgba(245, 230, 211, 0.8), 
-                                 -1px -1px 1px rgba(255, 255, 255, 0.5);
-                    background: rgba(245, 230, 211, 0.6);
-                    padding: 1px 4px;
-                    border-radius: 3px;
+                    background: rgba(245, 230, 211, 0.9);
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    border: 1px solid #8B4513;
+                    min-width: 20px;
                 `;
                 contentDiv.appendChild(quantityDisplay);
 
@@ -572,8 +572,16 @@ export class HotbarSystem {
         this.dragSourceIndex = slotIndex;
         this.dragSourceType = 'hotbar';
 
-        // Set drag data
+        // Set drag data with shared format for cross-system compatibility
         e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+            source: 'hotbar',
+            sourceIndex: slotIndex,
+            itemType: slotData.itemType,
+            quantity: slotData.quantity
+        }));
+        
+        // Also set legacy format for internal use
         e.dataTransfer.setData('application/json', JSON.stringify({
             sourceIndex: slotIndex,
             sourceType: 'hotbar',
@@ -654,14 +662,25 @@ export class HotbarSystem {
             slot.style.backgroundColor = isEquipment ? 'rgba(139, 69, 19, 0.3)' : 'rgba(218, 165, 32, 0.15)';
         }
 
-        // Get drag data
+        // Get drag data - try text/plain first (shared format), then application/json (legacy)
         let dragData;
         try {
+            const textData = e.dataTransfer.getData('text/plain');
             const jsonData = e.dataTransfer.getData('application/json');
-            dragData = jsonData ? JSON.parse(jsonData) : {
-                sourceIndex: this.dragSourceIndex,
-                sourceType: this.dragSourceType
-            };
+            
+            if (textData) {
+                dragData = JSON.parse(textData);
+            } else if (jsonData) {
+                dragData = JSON.parse(jsonData);
+                // Convert legacy format to new format
+                dragData.source = dragData.sourceType || 'hotbar';
+            } else {
+                // Fallback to stored values
+                dragData = {
+                    source: this.dragSourceType || 'hotbar',
+                    sourceIndex: this.dragSourceIndex
+                };
+            }
         } catch (err) {
             console.error('Failed to parse drag data:', err);
             return;
@@ -673,24 +692,31 @@ export class HotbarSystem {
         }
 
         const sourceIndex = dragData.sourceIndex;
+        const source = dragData.source;
         
-        // Don't do anything if dropping on same slot
-        if (sourceIndex === targetIndex && dragData.sourceType === 'hotbar') {
+        // Don't do anything if dropping on same slot from same source
+        if (sourceIndex === targetIndex && source === 'hotbar') {
             console.log('Dropped on same slot, ignoring');
             return;
         }
 
-        // Validate equipment slot
-        const sourceSlot = this.slots[sourceIndex];
-        if (this.isEquipmentSlot(targetIndex) && !this.isToolItem(sourceSlot?.itemType)) {
-            this.voxelWorld.updateStatus('⚠️ Only tools can go in equipment slots!', 'warning');
-            return;
-        }
+        // Handle different source types
+        if (source === 'backpack') {
+            // Transfer from backpack to hotbar
+            this.transferFromBackpackToHotbar(sourceIndex, targetIndex);
+        } else {
+            // Hotbar to hotbar - validate and swap
+            const sourceSlot = this.slots[sourceIndex];
+            if (this.isEquipmentSlot(targetIndex) && !this.isToolItem(sourceSlot?.itemType)) {
+                this.voxelWorld.updateStatus('⚠️ Only tools can go in equipment slots!', 'warning');
+                return;
+            }
 
-        // Perform the swap/move
-        this.swapSlots(sourceIndex, targetIndex);
+            // Perform the swap/move
+            this.swapSlots(sourceIndex, targetIndex);
+        }
         
-        console.log(`✅ Dropped item from slot ${sourceIndex} to ${targetIndex}`);
+        console.log(`✅ Dropped item from ${source} slot ${sourceIndex} to hotbar ${targetIndex}`);
     }
 
     /**
@@ -774,5 +800,51 @@ export class HotbarSystem {
         console.log(`🎯 Added ${itemType} to equipment slot ${emptySlot}`);
         this.updateUI();
         return true;
+    }
+
+    /**
+     * Transfer item from backpack to hotbar (called when dropping from backpack)
+     */
+    transferFromBackpackToHotbar(backpackIndex, hotbarIndex) {
+        const inventory = this.voxelWorld.inventory;
+        if (!inventory) {
+            console.error('❌ InventorySystem not found');
+            return;
+        }
+
+        const backpackSlot = inventory.backpackSlots[backpackIndex];
+        const hotbarSlot = this.slots[hotbarIndex];
+
+        if (!backpackSlot.itemType || backpackSlot.quantity === 0) {
+            console.log('⚠️ Source backpack slot is empty');
+            return;
+        }
+
+        // Validate equipment slot
+        if (this.isEquipmentSlot(hotbarIndex) && !this.isToolItem(backpackSlot.itemType)) {
+            this.voxelWorld.updateStatus('⚠️ Only tools can go in equipment slots!', 'warning');
+            return;
+        }
+
+        // Swap the items
+        const tempItem = { ...backpackSlot };
+        
+        backpackSlot.itemType = hotbarSlot.itemType;
+        backpackSlot.quantity = hotbarSlot.quantity;
+        
+        hotbarSlot.itemType = tempItem.itemType;
+        hotbarSlot.quantity = tempItem.quantity;
+
+        // Sync hotbar slots 0-4 back to InventorySystem if needed
+        if (hotbarIndex < 5) {
+            inventory.hotbarSlots[hotbarIndex].itemType = hotbarSlot.itemType;
+            inventory.hotbarSlots[hotbarIndex].quantity = hotbarSlot.quantity;
+        }
+
+        // Update both UIs
+        this.updateUI();
+        inventory.updateBackpackInventoryDisplay();
+        
+        console.log(`🔄 Transferred from backpack ${backpackIndex} to hotbar ${hotbarIndex}`);
     }
 }

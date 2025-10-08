@@ -37,9 +37,9 @@ export class InventorySystem {
             { itemType: null, quantity: 0 }
         ];
 
-        // Backpack slots (25 slots total)
+        // Backpack slots (20 slots total - 4x5 grid, reduced from 25 to balance 50 stack size)
         this.backpackSlots = [];
-        for (let i = 0; i < 25; i++) {
+        for (let i = 0; i < 20; i++) {
             this.backpackSlots.push({ itemType: null, quantity: 0 });
         }
     }
@@ -438,46 +438,71 @@ export class InventorySystem {
                 // Store item type for transfers
                 slot.dataset.itemType = slotData.itemType;
 
-                // Create item icon
+                // Create slot content wrapper
+                const slotContent = document.createElement('div');
+                slotContent.className = 'slot-content';
+                slotContent.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                    height: 100%;
+                `;
+
+                // Create item icon with larger size (36px like hotbar)
                 const itemIcon = document.createElement('div');
                 // Use innerHTML for crafted items (HTML icons), textContent for emojis
                 if (iconContent.includes('<span') || iconContent.includes('<img')) {
                     itemIcon.innerHTML = iconContent;
+                    // Force img tags to be 36px
+                    const imgTag = itemIcon.querySelector('img');
+                    if (imgTag) {
+                        imgTag.style.width = '36px';
+                        imgTag.style.height = '36px';
+                    }
                 } else {
                     itemIcon.textContent = iconContent;
                 }
                 itemIcon.style.cssText = `
-                    font-size: 20px;
+                    font-size: 36px;
                     text-align: center;
-                    margin-bottom: 3px;
+                    margin-bottom: 4px;
+                    line-height: 1;
                 `;
-                slot.appendChild(itemIcon);
+                slotContent.appendChild(itemIcon);
 
                 // Create quantity display
                 const quantityDisplay = document.createElement('div');
                 quantityDisplay.textContent = slotData.quantity;
                 quantityDisplay.style.cssText = `
-                    font-size: 12px;
+                    font-size: 11px;
                     font-weight: bold;
                     text-align: center;
-                    color: white;
-                    text-shadow: 1px 1px 1px black;
+                    color: #4a2511;
+                    background: rgba(245, 230, 211, 0.9);
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    border: 1px solid #8B4513;
+                    min-width: 20px;
                 `;
-                slot.appendChild(quantityDisplay);
+                slotContent.appendChild(quantityDisplay);
 
-                // Set title for tooltip
-                slot.title = `${name}: ${slotData.quantity} (Right-click to move to hotbar)`;
+                slot.appendChild(slotContent);
+
+                // Set title for tooltip with formatted name
+                slot.title = `${name}\nQuantity: ${slotData.quantity}\n\nRight-click: Move to hotbar\nDrag: Move to hotbar/equipment`;
             } else {
                 // Empty slot
-                slot.title = 'Empty slot';
+                slot.title = 'Empty Slot\n\nDrag items here to store';
                 slot.dataset.itemType = '';
             }
         }
 
-        console.log(`🎒 Backpack UI updated: ${filledSlots}/25 slots filled`);
+        console.log(`🎒 Backpack UI updated: ${filledSlots}/20 slots filled`);
     }
 
-    // 🎨 CREATE BACKPACK UI
+    // 🎨 CREATE BACKPACK UI (Modern Adventurer's Theme)
     createBackpackInventory() {
         if (!this.voxelWorld.container) {
             console.warn('🎒 Container not ready for backpack UI creation');
@@ -485,89 +510,111 @@ export class InventorySystem {
         }
 
         // Ensure all backpack slots are properly initialized
-        if (this.backpackSlots.length < 25) {
+        if (this.backpackSlots.length < 20) {
             console.log('🔧 Re-initializing backpack slots...');
             this.initializeInventory();
         }
 
-        // Main backpack container
+        // Main backpack container with parchment theme
         this.backpackInventoryElement = document.createElement('div');
         this.backpackInventoryElement.style.cssText = `
             position: absolute;
             top: 80px;
             left: 50%;
             transform: translateX(-50%) translateY(-100vh);
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #666;
-            border-radius: 8px;
+            background: rgba(245, 230, 211, 0.95);
+            border: 3px solid #8B4513;
+            border-radius: 12px;
             padding: 20px;
             z-index: 1500;
             transition: transform 0.3s ease-in-out;
-            min-width: 320px;
+            min-width: 380px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.3);
         `;
 
-        // Title
+        // Title with adventurer's style
         const title = document.createElement('div');
-        title.textContent = 'Backpack - 5x5 Storage';
+        title.textContent = '🎒 Adventurer\'s Backpack';
         title.style.cssText = `
-            color: white;
-            font-size: 16px;
+            color: #4a2511;
+            font-size: 20px;
             font-weight: bold;
             margin-bottom: 15px;
             text-align: center;
-            font-family: monospace;
+            font-family: 'Georgia', serif;
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+            letter-spacing: 1px;
         `;
         this.backpackInventoryElement.appendChild(title);
 
-        // Grid container (5x5 grid)
+        // Subtitle with stack info
+        const subtitle = document.createElement('div');
+        subtitle.textContent = '20 Slots • 50 Items per Stack';
+        subtitle.style.cssText = `
+            color: #8B4513;
+            font-size: 12px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-family: 'Georgia', serif;
+            opacity: 0.8;
+        `;
+        this.backpackInventoryElement.appendChild(subtitle);
+
+        // Grid container (4x5 grid with larger slots)
         const gridContainer = document.createElement('div');
         gridContainer.style.cssText = `
             display: grid;
-            grid-template-columns: repeat(5, 55px);
-            grid-template-rows: repeat(5, 55px);
-            gap: 5px;
+            grid-template-columns: repeat(4, 70px);
+            grid-template-rows: repeat(5, 70px);
+            gap: 8px;
             justify-content: center;
         `;
 
-        // Create 25 slots (5x5 grid)
-        for (let i = 0; i < 25; i++) {
+        // Create 20 slots (4x5 grid)
+        for (let i = 0; i < 20; i++) {
             const slot = document.createElement('div');
+            slot.dataset.backpackSlotIndex = i;
+            slot.draggable = true; // Enable dragging
             slot.style.cssText = `
-                width: 55px;
-                height: 55px;
-                border: 2px solid #444;
-                border-radius: 4px;
-                background: rgba(64, 64, 64, 0.8);
+                width: 70px;
+                height: 70px;
+                border: 2px solid #8B4513;
+                border-radius: 6px;
+                background: rgba(218, 165, 32, 0.15);
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                cursor: pointer;
+                cursor: grab;
                 transition: all 0.2s;
                 box-sizing: border-box;
+                position: relative;
             `;
 
+            // Hover effects
             slot.addEventListener('mouseenter', () => {
-                slot.style.background = 'rgba(100, 100, 100, 0.8)';
-                slot.style.borderColor = '#888';
+                slot.style.background = 'rgba(218, 165, 32, 0.25)';
+                slot.style.borderColor = '#DAA520';
+                slot.style.transform = 'scale(1.05)';
             });
 
             slot.addEventListener('mouseleave', () => {
-                slot.style.background = 'rgba(64, 64, 64, 0.8)';
-                slot.style.borderColor = '#444';
+                slot.style.background = 'rgba(218, 165, 32, 0.15)';
+                slot.style.borderColor = '#8B4513';
+                slot.style.transform = 'scale(1)';
             });
 
-            // Right-click to transfer to hotbar
+            // Right-click to transfer to hotbar (existing functionality)
             slot.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 this.transferItemToHotbar(i);
             });
 
-            // Store DOM element reference (data is in this.backpackSlots array)
+            // Store DOM element reference
             if (this.backpackSlots[i]) {
                 this.backpackSlots[i].element = slot;
             } else {
-                // Initialize slot if it doesn't exist
                 this.backpackSlots[i] = { itemType: null, quantity: 0, element: slot };
             }
             gridContainer.appendChild(slot);
@@ -575,6 +622,9 @@ export class InventorySystem {
 
         this.backpackInventoryElement.appendChild(gridContainer);
         this.voxelWorld.container.appendChild(this.backpackInventoryElement);
+        
+        // Initialize drag & drop after UI is created
+        this.setupBackpackDragAndDrop();
     }
 
     // 🔧 SAVE/LOAD FUNCTIONALITY
@@ -644,5 +694,187 @@ export class InventorySystem {
         if (!backpackHasItems) {
             console.log('  Backpack is empty');
         }
+    }
+
+    // 🎨 DRAG & DROP SYSTEM FOR BACKPACK
+    setupBackpackDragAndDrop() {
+        this.backpackSlots.forEach((slotData, index) => {
+            const slot = slotData.element;
+            if (!slot) return;
+
+            // Drag start - item being dragged FROM backpack
+            slot.addEventListener('dragstart', (e) => this.handleBackpackDragStart(e, index));
+            
+            // Drag over - hovering over backpack slot
+            slot.addEventListener('dragover', (e) => this.handleBackpackDragOver(e, index));
+            
+            // Drop - item dropped ON backpack slot
+            slot.addEventListener('drop', (e) => this.handleBackpackDrop(e, index));
+            
+            // Drag end - cleanup
+            slot.addEventListener('dragend', (e) => this.handleBackpackDragEnd(e));
+            
+            // Drag leave - remove hover effects
+            slot.addEventListener('dragleave', (e) => this.handleBackpackDragLeave(e));
+        });
+    }
+
+    handleBackpackDragStart(e, sourceIndex) {
+        const sourceSlot = this.backpackSlots[sourceIndex];
+        
+        // Only allow dragging if slot has an item
+        if (!sourceSlot.itemType || sourceSlot.quantity === 0) {
+            e.preventDefault();
+            return;
+        }
+
+        // Store source info in dataTransfer with 'backpack' prefix
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+            source: 'backpack',
+            sourceIndex: sourceIndex,
+            itemType: sourceSlot.itemType,
+            quantity: sourceSlot.quantity
+        }));
+
+        // Create custom drag image
+        const dragIcon = e.target.querySelector('.slot-content');
+        if (dragIcon) {
+            const clone = dragIcon.cloneNode(true);
+            clone.style.position = 'absolute';
+            clone.style.top = '-1000px';
+            clone.style.opacity = '0.8';
+            clone.style.width = '70px';
+            clone.style.height = '70px';
+            document.body.appendChild(clone);
+            e.dataTransfer.setDragImage(clone, 35, 35);
+            
+            // Clean up clone after drag starts
+            setTimeout(() => document.body.removeChild(clone), 0);
+        }
+
+        // Visual feedback - dim source slot
+        e.target.style.opacity = '0.5';
+        console.log(`📦 Drag started from backpack slot ${sourceIndex}: ${sourceSlot.itemType}`);
+    }
+
+    handleBackpackDragOver(e, targetIndex) {
+        e.preventDefault(); // Allow drop
+        e.dataTransfer.dropEffect = 'move';
+
+        // Visual feedback - highlight valid drop target
+        const slot = this.backpackSlots[targetIndex].element;
+        slot.style.background = 'rgba(144, 238, 144, 0.3)'; // Light green
+        slot.style.borderColor = '#90EE90';
+    }
+
+    handleBackpackDrop(e, targetIndex) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Parse drag data
+        let dragData;
+        try {
+            dragData = JSON.parse(e.dataTransfer.getData('text/plain'));
+        } catch (err) {
+            console.error('❌ Failed to parse drag data:', err);
+            return;
+        }
+
+        console.log(`📦 Drop on backpack slot ${targetIndex} from ${dragData.source} slot ${dragData.sourceIndex}`);
+
+        if (dragData.source === 'backpack') {
+            // Backpack to backpack - swap slots
+            this.swapBackpackSlots(dragData.sourceIndex, targetIndex);
+        } else if (dragData.source === 'hotbar') {
+            // Hotbar to backpack - transfer item
+            this.transferFromHotbarToBackpack(dragData.sourceIndex, targetIndex);
+        }
+
+        // Reset visual
+        const slot = this.backpackSlots[targetIndex].element;
+        slot.style.background = 'rgba(218, 165, 32, 0.15)';
+        slot.style.borderColor = '#8B4513';
+    }
+
+    handleBackpackDragEnd(e) {
+        // Reset opacity
+        e.target.style.opacity = '1';
+        
+        // Reset all backpack slots to default colors
+        this.backpackSlots.forEach(slotData => {
+            if (slotData.element) {
+                slotData.element.style.background = 'rgba(218, 165, 32, 0.15)';
+                slotData.element.style.borderColor = '#8B4513';
+            }
+        });
+        
+        console.log('📦 Backpack drag ended');
+    }
+
+    handleBackpackDragLeave(e) {
+        // Reset to default colors when mouse leaves
+        if (e.target.classList?.contains || e.target.dataset?.backpackSlotIndex !== undefined) {
+            e.target.style.background = 'rgba(218, 165, 32, 0.15)';
+            e.target.style.borderColor = '#8B4513';
+        }
+    }
+
+    swapBackpackSlots(sourceIndex, targetIndex) {
+        if (sourceIndex === targetIndex) return;
+
+        // Get both slots
+        const sourceSlot = { ...this.backpackSlots[sourceIndex] };
+        const targetSlot = { ...this.backpackSlots[targetIndex] };
+
+        // Swap the data (preserve element references)
+        this.backpackSlots[sourceIndex].itemType = targetSlot.itemType;
+        this.backpackSlots[sourceIndex].quantity = targetSlot.quantity;
+
+        this.backpackSlots[targetIndex].itemType = sourceSlot.itemType;
+        this.backpackSlots[targetIndex].quantity = sourceSlot.quantity;
+
+        // Update UI
+        this.updateBackpackInventoryDisplay();
+        
+        console.log(`🔄 Swapped backpack slots ${sourceIndex} ↔ ${targetIndex}`);
+    }
+
+    transferFromHotbarToBackpack(hotbarIndex, backpackIndex) {
+        // Get hotbar system reference
+        const hotbarSystem = this.voxelWorld.hotbarSystem;
+        if (!hotbarSystem) {
+            console.error('❌ HotbarSystem not found');
+            return;
+        }
+
+        const hotbarSlot = hotbarSystem.slots[hotbarIndex];
+        const backpackSlot = this.backpackSlots[backpackIndex];
+
+        if (!hotbarSlot.itemType || hotbarSlot.quantity === 0) {
+            console.log('⚠️ Source hotbar slot is empty');
+            return;
+        }
+
+        // Swap the items
+        const tempItem = { ...hotbarSlot };
+        
+        hotbarSlot.itemType = backpackSlot.itemType;
+        hotbarSlot.quantity = backpackSlot.quantity;
+        
+        backpackSlot.itemType = tempItem.itemType;
+        backpackSlot.quantity = tempItem.quantity;
+
+        // Sync hotbar slots 0-4 back to InventorySystem if needed
+        if (hotbarIndex < 5) {
+            this.hotbarSlots[hotbarIndex].itemType = hotbarSlot.itemType;
+            this.hotbarSlots[hotbarIndex].quantity = hotbarSlot.quantity;
+        }
+
+        // Update both UIs
+        hotbarSystem.updateUI();
+        this.updateBackpackInventoryDisplay();
+        
+        console.log(`🔄 Transferred from hotbar ${hotbarIndex} to backpack ${backpackIndex}`);
     }
 }
