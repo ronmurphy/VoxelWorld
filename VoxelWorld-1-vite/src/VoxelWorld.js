@@ -6892,10 +6892,11 @@ class NebulaVoxelApp {
                 fogStart = (this.renderDistance - 0.5) * chunkSize; // Start close to edge
                 fogEnd = this.renderDistance * chunkSize; // End exactly at render distance
             } else {
-                // Soft fog: Gradual fade over LOD range (if LOD manager exists)
+                // Soft fog: Start 1 chunk before render distance so player sees it
+                // This obscures the landscape and hides that visual chunks aren't real
                 const visualDist = this.lodManager ? this.lodManager.visualDistance : 1;
-                fogStart = (this.renderDistance + 1) * chunkSize; // Start beyond render distance
-                fogEnd = (this.renderDistance + visualDist) * chunkSize;
+                fogStart = (this.renderDistance - 1) * chunkSize; // Start 1 chunk before render distance
+                fogEnd = (this.renderDistance + visualDist) * chunkSize; // End at visual chunk boundary
             }
 
             const color = fogColor !== null ? fogColor : (this.scene.background ? this.scene.background.getHex() : 0x87CEEB);
@@ -8459,22 +8460,10 @@ class NebulaVoxelApp {
             const time = this.dayNightCycle.currentTime;
             this.isTorchAllowed = (time >= 17 || time < 6);
             
-            // 🌫️ Update fog based on time of day and fog mode
-            const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
+            // 🌫️ Update fog based on time of day using unified updateFog()
             const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
             const fogColor = isNight ? 0x0a0a0f : skyColor.getHex(); // Dark at night, sky color during day
-            
-            if (this.useHardFog) {
-                // Silent Hill hard fog: Ends at render distance (moves with player)
-                const hardFogStart = (this.renderDistance - 0.5) * chunkSize;
-                const hardFogEnd = this.renderDistance * chunkSize;
-                this.scene.fog = new THREE.Fog(fogColor, hardFogStart, hardFogEnd);
-            } else {
-                // Soft fog: Gradual fade beyond render distance
-                const softFogStart = (this.renderDistance + 1) * chunkSize;
-                const softFogEnd = (this.renderDistance + 3) * chunkSize;
-                this.scene.fog = new THREE.Fog(fogColor, softFogStart, softFogEnd);
-            }
+            this.updateFog(fogColor); // Use centralized fog calculation
             
             this.scene.background = skyColor;
 
@@ -10538,14 +10527,10 @@ class NebulaVoxelApp {
             localStorage.setItem('voxelWorld_renderDistancePref', next.toString());
             this.renderDistance = next;
 
-            // 🌫️ Update fog for new render distance
-            const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
-            const fogStart = (this.renderDistance + 1) * chunkSize; // Start beyond render distance
-            const fogEnd = (this.renderDistance + 3) * chunkSize;
+            // 🌫️ Update fog for new render distance using unified updateFog()
             const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
             const fogColor = isNight ? 0x0a0a0f : this.scene.background.getHex();
-            this.scene.fog = new THREE.Fog(fogColor, fogStart, fogEnd);
-            console.log(`🌫️ Fog updated for render distance ${this.renderDistance}: ${fogStart} to ${fogEnd}, chunkSize: ${chunkSize}`);
+            this.updateFog(fogColor);
 
             // Update button text
             modalRenderDistanceBtn.textContent = `🔭 Render Distance: ${next}`;
