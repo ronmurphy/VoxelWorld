@@ -158,10 +158,61 @@ Console utilities (exposed via `window.voxelApp`):
 - **Pillar Trees**: Trees on stone columns - quirky aesthetic kept intentionally
 - **Mega Ancient Palm Trees**: Inverted canopy effect in desert - alien monument aesthetic
 
-## Current Priorities (2025-10-06)
+## Current Priorities (2025-10-08)
 
-### Critical Features
-1. **Auto-Battler Combat System**: Pokemon-style companion battles (NEXT PRIORITY)
+### 🚨 URGENT - Performance Critical (DO THIS FIRST!)
+**Tree Generation Worker Refactor** - **MAJOR PERFORMANCE BOTTLENECK IDENTIFIED**
+
+**Problem:** Trees are currently generated on the main thread AFTER chunks load, causing:
+- UI freezing during world generation
+- Main thread blocking for every tree placement
+- Tree collision scanning (y=1-65) blocks rendering
+- 8GB RAM maxing out, Gnome crashing
+- Surface block logic (grass on dirt) also blocking main thread
+
+**Solution:** Move tree generation INTO ChunkWorker (background thread)
+
+**Implementation Steps:**
+1. ✅ Research current tree generation architecture and dependencies
+2. ⏳ Move tree generation logic from VoxelWorld.js to ChunkWorker.js
+   - Transfer `generateOakTree()`, `generatePineTree()`, `generateBirchTree()`, `generatePalmTree()`
+   - Transfer ancient tree logic, mega tree logic
+   - Transfer dead tree generation with treasure
+3. ⏳ Move surface block logic (grass on dirt) to ChunkWorker.js
+   - Move biome-specific surface placement
+   - Ensure proper block type synchronization
+4. ⏳ Update BiomeWorldGen to work in worker context
+   - Inline or transfer biome logic to worker
+   - Ensure seed-based noise generation works
+5. ⏳ Remove tree placement from main thread in VoxelWorld.js
+   - Clean up old tree generation code
+   - Keep tree mesh rendering only
+6. ⏳ Update tree cache system to work with worker-generated trees
+   - Tree positions should come from worker data
+   - Simplify tree tracking since trees are baked into chunks
+7. ⏳ Test chunk generation performance and verify trees generate correctly
+   - Benchmark before/after
+   - Verify all tree types spawn correctly
+   - Check biome distribution
+8. ⏳ Profile memory usage to identify remaining leaks (LOD chunks, billboards, etc.)
+   - Use Chrome DevTools memory profiler
+   - Check for accumulating objects
+   - Verify proper disposal
+
+**Expected Impact:**
+- **Massive FPS improvement** (no more main thread blocking)
+- **Smooth world generation** (workers handle heavy lifting)
+- **Lower memory usage** (better cleanup, less object accumulation)
+- **No more UI freezing** when chunks load
+
+**Related Fix (2025-10-08):**
+- ✅ Fixed fog memory leak (was creating 3,600+ fog objects per minute)
+- See CHANGELOG.md for details
+
+---
+
+### Critical Features (After Performance Fix)
+1. **Auto-Battler Combat System**: Pokemon-style companion battles
    - Battle UI overlay when encountering enemies
    - Turn-based combat with companion stats (HP, Attack, Defense, Speed)
    - Player commands (Fight, Items, Switch, Run)
