@@ -354,8 +354,9 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
                 const biome = getBiomeAt(worldX, worldZ);
                 const baseTreeChance = biome.treeChance || 0.08;
 
-                // 🌲 MATCH TREEWORKER: Same noise seed and density reduction
-                const treeNoise = multiOctaveNoise(worldX + 1000, worldZ + 1000, worldSeed + 2000, 2, 0.005, 0.5);
+                // 🌲 MATCH TREEWORKER: Use high-frequency noise for scattered placement
+                // scale=0.15 creates varied, scattered trees (NOT smooth terrain noise!)
+                const treeNoise = multiOctaveNoise(worldX, worldZ, worldSeed + 2000, 3, 0.15, 0.6);
                 const treeDensityMultiplier = (biome.treeDensityMultiplier || 1.0) * 0.50; // 50% reduction
 
                 // Normalize noise from [-1, 1] to [0, 1]

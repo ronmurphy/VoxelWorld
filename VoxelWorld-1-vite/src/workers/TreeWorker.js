@@ -216,14 +216,18 @@ function shouldGenerateTree(worldX, worldZ, biome) {
     // 🌲 MUST MATCH ChunkWorker LOD tree logic EXACTLY!
     const baseTreeChance = biome.treeChance || 0.08;
 
-    // Use multi-octave noise with EXACT same parameters as ChunkWorker
-    const treeNoise = multiOctaveNoise(worldX + 1000, worldZ + 1000, worldSeed + 2000, 2, 0.005, 0.5);
+    // 🎯 Use high-frequency noise for scattered tree placement (NOT terrain noise!)
+    // Higher scale = more varied, scattered trees (good for placement)
+    // Lower scale = smooth terrain (bad for placement, creates huge clusters)
+    const treeNoise = multiOctaveNoise(worldX, worldZ, worldSeed + 2000, 3, 0.15, 0.6);
     const treeDensityMultiplier = (biome.treeDensityMultiplier || 1.0) * 0.50; // 50% reduction
 
     // Normalize noise from [-1, 1] to [0, 1]
     const normalizedNoise = (treeNoise + 1) / 2;
 
     // Tree spawns if normalized noise is GREATER than threshold
+    // Example: Plains with 8% treeChance * 0.50 = 4% effective
+    // threshold = 1 - 0.04 = 0.96, so top 4% of noise values spawn trees
     return normalizedNoise > (1 - baseTreeChance * treeDensityMultiplier);
 }
 
