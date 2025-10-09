@@ -236,8 +236,9 @@ function generateChunk({ chunkX, chunkZ, chunkSize }) {
  */
 function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
     const colorBlocks = [];
+    const heightMap = new Int16Array(chunkSize * chunkSize);
 
-    // Sample every block position (but only surface blocks)
+    // First pass: Generate terrain
     for (let x = 0; x < chunkSize; x++) {
         for (let z = 0; z < chunkSize; z++) {
             const worldX = Math.floor(chunkX * chunkSize + x);
@@ -257,9 +258,13 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
 
             const height = Math.floor(Math.max(0, Math.min(12, rawHeight + 2)));
 
+            // Store height for tree placement
+            const heightIndex = x * chunkSize + z;
+            heightMap[heightIndex] = height;
+
             // 🎨 CRITICAL FIX: Use actual BLOCK colors instead of biome gradient!
             // This matches full chunk generation logic for seamless transition
-            
+
             // Check for snow (same logic as full chunks)
             const snowNoise = multiOctaveNoise(
                 worldX + 2000,
@@ -273,7 +278,7 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
 
             // Determine actual surface block type
             const surfaceBlockType = hasSnow ? 'snow' : biome.surfaceBlock;
-            
+
             // Get BLOCK color (not biome gradient!)
             const blockColor = BLOCK_COLORS[surfaceBlockType] || BLOCK_COLORS.grass;
 
@@ -284,6 +289,62 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
                 z: worldZ,
                 color: blockColor
             });
+        }
+    }
+
+    // 🌲 Second pass: Add simple LOD trees
+    for (let x = 0; x < chunkSize; x++) {
+        for (let z = 0; z < chunkSize; z++) {
+            const worldX = Math.floor(chunkX * chunkSize + x);
+            const worldZ = Math.floor(chunkZ * chunkSize + z);
+
+            // Get biome for tree chance
+            const biome = getBiomeAt(worldX, worldZ);
+            // 🌲 Reduced by 50% for better gameplay balance and performance (match TreeWorker)
+            const baseTreeChance = biome.treeChance || 0.08;
+            const treeChance = baseTreeChance * 0.50;
+
+            // Use same tree placement logic as TreeWorker
+            const treeNoise = seededRandom(worldX + 4000, worldZ + 4000, worldSeed + 3000);
+
+            if (treeNoise > (1 - treeChance)) {
+                // Place a simple LOD tree
+                const heightIndex = x * chunkSize + z;
+                const groundHeight = heightMap[heightIndex];
+                const surfaceY = groundHeight + 1;
+
+                if (surfaceY > 1 && surfaceY <= 65) {
+                    // Simple tree: 2 brown trunk blocks + 3x3 green canopy
+                    const trunkColor = 0x8B4513; // Brown
+                    const leavesColor = 0x228B22; // Forest green
+
+                    // Trunk blocks
+                    colorBlocks.push({
+                        x: worldX,
+                        y: surfaceY,
+                        z: worldZ,
+                        color: trunkColor
+                    });
+                    colorBlocks.push({
+                        x: worldX,
+                        y: surfaceY + 1,
+                        z: worldZ,
+                        color: trunkColor
+                    });
+
+                    // Simple 3x3 canopy
+                    for (let dx = -1; dx <= 1; dx++) {
+                        for (let dz = -1; dz <= 1; dz++) {
+                            colorBlocks.push({
+                                x: worldX + dx,
+                                y: surfaceY + 2,
+                                z: worldZ + dz,
+                                color: leavesColor
+                            });
+                        }
+                    }
+                }
+            }
         }
     }
 

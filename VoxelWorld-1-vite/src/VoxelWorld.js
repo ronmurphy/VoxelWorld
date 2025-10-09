@@ -7366,34 +7366,36 @@ class NebulaVoxelApp {
 
             // 🌳 RESTORE TREES: Check if we have cached trees for this chunk
             const chunkKey = `${chunkX},${chunkZ}`;
+
+            // 🎨 Remove LOD chunk when full chunk loads (prevent double rendering)
+            if (this.lodManager) {
+                this.lodManager.unloadLODChunk(chunkKey);
+            }
+
             const cachedTrees = this.treeCache.get(chunkKey);
 
             if (cachedTrees && cachedTrees.length > 0) {
                 // Restore trees from cache instead of regenerating
-                setTimeout(() => {
-                    for (const tree of cachedTrees) {
-                        this.generateTreeForBiome(tree.x, tree.y, tree.z, tree.biome);
-                    }
-                }, 10);
+                for (const tree of cachedTrees) {
+                    this.generateTreeForBiome(tree.x, tree.y, tree.z, tree.biome);
+                }
             } else if (trees && trees.length > 0) {
-                // 🌲 NEW: Generate trees from TreeWorker data
-                setTimeout(() => {
-                    console.log(`🌲 Generating ${trees.length} trees from TreeWorker for chunk (${chunkX}, ${chunkZ})`);
-                    for (const tree of trees) {
-                        const { x, y, z, treeType, biome, isAncient, isMega } = tree;
+                // 🌲 NEW: Generate trees from TreeWorker data (immediate, no delay)
+                console.log(`🌲 Generating ${trees.length} trees from TreeWorker for chunk (${chunkX}, ${chunkZ})`);
+                for (const tree of trees) {
+                    const { x, y, z, treeType, biome, isAncient, isMega } = tree;
 
-                        // Get biome object from name
-                        const biomeObj = this.biomeWorldGen.getBiomeAt(x, z, this.worldSeed);
+                    // Get biome object from name
+                    const biomeObj = this.biomeWorldGen.getBiomeAt(x, z, this.worldSeed);
 
-                        if (isAncient) {
-                            // Generate ancient tree (regular or mega)
-                            this.generateAncientTree(x, y, z, biomeObj, isMega);
-                        } else {
-                            // Generate normal tree
-                            this.generateTreeForBiome(x, y, z, biomeObj);
-                        }
+                    if (isAncient) {
+                        // Generate ancient tree (regular or mega)
+                        this.generateAncientTree(x, y, z, biomeObj, isMega);
+                    } else {
+                        // Generate normal tree
+                        this.generateTreeForBiome(x, y, z, biomeObj);
                     }
-                }, 10);
+                }
             }
 
             // Silent chunk loading - only log on errors

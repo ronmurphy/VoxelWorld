@@ -28,6 +28,10 @@ self.onmessage = function(e) {
             generateTreesForChunk(data);
             break;
 
+        case 'GENERATE_LOD_TREES':
+            generateLODTreesForChunk(data);
+            break;
+
         case 'CLEAR_CACHE':
             clearCache();
             break;
@@ -54,97 +58,104 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
     const trees = [];
     let treesAttempted = 0;
     let treesPlaced = 0;
-    let debugFirstBiome = null;
-    let debugFirstNoiseCheck = null;
 
-    for (let x = 0; x < chunkSize; x++) {
-        for (let z = 0; z < chunkSize; z++) {
-            const worldX = chunkX * chunkSize + x;
-            const worldZ = chunkZ * chunkSize + z;
+    // 🏛️ ANCIENT/MEGA TREE EXCLUSIVE CHUNK (5% chance)
+    // If this chunk gets an ancient/mega tree, it's the ONLY tree in the chunk
+    const chunkAncientChance = seededRandom(chunkX, chunkZ, worldSeed + 50000);
+    const isAncientChunk = chunkAncientChance > 0.95; // 5% chance
 
-            // Get biome at this location
-            const biome = getBiomeAt(worldX, worldZ);
+    if (isAncientChunk) {
+        // This chunk gets ONE ancient or mega tree at its center
+        const centerX = chunkX * chunkSize + Math.floor(chunkSize / 2);
+        const centerZ = chunkZ * chunkSize + Math.floor(chunkSize / 2);
+        const biome = getBiomeAt(centerX, centerZ);
 
-            // Debug: log first biome
-            if (!debugFirstBiome) {
-                debugFirstBiome = biome;
-                console.log(`🌲 First biome at (${worldX}, ${worldZ}):`, biome.name, 'treeChance:', biome.treeChance);
-            }
+        // Get height at center
+        const heightIndex = Math.floor(chunkSize / 2) * chunkSize + Math.floor(chunkSize / 2);
+        const groundHeight = heightMap[heightIndex];
+        const surfaceY = groundHeight + 1;
 
-            // Check if we should generate a tree using noise-based placement
-            const passesNoiseCheck = shouldGenerateTree(worldX, worldZ, biome);
+        // Check if valid location (not water, valid height)
+        if (waterMap && waterMap[heightIndex] !== 1 && surfaceY > 1 && surfaceY <= 65) {
+            // 50% chance for mega, 50% for regular ancient
+            const isMega = seededRandom(chunkX + 1000, chunkZ + 1000, worldSeed + 60000) > 0.5;
+            const treeType = getTreeTypeForBiome(biome);
 
-            // Debug: log first noise check
-            if (debugFirstNoiseCheck === null) {
-                debugFirstNoiseCheck = passesNoiseCheck;
-                console.log(`🌲 First noise check: ${passesNoiseCheck}`);
-            }
+            trees.push({
+                x: centerX,
+                y: surfaceY,
+                z: centerZ,
+                treeType,
+                biome: biome.name,
+                isAncient: true,
+                isMega
+            });
 
-            if (passesNoiseCheck) {
-                // Check spacing to prevent tree crowding
-                const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ);
+            treesPlaced++;
+            console.log(`🏛️ Ancient chunk (${chunkX}, ${chunkZ}): ${isMega ? 'MEGA' : 'Regular'} ancient ${treeType} tree`);
+        }
+    } else {
+        // Normal chunk: Generate regular trees
+        for (let x = 0; x < chunkSize; x++) {
+            for (let z = 0; z < chunkSize; z++) {
+                const worldX = chunkX * chunkSize + x;
+                const worldZ = chunkZ * chunkSize + z;
 
-                if (tooCloseToOtherTree) {
-                    continue; // Skip this tree, too close to another
-                }
+                // Get biome at this location
+                const biome = getBiomeAt(worldX, worldZ);
 
-                treesAttempted++;
+                // Check if we should generate a tree using noise-based placement
+                const passesNoiseCheck = shouldGenerateTree(worldX, worldZ, biome);
 
-                // Get height from worker's heightMap
-                const heightIndex = x * chunkSize + z;
+                if (passesNoiseCheck) {
+                    // Check spacing to prevent tree crowding
+                    const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ);
 
-                // Check water map - skip if this position has water
-                if (waterMap && waterMap[heightIndex] === 1) {
-                    continue; // Water position - no trees
-                }
+                    if (tooCloseToOtherTree) {
+                        continue; // Skip this tree, too close to another
+                    }
 
-                // Get ground height from heightMap
-                const groundHeight = heightMap[heightIndex];
-                const surfaceY = groundHeight + 1; // Tree sits on top of ground block
+                    treesAttempted++;
 
-                // Only place tree if we found a valid surface
-                if (surfaceY > 1 && surfaceY <= 65) {
-                    // 🌳 ANCIENT TREE SPAWN CHANCE
-                    // 20% total: 15% regular ancient, 5% mega ancient
-                    const ancientChance = seededNoise(worldX + 25000, worldZ + 25000);
+                    // Get height from worker's heightMap
+                    const heightIndex = x * chunkSize + z;
 
-                    let treeType = getTreeTypeForBiome(biome);
-                    let isAncient = false;
-                    let isMega = false;
+                    // Check water map - skip if this position has water
+                    if (waterMap && waterMap[heightIndex] === 1) {
+                        continue; // Water position - no trees
+                    }
 
-                    if (ancientChance > 0.80) {
-                        // 20% of trees are ancient
-                        isAncient = true;
-                        if (ancientChance > 0.95) {
-                            // Top 5% are mega ancient
-                            isMega = true;
+                    // Get ground height from heightMap
+                    const groundHeight = heightMap[heightIndex];
+                    const surfaceY = groundHeight + 1; // Tree sits on top of ground block
+
+                    // Only place tree if we found a valid surface
+                    if (surfaceY > 1 && surfaceY <= 65) {
+                        let treeType = getTreeTypeForBiome(biome);
+
+                        // 🎃 DEAD TREE SPAWN (5% chance in any biome)
+                        const deadTreeChance = seededNoise(worldX + 35000, worldZ + 35000);
+                        const isDeadTree = deadTreeChance > 0.95;
+
+                        if (isDeadTree) {
+                            treeType = 'dead_wood';
                         }
+
+                        trees.push({
+                            x: worldX,
+                            y: surfaceY,
+                            z: worldZ,
+                            treeType,
+                            biome: biome.name,
+                            isAncient: false,
+                            isMega: false
+                        });
+
+                        treesPlaced++;
+
+                        // Track tree position for spacing
+                        trackTreePosition(worldX, worldZ, chunkX, chunkZ);
                     }
-
-                    // 🎃 DEAD TREE SPAWN (5% chance in any biome)
-                    const deadTreeChance = seededNoise(worldX + 35000, worldZ + 35000);
-                    const isDeadTree = deadTreeChance > 0.95;
-
-                    if (isDeadTree) {
-                        treeType = 'dead_wood';
-                        isAncient = false; // Dead trees don't have ancient variants
-                        isMega = false;
-                    }
-
-                    trees.push({
-                        x: worldX,
-                        y: surfaceY,
-                        z: worldZ,
-                        treeType,
-                        biome: biome.name,
-                        isAncient,
-                        isMega
-                    });
-
-                    treesPlaced++;
-
-                    // Track tree position for spacing
-                    trackTreePosition(worldX, worldZ, chunkX, chunkZ);
                 }
             }
         }
@@ -204,14 +215,16 @@ function getBiomeAt(worldX, worldZ) {
 function shouldGenerateTree(worldX, worldZ, biome) {
     // Match BiomeWorldGen.js tree placement logic
     // Use treeChance property (0.08 for Plains, 0.12 for Forest, etc.)
-    const treeChance = biome.treeChance || 0.08;
+    // 🌲 Reduced by 50% for better gameplay balance and performance
+    const baseTreeChance = biome.treeChance || 0.08;
+    const treeChance = baseTreeChance * 0.50; // 50% reduction
 
     // Use noise to determine if tree should spawn
     const treeNoise = seededNoise(worldX + 4000, worldZ + 4000);
 
     // Tree spawns if noise is GREATER than threshold
     // Higher treeChance = lower threshold = more trees
-    // Example: treeChance=0.12 → threshold=0.88 → 12% spawn rate
+    // Example: treeChance=0.09 (0.12*0.75) → threshold=0.91 → 9% spawn rate
     return treeNoise > (1 - treeChance);
 }
 
@@ -276,4 +289,94 @@ function seededRandom(x, z, seed = worldSeed) {
 function seededNoise(x, z) {
     // Simple seeded noise for tree placement
     return seededRandom(Math.floor(x * 10), Math.floor(z * 10), worldSeed + 3000);
+}
+
+/**
+ * 🎨 Generate LOD trees for distant chunks
+ * Returns simple colored blocks representing trees
+ */
+function generateLODTreesForChunk({ chunkX, chunkZ, heightMap, waterMap }) {
+    console.log(`🎨 TreeWorker: Generating LOD trees for chunk (${chunkX}, ${chunkZ})`);
+    const lodTreeBlocks = [];
+
+    for (let x = 0; x < chunkSize; x++) {
+        for (let z = 0; z < chunkSize; z++) {
+            const worldX = chunkX * chunkSize + x;
+            const worldZ = chunkZ * chunkSize + z;
+
+            // Get biome at this location
+            const biome = getBiomeAt(worldX, worldZ);
+
+            // Check if tree should spawn (same logic as full trees)
+            const passesNoiseCheck = shouldGenerateTree(worldX, worldZ, biome);
+
+            if (passesNoiseCheck) {
+                // Check spacing
+                const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ);
+                if (tooCloseToOtherTree) {
+                    continue;
+                }
+
+                // Get height from heightMap
+                const heightIndex = x * chunkSize + z;
+
+                // Skip if water
+                if (waterMap && waterMap[heightIndex] === 1) {
+                    continue;
+                }
+
+                const groundHeight = heightMap[heightIndex];
+                const surfaceY = groundHeight + 1;
+
+                if (surfaceY > 1 && surfaceY <= 65) {
+                    // Simple LOD tree: Just a few colored blocks
+                    // Brown trunk block + green canopy blocks
+                    const treeHeight = 5; // Simplified height for LOD
+                    const trunkColor = 0x8B4513; // Brown
+                    const leavesColor = 0x228B22; // Green
+
+                    // Add trunk (1-2 blocks)
+                    lodTreeBlocks.push({
+                        x: worldX,
+                        y: surfaceY,
+                        z: worldZ,
+                        color: trunkColor
+                    });
+                    lodTreeBlocks.push({
+                        x: worldX,
+                        y: surfaceY + 1,
+                        z: worldZ,
+                        color: trunkColor
+                    });
+
+                    // Add simple canopy (3x3 flat top)
+                    for (let dx = -1; dx <= 1; dx++) {
+                        for (let dz = -1; dz <= 1; dz++) {
+                            lodTreeBlocks.push({
+                                x: worldX + dx,
+                                y: surfaceY + 2,
+                                z: worldZ + dz,
+                                color: leavesColor
+                            });
+                        }
+                    }
+
+                    // Track tree position
+                    trackTreePosition(worldX, worldZ, chunkX, chunkZ);
+                }
+            }
+        }
+    }
+
+    console.log(`🎨 TreeWorker: Sending ${lodTreeBlocks.length} LOD tree blocks for chunk (${chunkX}, ${chunkZ})`);
+
+    // Send LOD tree data back to main thread
+    self.postMessage({
+        type: 'LOD_TREES_READY',
+        data: {
+            chunkX,
+            chunkZ,
+            lodTreeBlocks
+        }
+    });
 }

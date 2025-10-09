@@ -25,7 +25,7 @@ export class ChunkLODManager {
         this.camera = app.camera;
         
         // LOD Settings
-        this.visualDistance = 3; // Chunks beyond renderDistance to show (simplified)
+        this.visualDistance = 2; // Chunks beyond renderDistance to show (reduced for fog compatibility)
         this.enabled = true;
         
         // Rendering
