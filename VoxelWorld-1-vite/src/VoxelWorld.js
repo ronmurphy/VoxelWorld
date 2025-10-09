@@ -307,9 +307,24 @@ class NebulaVoxelApp {
                 // For other block types, allow overwriting (existing behavior)
                 if (existingBlock.mesh) {
                     this.scene.remove(existingBlock.mesh);
+                    // 🗑️ MEMORY LEAK FIX: Dispose replaced block geometry
+                    if (existingBlock.mesh.geometry) {
+                        existingBlock.mesh.geometry.dispose();
+                    }
+                    // Don't dispose material - it's shared from resource pool
                 }
                 if (existingBlock.billboard) {
                     this.scene.remove(existingBlock.billboard);
+                    // 🗑️ MEMORY LEAK FIX: Dispose replaced billboard
+                    if (existingBlock.billboard.geometry) {
+                        existingBlock.billboard.geometry.dispose();
+                    }
+                    if (existingBlock.billboard.material) {
+                        if (existingBlock.billboard.material.map) {
+                            existingBlock.billboard.material.map.dispose();
+                        }
+                        existingBlock.billboard.material.dispose();
+                    }
                 }
             }
 
@@ -1219,6 +1234,18 @@ class NebulaVoxelApp {
                     if (ghostData) {
                         // Remove ghost billboard from scene
                         this.scene.remove(ghostData.billboard);
+
+                        // 🗑️ MEMORY LEAK FIX: Dispose ghost billboard resources
+                        if (ghostData.billboard.geometry) {
+                            ghostData.billboard.geometry.dispose();
+                        }
+                        if (ghostData.billboard.material) {
+                            if (ghostData.billboard.material.map) {
+                                ghostData.billboard.material.map.dispose();
+                            }
+                            ghostData.billboard.material.dispose();
+                        }
+
                         this.ghostBillboards.delete(chunkKey);
                         console.log(`👻💀 Ghost billboard removed from chunk ${chunkKey} (pumpkin harvested)`);
                     }
@@ -7297,8 +7324,9 @@ class NebulaVoxelApp {
         };
 
         // 👷 WORKER CHUNK DATA HANDLER: Convert worker data to blocks
+        // 🌲 Now receives tree data from TreeWorker via WorkerManager pipeline
         this.handleWorkerChunkData = (chunkX, chunkZ, chunkData) => {
-            const { blockCount, positions, blockTypes, colors, flags, waterBlockCount, heightMap, waterMap } = chunkData;
+            const { blockCount, positions, blockTypes, colors, flags, waterBlockCount, heightMap, waterMap, trees } = chunkData;
 
             // 🌊 Debug water blocks
             if (waterBlockCount > 0) {
@@ -7347,11 +7375,24 @@ class NebulaVoxelApp {
                         this.generateTreeForBiome(tree.x, tree.y, tree.z, tree.biome);
                     }
                 }, 10);
-            } else {
-                // 🌳 NEW CHUNK: Generate trees for worker-created chunks
-                // Worker provides heightMap and waterMap for accurate placement
+            } else if (trees && trees.length > 0) {
+                // 🌲 NEW: Generate trees from TreeWorker data
                 setTimeout(() => {
-                    this.generateTreesForChunk(chunkX, chunkZ, heightMap, waterMap);
+                    console.log(`🌲 Generating ${trees.length} trees from TreeWorker for chunk (${chunkX}, ${chunkZ})`);
+                    for (const tree of trees) {
+                        const { x, y, z, treeType, biome, isAncient, isMega } = tree;
+
+                        // Get biome object from name
+                        const biomeObj = this.biomeWorldGen.getBiomeAt(x, z, this.worldSeed);
+
+                        if (isAncient) {
+                            // Generate ancient tree (regular or mega)
+                            this.generateAncientTree(x, y, z, biomeObj, isMega);
+                        } else {
+                            // Generate normal tree
+                            this.generateTreeForBiome(x, y, z, biomeObj);
+                        }
+                    }
                 }, 10);
             }
 
@@ -8343,6 +8384,16 @@ class NebulaVoxelApp {
                         for (const [key, objectData] of Object.entries(this.craftedObjects)) {
                             if (objectData.mesh) {
                                 this.scene.remove(objectData.mesh);
+                                // 🗑️ MEMORY LEAK FIX: Dispose crafted object resources
+                                if (objectData.mesh.geometry) {
+                                    objectData.mesh.geometry.dispose();
+                                }
+                                if (objectData.mesh.material) {
+                                    if (objectData.mesh.material.map) {
+                                        objectData.mesh.material.map.dispose();
+                                    }
+                                    objectData.mesh.material.dispose();
+                                }
                             }
                         }
                     }
