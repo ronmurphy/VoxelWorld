@@ -296,8 +296,9 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
     // 🌲 Second pass: Add simple LOD trees (MUST MATCH TreeWorker logic!)
 
     // 🏛️ ANCIENT/MEGA TREE EXCLUSIVE CHUNK (5% chance) - SAME LOGIC AS TREEWORKER
+    // 🔄 INVERTED LOGIC: Default is normal trees, ancient is the exception
     const chunkAncientChance = seededRandom(chunkX, chunkZ, worldSeed + 50000);
-    const isAncientChunk = chunkAncientChance > 0.95; // 5% chance
+    const isAncientChunk = chunkAncientChance < 0.05; // 5% chance (INVERTED: < instead of >)
 
     if (isAncientChunk) {
         // This chunk gets ONE ancient/mega tree at its center (matches TreeWorker)

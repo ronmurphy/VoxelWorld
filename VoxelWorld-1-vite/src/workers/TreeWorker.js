@@ -60,9 +60,10 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
     let treesPlaced = 0;
 
     // 🏛️ ANCIENT/MEGA TREE EXCLUSIVE CHUNK (5% chance)
+    // 🔄 INVERTED LOGIC: Default is normal trees, ancient is the exception
     // If this chunk gets an ancient/mega tree, it's the ONLY tree in the chunk
     const chunkAncientChance = seededRandom(chunkX, chunkZ, worldSeed + 50000);
-    const isAncientChunk = chunkAncientChance > 0.95; // 5% chance
+    const isAncientChunk = chunkAncientChance < 0.05; // 5% chance (INVERTED: < instead of >)
 
     if (isAncientChunk) {
         // This chunk gets ONE ancient or mega tree at its center
