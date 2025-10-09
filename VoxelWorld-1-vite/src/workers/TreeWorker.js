@@ -59,27 +59,28 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
     let treesAttempted = 0;
     let treesPlaced = 0;
 
-    // 🏛️ ANCIENT/MEGA TREE EXCLUSIVE CHUNK (5% chance)
-    // 🔄 INVERTED LOGIC: Default is normal trees, ancient is the exception
-    // If this chunk gets an ancient/mega tree, it's the ONLY tree in the chunk
-    const chunkAncientChance = seededRandom(chunkX, chunkZ, worldSeed + 50000);
-    const isAncientChunk = chunkAncientChance < 0.05; // 5% chance (INVERTED: < instead of >)
+    // 🏛️ ANCIENT TREE SYSTEM: Very rare (1% = every 100 chunks)
+    // Generate special landmark trees: Ancient, Mega, or Cone
+    const ancientTreeRoll = seededRandom(chunkX, chunkZ, worldSeed + 50000);
+    const spawnAncientTree = ancientTreeRoll < 0.01; // 1% chance (every ~100 chunks)
 
-    if (isAncientChunk) {
-        // This chunk gets ONE ancient or mega tree at its center
+    if (spawnAncientTree) {
         const centerX = chunkX * chunkSize + Math.floor(chunkSize / 2);
         const centerZ = chunkZ * chunkSize + Math.floor(chunkSize / 2);
         const biome = getBiomeAt(centerX, centerZ);
 
-        // Get height at center
         const heightIndex = Math.floor(chunkSize / 2) * chunkSize + Math.floor(chunkSize / 2);
         const groundHeight = heightMap[heightIndex];
         const surfaceY = groundHeight + 1;
 
-        // Check if valid location (not water, valid height)
+        // Check valid location (not water, valid height)
         if (waterMap && waterMap[heightIndex] !== 1 && surfaceY > 1 && surfaceY <= 65) {
-            // 50% chance for mega, 50% for regular ancient
-            const isMega = seededRandom(chunkX + 1000, chunkZ + 1000, worldSeed + 60000) > 0.5;
+            // Randomly select ancient tree type (33% each)
+            const typeRoll = seededRandom(chunkX + 1000, chunkZ + 1000, worldSeed + 60000);
+            let ancientType = 'ancient'; // 3x3 trunk, 15 blocks
+            if (typeRoll > 0.66) ancientType = 'mega';     // 20-32 blocks tall
+            else if (typeRoll > 0.33) ancientType = 'cone'; // Hybrid LOD style
+
             const treeType = getTreeTypeForBiome(biome);
 
             trees.push({
@@ -89,14 +90,17 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
                 treeType,
                 biome: biome.name,
                 isAncient: true,
-                isMega
+                isMega: (ancientType === 'mega'),
+                isCone: (ancientType === 'cone'),
+                ancientType
             });
 
             treesPlaced++;
-            console.log(`🏛️ Ancient chunk (${chunkX}, ${chunkZ}): ${isMega ? 'MEGA' : 'Regular'} ancient ${treeType} tree`);
+            console.log(`🏛️ ANCIENT TREE (${chunkX}, ${chunkZ}): ${ancientType.toUpperCase()} ${treeType}`);
         }
+        // Ancient tree chunk has NO other trees (it's a landmark)
     } else {
-        // Normal chunk: Generate regular trees
+        // ✅ NORMAL CHUNK: Generate regular scattered trees
         for (let x = 0; x < chunkSize; x++) {
             for (let z = 0; z < chunkSize; z++) {
                 const worldX = chunkX * chunkSize + x;
@@ -214,22 +218,39 @@ function getBiomeAt(worldX, worldZ) {
 }
 
 function shouldGenerateTree(worldX, worldZ, biome) {
-    // 🌲 MUST MATCH ChunkWorker LOD tree logic EXACTLY!
+    // 🌲 USE OLD WORKING FORMULA from VoxelWorld-X BiomeWorldGen.js!
     const baseTreeChance = biome.treeChance || 0.08;
 
-    // 🎯 Use high-frequency noise for scattered tree placement (NOT terrain noise!)
-    // Higher scale = more varied, scattered trees (good for placement)
-    // Lower scale = smooth terrain (bad for placement, creates huge clusters)
-    const treeNoise = multiOctaveNoise(worldX, worldZ, worldSeed + 2000, 3, 0.15, 0.6);
-    const treeDensityMultiplier = (biome.treeDensityMultiplier || 1.0) * 0.50; // 50% reduction
+    // Biome-specific density multipliers (from old working code)
+    const biomeDensityMultipliers = {
+        'Forest': 8,
+        'Plains': 10,
+        'Mountain': 10,
+        'Desert': 2,
+        'Tundra': 3
+    };
+
+    let multiplier = 5; // Default
+    const biomeName = biome.name || '';
+    for (const [name, mult] of Object.entries(biomeDensityMultipliers)) {
+        if (biomeName.includes(name)) {
+            multiplier = mult;
+            break;
+        }
+    }
+
+    // Use high-frequency noise for scatter
+    const treeNoise = multiOctaveNoise(worldX + 4000, worldZ + 4000, worldSeed + 4000, 3, 0.15, 0.6);
+
+    // OLD FORMULA: threshold = 1 - (baseChance * multiplier)
+    // Example Plains: 1 - (0.08 * 10) = 1 - 0.8 = 0.2
+    // Trees spawn when noise > 0.2 (80% of positions!)
+    const threshold = 1 - (baseTreeChance * multiplier);
 
     // Normalize noise from [-1, 1] to [0, 1]
     const normalizedNoise = (treeNoise + 1) / 2;
 
-    // Tree spawns if normalized noise is GREATER than threshold
-    // Example: Plains with 8% treeChance * 0.50 = 4% effective
-    // threshold = 1 - 0.04 = 0.96, so top 4% of noise values spawn trees
-    return normalizedNoise > (1 - baseTreeChance * treeDensityMultiplier);
+    return normalizedNoise > threshold;
 }
 
 function hasNearbyTree(worldX, worldZ, chunkX, chunkZ) {

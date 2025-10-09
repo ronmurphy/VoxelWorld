@@ -295,13 +295,11 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
 
     // 🌲 Second pass: Add simple LOD trees (MUST MATCH TreeWorker logic!)
 
-    // 🏛️ ANCIENT/MEGA TREE EXCLUSIVE CHUNK (5% chance) - SAME LOGIC AS TREEWORKER
-    // 🔄 INVERTED LOGIC: Default is normal trees, ancient is the exception
-    const chunkAncientChance = seededRandom(chunkX, chunkZ, worldSeed + 50000);
-    const isAncientChunk = chunkAncientChance < 0.05; // 5% chance (INVERTED: < instead of >)
+    // 🏛️ ANCIENT TREE SYSTEM: Very rare (1% = every 100 chunks) - MATCHES TREEWORKER
+    const ancientTreeRoll = seededRandom(chunkX, chunkZ, worldSeed + 50000);
+    const spawnAncientTree = ancientTreeRoll < 0.01; // 1% chance
 
-    if (isAncientChunk) {
-        // This chunk gets ONE ancient/mega tree at its center (matches TreeWorker)
+    if (spawnAncientTree) {
         const centerX = chunkX * chunkSize + Math.floor(chunkSize / 2);
         const centerZ = chunkZ * chunkSize + Math.floor(chunkSize / 2);
         const heightIndex = Math.floor(chunkSize / 2) * chunkSize + Math.floor(chunkSize / 2);
@@ -309,41 +307,67 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
         const surfaceY = groundHeight + 1;
 
         if (surfaceY > 1 && surfaceY <= 65) {
-            // 50% chance for mega, 50% for regular ancient (matches TreeWorker)
-            const isMega = seededRandom(chunkX + 1000, chunkZ + 1000, worldSeed + 60000) > 0.5;
+            // Match TreeWorker: 33% ancient, 33% mega, 33% cone
+            const typeRoll = seededRandom(chunkX + 1000, chunkZ + 1000, worldSeed + 60000);
+            let ancientType = 'ancient';
+            if (typeRoll > 0.66) ancientType = 'mega';
+            else if (typeRoll > 0.33) ancientType = 'cone';
 
-            // Ancient trees are MUCH TALLER for LOD visibility
-            const treeHeight = isMega ? 25 : 12; // Mega = 25 blocks tall, Ancient = 12 blocks
             const trunkColor = 0x8B4513; // Brown
             const leavesColor = 0x228B22; // Forest green
 
-            // Trunk blocks (taller than normal trees)
-            for (let y = 0; y < treeHeight; y++) {
-                colorBlocks.push({
-                    x: centerX,
-                    y: surfaceY + y,
-                    z: centerZ,
-                    color: trunkColor
-                });
-            }
+            // Build different ancient tree types for LOD
+            if (ancientType === 'cone') {
+                // 🆕 CONE TREE: Hybrid LOD+Mega style (the accidental discovery!)
+                // Tall trunk with expanding canopy layers
+                const treeHeight = 20;
 
-            // Large canopy at top (bigger than normal trees)
-            const canopySize = isMega ? 3 : 2; // Mega = 5x5, Ancient = 3x3
-            for (let dx = -canopySize; dx <= canopySize; dx++) {
-                for (let dz = -canopySize; dz <= canopySize; dz++) {
-                    colorBlocks.push({
-                        x: centerX + dx,
-                        y: surfaceY + treeHeight,
-                        z: centerZ + dz,
-                        color: leavesColor
-                    });
+                // Trunk
+                for (let y = 0; y < treeHeight; y++) {
+                    colorBlocks.push({ x: centerX, y: surfaceY + y, z: centerZ, color: trunkColor });
+                }
+
+                // Expanding canopy (cone shape)
+                for (let layer = 0; layer < 5; layer++) {
+                    const layerY = surfaceY + treeHeight - layer * 3;
+                    const layerSize = Math.min(layer + 1, 3);
+                    for (let dx = -layerSize; dx <= layerSize; dx++) {
+                        for (let dz = -layerSize; dz <= layerSize; dz++) {
+                            colorBlocks.push({ x: centerX + dx, y: layerY, z: centerZ + dz, color: leavesColor });
+                        }
+                    }
+                }
+            } else if (ancientType === 'mega') {
+                // MEGA TREE: Very tall single trunk
+                const treeHeight = 25;
+                for (let y = 0; y < treeHeight; y++) {
+                    colorBlocks.push({ x: centerX, y: surfaceY + y, z: centerZ, color: trunkColor });
+                }
+                // Large canopy at top
+                for (let dx = -3; dx <= 3; dx++) {
+                    for (let dz = -3; dz <= 3; dz++) {
+                        colorBlocks.push({ x: centerX + dx, y: surfaceY + treeHeight, z: centerZ + dz, color: leavesColor });
+                    }
+                }
+            } else {
+                // ANCIENT TREE: Medium tall with medium canopy
+                const treeHeight = 12;
+                for (let y = 0; y < treeHeight; y++) {
+                    colorBlocks.push({ x: centerX, y: surfaceY + y, z: centerZ, color: trunkColor });
+                }
+                // Medium canopy
+                for (let dx = -2; dx <= 2; dx++) {
+                    for (let dz = -2; dz <= 2; dz++) {
+                        colorBlocks.push({ x: centerX + dx, y: surfaceY + treeHeight, z: centerZ + dz, color: leavesColor });
+                    }
                 }
             }
 
-            console.log(`🏛️ LOD Ancient chunk (${chunkX}, ${chunkZ}): ${isMega ? 'MEGA' : 'Ancient'} tree at center`);
+            console.log(`🏛️ LOD ANCIENT TREE (${chunkX}, ${chunkZ}): ${ancientType.toUpperCase()}`);
         }
+        // Ancient tree chunk has NO other trees
     } else {
-        // Normal chunk: Generate regular trees (SAME LOGIC AS TREEWORKER)
+        // ✅ NORMAL CHUNK: Generate regular scattered trees (MATCHES TREEWORKER)
         const lodTreesPlaced = []; // Track for spacing
 
         for (let x = 0; x < chunkSize; x++) {
@@ -355,15 +379,32 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
                 const biome = getBiomeAt(worldX, worldZ);
                 const baseTreeChance = biome.treeChance || 0.08;
 
-                // 🌲 MATCH TREEWORKER: Use high-frequency noise for scattered placement
-                // scale=0.15 creates varied, scattered trees (NOT smooth terrain noise!)
-                const treeNoise = multiOctaveNoise(worldX, worldZ, worldSeed + 2000, 3, 0.15, 0.6);
-                const treeDensityMultiplier = (biome.treeDensityMultiplier || 1.0) * 0.50; // 50% reduction
+                // 🌲 MATCH TREEWORKER: Use OLD working formula from VoxelWorld-X
+                const biomeDensityMultipliers = {
+                    'Forest': 8,
+                    'Plains': 10,
+                    'Mountain': 10,
+                    'Desert': 2,
+                    'Tundra': 3
+                };
 
-                // Normalize noise from [-1, 1] to [0, 1]
+                let multiplier = 5;
+                const biomeName = biome.name || '';
+                for (const [name, mult] of Object.entries(biomeDensityMultipliers)) {
+                    if (biomeName.includes(name)) {
+                        multiplier = mult;
+                        break;
+                    }
+                }
+
+                // Use high-frequency noise for scatter
+                const treeNoise = multiOctaveNoise(worldX + 4000, worldZ + 4000, worldSeed + 4000, 3, 0.15, 0.6);
+
+                // OLD FORMULA: threshold = 1 - (baseChance * multiplier)
+                const threshold = 1 - (baseTreeChance * multiplier);
                 const normalizedNoise = (treeNoise + 1) / 2;
 
-                if (normalizedNoise > (1 - baseTreeChance * treeDensityMultiplier)) {
+                if (normalizedNoise > threshold) {
                     // Check 3-block spacing (matches TreeWorker)
                     const tooClose = lodTreesPlaced.some(pos => {
                         const dx = Math.abs(pos.x - worldX);
