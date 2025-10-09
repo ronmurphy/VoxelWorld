@@ -293,56 +293,122 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
         }
     }
 
-    // 🌲 Second pass: Add simple LOD trees
-    for (let x = 0; x < chunkSize; x++) {
-        for (let z = 0; z < chunkSize; z++) {
-            const worldX = Math.floor(chunkX * chunkSize + x);
-            const worldZ = Math.floor(chunkZ * chunkSize + z);
+    // 🌲 Second pass: Add simple LOD trees (MUST MATCH TreeWorker logic!)
 
-            // Get biome for tree chance
-            const biome = getBiomeAt(worldX, worldZ);
-            // 🌲 Reduced by 50% for better gameplay balance and performance (match TreeWorker)
-            const baseTreeChance = biome.treeChance || 0.08;
-            const treeChance = baseTreeChance * 0.50;
+    // 🏛️ ANCIENT/MEGA TREE EXCLUSIVE CHUNK (5% chance) - SAME LOGIC AS TREEWORKER
+    const chunkAncientChance = seededRandom(chunkX, chunkZ, worldSeed + 50000);
+    const isAncientChunk = chunkAncientChance > 0.95; // 5% chance
 
-            // Use same tree placement logic as TreeWorker
-            const treeNoise = seededRandom(worldX + 4000, worldZ + 4000, worldSeed + 3000);
+    if (isAncientChunk) {
+        // This chunk gets ONE ancient/mega tree at its center (matches TreeWorker)
+        const centerX = chunkX * chunkSize + Math.floor(chunkSize / 2);
+        const centerZ = chunkZ * chunkSize + Math.floor(chunkSize / 2);
+        const heightIndex = Math.floor(chunkSize / 2) * chunkSize + Math.floor(chunkSize / 2);
+        const groundHeight = heightMap[heightIndex];
+        const surfaceY = groundHeight + 1;
 
-            if (treeNoise > (1 - treeChance)) {
-                // Place a simple LOD tree
-                const heightIndex = x * chunkSize + z;
-                const groundHeight = heightMap[heightIndex];
-                const surfaceY = groundHeight + 1;
+        if (surfaceY > 1 && surfaceY <= 65) {
+            // 50% chance for mega, 50% for regular ancient (matches TreeWorker)
+            const isMega = seededRandom(chunkX + 1000, chunkZ + 1000, worldSeed + 60000) > 0.5;
 
-                if (surfaceY > 1 && surfaceY <= 65) {
-                    // Simple tree: 2 brown trunk blocks + 3x3 green canopy
-                    const trunkColor = 0x8B4513; // Brown
-                    const leavesColor = 0x228B22; // Forest green
+            // Ancient trees are MUCH TALLER for LOD visibility
+            const treeHeight = isMega ? 25 : 12; // Mega = 25 blocks tall, Ancient = 12 blocks
+            const trunkColor = 0x8B4513; // Brown
+            const leavesColor = 0x228B22; // Forest green
 
-                    // Trunk blocks
+            // Trunk blocks (taller than normal trees)
+            for (let y = 0; y < treeHeight; y++) {
+                colorBlocks.push({
+                    x: centerX,
+                    y: surfaceY + y,
+                    z: centerZ,
+                    color: trunkColor
+                });
+            }
+
+            // Large canopy at top (bigger than normal trees)
+            const canopySize = isMega ? 3 : 2; // Mega = 5x5, Ancient = 3x3
+            for (let dx = -canopySize; dx <= canopySize; dx++) {
+                for (let dz = -canopySize; dz <= canopySize; dz++) {
                     colorBlocks.push({
-                        x: worldX,
-                        y: surfaceY,
-                        z: worldZ,
-                        color: trunkColor
+                        x: centerX + dx,
+                        y: surfaceY + treeHeight,
+                        z: centerZ + dz,
+                        color: leavesColor
                     });
-                    colorBlocks.push({
-                        x: worldX,
-                        y: surfaceY + 1,
-                        z: worldZ,
-                        color: trunkColor
+                }
+            }
+
+            console.log(`🏛️ LOD Ancient chunk (${chunkX}, ${chunkZ}): ${isMega ? 'MEGA' : 'Ancient'} tree at center`);
+        }
+    } else {
+        // Normal chunk: Generate regular trees (SAME LOGIC AS TREEWORKER)
+        const lodTreesPlaced = []; // Track for spacing
+
+        for (let x = 0; x < chunkSize; x++) {
+            for (let z = 0; z < chunkSize; z++) {
+                const worldX = Math.floor(chunkX * chunkSize + x);
+                const worldZ = Math.floor(chunkZ * chunkSize + z);
+
+                // Get biome for tree chance
+                const biome = getBiomeAt(worldX, worldZ);
+                const baseTreeChance = biome.treeChance || 0.08;
+
+                // 🌲 MATCH TREEWORKER: Same noise seed and density reduction
+                const treeNoise = multiOctaveNoise(worldX + 1000, worldZ + 1000, worldSeed + 2000, 2, 0.005, 0.5);
+                const treeDensityMultiplier = (biome.treeDensityMultiplier || 1.0) * 0.50; // 50% reduction
+
+                // Normalize noise from [-1, 1] to [0, 1]
+                const normalizedNoise = (treeNoise + 1) / 2;
+
+                if (normalizedNoise > (1 - baseTreeChance * treeDensityMultiplier)) {
+                    // Check 3-block spacing (matches TreeWorker)
+                    const tooClose = lodTreesPlaced.some(pos => {
+                        const dx = Math.abs(pos.x - worldX);
+                        const dz = Math.abs(pos.z - worldZ);
+                        return dx < 3 && dz < 3;
                     });
 
-                    // Simple 3x3 canopy
-                    for (let dx = -1; dx <= 1; dx++) {
-                        for (let dz = -1; dz <= 1; dz++) {
-                            colorBlocks.push({
-                                x: worldX + dx,
-                                y: surfaceY + 2,
-                                z: worldZ + dz,
-                                color: leavesColor
-                            });
+                    if (tooClose) continue; // Skip if too close to another tree
+
+                    // Place a simple LOD tree
+                    const heightIndex = x * chunkSize + z;
+                    const groundHeight = heightMap[heightIndex];
+                    const surfaceY = groundHeight + 1;
+
+                    if (surfaceY > 1 && surfaceY <= 65) {
+                        // Simple tree: 2 brown trunk blocks + 3x3 green canopy
+                        const trunkColor = 0x8B4513; // Brown
+                        const leavesColor = 0x228B22; // Forest green
+
+                        // Trunk blocks
+                        colorBlocks.push({
+                            x: worldX,
+                            y: surfaceY,
+                            z: worldZ,
+                            color: trunkColor
+                        });
+                        colorBlocks.push({
+                            x: worldX,
+                            y: surfaceY + 1,
+                            z: worldZ,
+                            color: trunkColor
+                        });
+
+                        // Simple 3x3 canopy
+                        for (let dx = -1; dx <= 1; dx++) {
+                            for (let dz = -1; dz <= 1; dz++) {
+                                colorBlocks.push({
+                                    x: worldX + dx,
+                                    y: surfaceY + 2,
+                                    z: worldZ + dz,
+                                    color: leavesColor
+                                });
+                            }
                         }
+
+                        // Track this tree position
+                        lodTreesPlaced.push({ x: worldX, z: worldZ });
                     }
                 }
             }

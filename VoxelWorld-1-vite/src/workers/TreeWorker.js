@@ -213,19 +213,18 @@ function getBiomeAt(worldX, worldZ) {
 }
 
 function shouldGenerateTree(worldX, worldZ, biome) {
-    // Match BiomeWorldGen.js tree placement logic
-    // Use treeChance property (0.08 for Plains, 0.12 for Forest, etc.)
-    // 🌲 Reduced by 50% for better gameplay balance and performance
+    // 🌲 MUST MATCH ChunkWorker LOD tree logic EXACTLY!
     const baseTreeChance = biome.treeChance || 0.08;
-    const treeChance = baseTreeChance * 0.50; // 50% reduction
 
-    // Use noise to determine if tree should spawn
-    const treeNoise = seededNoise(worldX + 4000, worldZ + 4000);
+    // Use multi-octave noise with EXACT same parameters as ChunkWorker
+    const treeNoise = multiOctaveNoise(worldX + 1000, worldZ + 1000, worldSeed + 2000, 2, 0.005, 0.5);
+    const treeDensityMultiplier = (biome.treeDensityMultiplier || 1.0) * 0.50; // 50% reduction
 
-    // Tree spawns if noise is GREATER than threshold
-    // Higher treeChance = lower threshold = more trees
-    // Example: treeChance=0.09 (0.12*0.75) → threshold=0.91 → 9% spawn rate
-    return treeNoise > (1 - treeChance);
+    // Normalize noise from [-1, 1] to [0, 1]
+    const normalizedNoise = (treeNoise + 1) / 2;
+
+    // Tree spawns if normalized noise is GREATER than threshold
+    return normalizedNoise > (1 - baseTreeChance * treeDensityMultiplier);
 }
 
 function hasNearbyTree(worldX, worldZ, chunkX, chunkZ) {
@@ -284,6 +283,29 @@ function seededRandom(x, z, seed = worldSeed) {
     hash = ((hash << 5) + hash) + z;
     hash = (hash * 16807) % 2147483647;
     return Math.abs(Math.sin(hash));
+}
+
+function multiOctaveNoise(x, z, seed, octaves, scale, persistence) {
+    let value = 0;
+    let amplitude = 1;
+    let frequency = scale;
+    let maxValue = 0;
+
+    for (let octave = 0; octave < octaves; octave++) {
+        const octaveSeed = seed + octave * 1000;
+        const n1 = Math.sin((x * frequency + octaveSeed * 0.001)) * Math.cos((z * frequency + octaveSeed * 0.002));
+        const n2 = Math.sin((x * frequency * 1.3 + octaveSeed * 0.003) + (z * frequency * 0.7 + octaveSeed * 0.004));
+        const octaveValue = (n1 + n2) * 0.5;
+
+        value += octaveValue * amplitude;
+        maxValue += amplitude;
+
+        amplitude *= persistence;
+        frequency *= 2;
+    }
+
+    const normalizedValue = value / maxValue;
+    return Math.max(-1, Math.min(1, normalizedValue));
 }
 
 function seededNoise(x, z) {
