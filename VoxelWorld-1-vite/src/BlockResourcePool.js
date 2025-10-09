@@ -19,7 +19,9 @@ export class BlockResourcePool {
     constructor() {
         this.geometries = new Map();
         this.materials = new Map();
+        this.lodMaterials = new Map(); // Pooled materials for LOD chunks
         this.initializeGeometries();
+        this.initializeLODMaterials();
 
         console.log('📦 BlockResourcePool initialized');
     }
@@ -41,7 +43,46 @@ export class BlockResourcePool {
         // Cone/pyramid for decorations
         this.geometries.set('cone', new THREE.ConeGeometry(0.5, 1, 8));
 
+        // Smaller cube for compact blocks (0.5x0.5x0.5)
+        this.geometries.set('small-cube', new THREE.BoxGeometry(0.5, 0.5, 0.5));
+
+        // Plane for flat surfaces and billboards
+        this.geometries.set('plane', new THREE.PlaneGeometry(1, 1));
+
+        // Ring for decorative elements
+        this.geometries.set('ring', new THREE.RingGeometry(0.3, 0.5, 16));
+
         console.log(`✅ Created ${this.geometries.size} pooled geometries`);
+    }
+
+    /**
+     * Create pooled materials for LOD chunks (simple colored blocks)
+     * Pre-create materials for common block colors to eliminate runtime allocation
+     */
+    initializeLODMaterials() {
+        // Common block colors from BLOCK_COLORS in ChunkWorker.js
+        const commonColors = {
+            grass: 0x228B22,      // Forest green
+            sand: 0xF4A460,       // Sandy brown
+            stone: 0x696969,      // Dim gray
+            snow: 0xFFFFFF,       // Pure white
+            dirt: 0x8B4513,       // Brown
+            water: 0x1E90FF,      // Blue
+            iron: 0x708090,       // Slate gray
+            gold: 0xFFD700,       // Gold
+            bedrock: 0x1a1a1a     // Very dark gray
+        };
+
+        // Create pooled materials for each color
+        for (const [name, color] of Object.entries(commonColors)) {
+            const material = new THREE.MeshLambertMaterial({
+                color: new THREE.Color(color),
+                fog: true // Respect scene fog
+            });
+            this.lodMaterials.set(color, material);
+        }
+
+        console.log(`✅ Created ${this.lodMaterials.size} pooled LOD materials`);
     }
 
     /**
@@ -83,6 +124,29 @@ export class BlockResourcePool {
     }
 
     /**
+     * Get a pooled LOD material by color (hex number)
+     * Creates and caches new material if color not in pool
+     * @param {number} color - Hex color number (e.g., 0x228B22)
+     * @returns {THREE.Material} Shared material instance
+     */
+    getLODMaterial(color) {
+        // Check if we already have this color
+        let material = this.lodMaterials.get(color);
+
+        if (!material) {
+            // Create and cache new material for this color
+            material = new THREE.MeshLambertMaterial({
+                color: new THREE.Color(color),
+                fog: true
+            });
+            this.lodMaterials.set(color, material);
+            // console.log(`🎨 Created new LOD material for color 0x${color.toString(16)}`);
+        }
+
+        return material;
+    }
+
+    /**
      * Get statistics about pooled resources
      * @returns {object} Resource pool statistics
      */
@@ -90,6 +154,7 @@ export class BlockResourcePool {
         return {
             geometries: this.geometries.size,
             materials: this.materials.size,
+            lodMaterials: this.lodMaterials.size,
             geometryTypes: Array.from(this.geometries.keys()),
             materialTypes: Array.from(this.materials.keys())
         };
@@ -105,11 +170,17 @@ export class BlockResourcePool {
             console.log(`🗑️ Disposed geometry: ${type}`);
         }
 
-        // Note: Materials are managed by VoxelWorld, not disposed here
+        // Dispose LOD materials
+        for (const [color, material] of this.lodMaterials) {
+            material.dispose();
+        }
+
+        // Note: Regular materials are managed by VoxelWorld, not disposed here
         // to avoid breaking existing mesh references
 
         this.geometries.clear();
         this.materials.clear();
+        this.lodMaterials.clear();
 
         console.log('✅ BlockResourcePool disposed');
     }

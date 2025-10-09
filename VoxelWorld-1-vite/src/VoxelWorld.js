@@ -6264,6 +6264,7 @@ class NebulaVoxelApp {
                         localStorage.setItem(benchmarkKey, JSON.stringify(result));
 
                         this.renderDistance = renderDistance;
+                        this.updateFog(); // Update fog for new render distance
                         this.updateStatus(`Low-power benchmark complete: ${Math.round(avgFPS)} FPS, Render distance: ${renderDistance}`);
                         console.log('🔋 iGPU Benchmark Result:', result);
                         resolve(result);
@@ -6334,6 +6335,7 @@ class NebulaVoxelApp {
                         localStorage.setItem(benchmarkKey, JSON.stringify(result));
 
                         this.renderDistance = renderDistance;
+                        this.updateFog(); // Update fog for new render distance
                         this.updateStatus(`High-performance benchmark complete: ${Math.round(avgFPS)} FPS, Render distance: ${renderDistance}`);
                         console.log('⚡ dGPU Benchmark Result:', result);
                         resolve(result);
@@ -6889,15 +6891,16 @@ class NebulaVoxelApp {
                 fogStart = (this.renderDistance - 0.5) * chunkSize; // Start close to edge
                 fogEnd = this.renderDistance * chunkSize; // End exactly at render distance
             } else {
-                // Soft fog: Gradual fade over 2 chunks beyond render distance
-                fogStart = (this.renderDistance + 1) * chunkSize;
-                fogEnd = (this.renderDistance + 3) * chunkSize;
+                // Soft fog: Gradual fade over LOD range (if LOD manager exists)
+                const visualDist = this.lodManager ? this.lodManager.visualDistance : 1;
+                fogStart = (this.renderDistance + 1) * chunkSize; // Start beyond render distance
+                fogEnd = (this.renderDistance + visualDist) * chunkSize;
             }
 
             const color = fogColor !== null ? fogColor : (this.scene.background ? this.scene.background.getHex() : 0x87CEEB);
             this.scene.fog = new THREE.Fog(color, fogStart, fogEnd);
-            
-            console.log(`🌫️ Fog updated: ${this.useHardFog ? 'HARD' : 'SOFT'} (start: ${fogStart.toFixed(1)}, end: ${fogEnd.toFixed(1)}, renderDist: ${this.renderDistance}, chunkSize: ${chunkSize})`);
+
+            console.log(`🌫️ Fog updated: ${this.useHardFog ? 'HARD' : 'SOFT'} (start: ${fogStart.toFixed(1)}, end: ${fogEnd.toFixed(1)}, renderDist: ${this.renderDistance}, chunkSize: ${chunkSize}, visualDist: ${this.lodManager ? this.lodManager.visualDistance : 3})`);
         };
 
         // 🌫️ Toggle fog type (for scary areas)
@@ -7040,6 +7043,9 @@ class NebulaVoxelApp {
         this.lodManager = new ChunkLODManager(this);
         console.log('🎨 LOD Manager initialized - Visual Horizon enabled!');
 
+
+        // 🌫️ Update fog now that LOD manager exists (fixes fog distance calculation)
+        this.updateFog();
         // �🎮 Get user's GPU preference (default to low-power for broader compatibility)
         const gpuPreference = localStorage.getItem('voxelWorld_gpuPreference') || 'low-power';
 
@@ -10519,7 +10525,7 @@ class NebulaVoxelApp {
 
             // 🌫️ Update fog for new render distance
             const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
-            const fogStart = (this.renderDistance + 1) * chunkSize;
+            const fogStart = (this.renderDistance + 1) * chunkSize; // Start beyond render distance
             const fogEnd = (this.renderDistance + 3) * chunkSize;
             const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
             const fogColor = isNight ? 0x0a0a0f : this.scene.background.getHex();
@@ -10796,16 +10802,9 @@ class NebulaVoxelApp {
             return;
         }
         this.lodManager.setVisualDistance(distance);
-        
-        // Update fog to cover new visual distance
-        if (!this.useHardFog) {
-            // Soft fog should cover from renderDistance to visualDistance
-            const chunkSize = this.chunkSize;
-            const fogStart = (this.renderDistance + 1) * chunkSize;
-            const fogEnd = (this.renderDistance + distance) * chunkSize;
-            this.scene.fog = new THREE.Fog(this.scene.background.getHex(), fogStart, fogEnd);
-            console.log(`🌫️ Fog adjusted for LOD: ${fogStart} to ${fogEnd} blocks`);
-        }
+
+        // 🌫️ Update fog to match new visual distance using updateFog()
+        this.updateFog();
     }
 
     getLODStats() {
