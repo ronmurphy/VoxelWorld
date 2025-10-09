@@ -1185,8 +1185,17 @@ class NebulaVoxelApp {
                 // Also remove billboard if it exists
                 if (blockData.billboard) {
                     this.scene.remove(blockData.billboard);
-                    if (blockData.billboard.material && blockData.billboard.material.map) {
-                        // Don't dispose shared textures
+
+                    // 🗑️ MEMORY LEAK FIX: Dispose billboard geometry and material
+                    if (blockData.billboard.geometry) {
+                        blockData.billboard.geometry.dispose();
+                    }
+                    if (blockData.billboard.material) {
+                        // Dispose texture if it exists
+                        if (blockData.billboard.material.map) {
+                            blockData.billboard.material.map.dispose();
+                        }
+                        blockData.billboard.material.dispose();
                     }
                 }
 
@@ -1895,6 +1904,17 @@ class NebulaVoxelApp {
 
                     // Remove old billboard
                     this.scene.remove(billboard);
+
+                    // 🗑️ MEMORY LEAK FIX: Dispose old billboard resources
+                    if (billboard.geometry) {
+                        billboard.geometry.dispose();
+                    }
+                    if (billboard.material) {
+                        if (billboard.material.map) {
+                            billboard.material.map.dispose();
+                        }
+                        billboard.material.dispose();
+                    }
 
                     // Create new billboard with current enhanced graphics setting
                     const newBillboard = this.createBillboard(billboard.position.x, billboard.position.y - 0.6, billboard.position.z, billboardType);
@@ -4995,6 +5015,10 @@ class NebulaVoxelApp {
                 this.scene.remove(fallingLeaf);
                 this.physicsWorld.removeBody(cannonBody);
                 this.physicsObjects.delete(fallingLeaf);
+
+                // 🗑️ MEMORY LEAK FIX: Dispose geometry and material
+                if (fallingLeaf.geometry) fallingLeaf.geometry.dispose();
+                if (fallingLeaf.material) fallingLeaf.material.dispose();
             }, 15000);
         };
 
@@ -5104,6 +5128,11 @@ class NebulaVoxelApp {
                     this.physicsWorld.removeBody(body);
                     this.physicsObjects.delete(fallingLeaf);
                     this.scene.remove(fallingLeaf);
+
+                    // 🗑️ MEMORY LEAK FIX: Dispose geometry and material
+                    if (fallingLeaf.geometry) fallingLeaf.geometry.dispose();
+                    if (fallingLeaf.material) fallingLeaf.material.dispose();
+
                     console.log(`🍃 Leaf block cleaned up after falling`);
                 }
             }, 8000); // 8 seconds to fall and disappear
@@ -5187,6 +5216,11 @@ class NebulaVoxelApp {
                     this.scene.remove(fallingBlock);
                     this.physicsWorld.removeBody(cannonBody);
                     this.physicsObjects.delete(fallingBlock);
+
+                    // 🗑️ MEMORY LEAK FIX: Dispose geometry and material
+                    if (fallingBlock.geometry) fallingBlock.geometry.dispose();
+                    if (fallingBlock.material) fallingBlock.material.dispose();
+
                     console.log(`🗑️ Auto-cleaned up fallen wood block after 3 seconds`);
                 }
             }, 3000);
