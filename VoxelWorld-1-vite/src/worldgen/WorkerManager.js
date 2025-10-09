@@ -21,12 +21,15 @@ import { ChunkPersistence } from '../serialization/ChunkPersistence.js';
 export class WorkerManager {
     constructor(voxelWorld) {
         this.voxelWorld = voxelWorld;
-        this.worker = null;
+        this.worker = null; // ChunkWorker
+        this.treeWorker = null; // TreeWorker for decorations
         this.cache = new ChunkCache(256);
         this.persistence = null; // Will be initialized in initialize()
         this.pendingRequests = new Map(); // Map<chunkKey, callback>
+        this.pendingTreeRequests = new Map(); // Map<chunkKey, {chunkData, callback}>
         this.requestQueue = []; // Queue of pending requests
         this.isWorkerReady = false;
+        this.isTreeWorkerReady = false;
         this.maxConcurrentRequests = 1; // Process 1 chunk at a time for smoothest gameplay
         this.activeRequests = 0;
 
@@ -36,7 +39,8 @@ export class WorkerManager {
             cached: 0,
             loadedFromDisk: 0,
             savedToDisk: 0,
-            errors: 0
+            errors: 0,
+            treesGenerated: 0
         };
     }
 
@@ -51,17 +55,27 @@ export class WorkerManager {
 
         return new Promise((resolve, reject) => {
             try {
-                // Create worker from file
+                // Create ChunkWorker
                 this.worker = new Worker(
                     new URL('../workers/ChunkWorker.js', import.meta.url),
                     { type: 'module' }
                 );
 
-                // Set up message handler
+                // Set up message handler for ChunkWorker
                 this.worker.onmessage = this.handleWorkerMessage.bind(this);
                 this.worker.onerror = this.handleWorkerError.bind(this);
 
-                // Send init message
+                // Create TreeWorker 🌲
+                this.treeWorker = new Worker(
+                    new URL('../workers/TreeWorker.js', import.meta.url),
+                    { type: 'module' }
+                );
+
+                // Set up message handler for TreeWorker
+                this.treeWorker.onmessage = this.handleTreeWorkerMessage.bind(this);
+                this.treeWorker.onerror = this.handleTreeWorkerError.bind(this);
+
+                // Send init message to ChunkWorker
                 this.worker.postMessage({
                     type: 'INIT',
                     data: {
@@ -71,21 +85,48 @@ export class WorkerManager {
                     }
                 });
 
-                // Wait for init complete
+                // Send init message to TreeWorker
+                this.treeWorker.postMessage({
+                    type: 'INIT',
+                    data: {
+                        seed: worldSeed,
+                        biomeConfig: biomeConfig,
+                        size: 8 // chunkSize
+                    }
+                });
+
+                // Wait for both workers to initialize
                 const initTimeout = setTimeout(() => {
                     reject(new Error('Worker initialization timeout'));
                 }, 5000);
 
+                let chunkWorkerReady = false;
+                let treeWorkerReady = false;
+
+                const checkBothReady = () => {
+                    if (chunkWorkerReady && treeWorkerReady) {
+                        clearTimeout(initTimeout);
+                        this.isWorkerReady = true;
+                        this.isTreeWorkerReady = true;
+                        console.log('✅ ChunkWorker initialized successfully');
+                        console.log('✅ TreeWorker initialized successfully');
+                        console.log('💾 Chunk persistence enabled');
+                        resolve();
+                    }
+                };
+
                 this.onInitComplete = () => {
-                    clearTimeout(initTimeout);
-                    this.isWorkerReady = true;
-                    console.log('✅ ChunkWorker initialized successfully');
-                    console.log('💾 Chunk persistence enabled');
-                    resolve();
+                    chunkWorkerReady = true;
+                    checkBothReady();
+                };
+
+                this.onTreeWorkerInitComplete = () => {
+                    treeWorkerReady = true;
+                    checkBothReady();
                 };
 
             } catch (error) {
-                console.error('🚨 Failed to create worker:', error);
+                console.error('🚨 Failed to create workers:', error);
                 reject(error);
             }
         });
@@ -125,15 +166,79 @@ export class WorkerManager {
      * Handle worker errors
      */
     handleWorkerError(error) {
-        console.error('🚨 Worker error:', error);
+        console.error('🚨 ChunkWorker error:', error);
         this.stats.errors++;
     }
 
     /**
+     * 🌲 Handle messages from TreeWorker
+     */
+    handleTreeWorkerMessage(e) {
+        const { type, data } = e.data;
+
+        switch (type) {
+            case 'INIT_COMPLETE':
+                if (this.onTreeWorkerInitComplete) {
+                    this.onTreeWorkerInitComplete();
+                }
+                break;
+
+            case 'TREES_READY':
+                this.handleTreesReady(data);
+                break;
+
+            case 'CACHE_CLEARED':
+                console.log('✅ TreeWorker cache cleared');
+                break;
+
+            default:
+                console.warn('Unknown TreeWorker message type:', type);
+        }
+    }
+
+    /**
+     * 🌲 Handle TreeWorker errors
+     */
+    handleTreeWorkerError(error) {
+        console.error('🚨 TreeWorker error:', error);
+        this.stats.errors++;
+    }
+
+    /**
+     * 🌲 Handle tree generation complete
+     */
+    async handleTreesReady(treeData) {
+        const { chunkX, chunkZ, trees, treesPlaced } = treeData;
+        const key = `${chunkX},${chunkZ}`;
+
+        console.log(`🌲 WorkerManager: Received ${treesPlaced} trees for chunk (${chunkX}, ${chunkZ})`);
+        this.stats.treesGenerated += treesPlaced;
+
+        // Get the pending tree request data
+        const pendingData = this.pendingTreeRequests.get(key);
+        if (pendingData) {
+            const { chunkData, callback } = pendingData;
+
+            // Attach tree data to chunk data
+            chunkData.trees = trees;
+
+            // Trigger callback with complete chunk + tree data
+            if (callback) {
+                callback(chunkData);
+            }
+
+            this.pendingTreeRequests.delete(key);
+        } else {
+            console.warn(`⚠️ No pending tree request for chunk (${chunkX}, ${chunkZ})`);
+        }
+    }
+
+    /**
      * Handle chunk generation complete
+     * 🔄 Now forwards to TreeWorker for decoration
      */
     async handleChunkReady(chunkData) {
-        const { chunkX, chunkZ } = chunkData;
+        const { chunkX, chunkZ, heightMap, waterMap } = chunkData;
         const key = `${chunkX},${chunkZ}`;
 
         this.activeRequests--;
@@ -145,9 +250,28 @@ export class WorkerManager {
         // Save to disk asynchronously (non-blocking)
         this.saveChunkToDisk(chunkX, chunkZ, chunkData);
 
-        // Trigger callback if pending
+        // 🌲 Forward to TreeWorker for tree generation
         const callback = this.pendingRequests.get(key);
-        if (callback) {
+        if (callback && this.isTreeWorkerReady) {
+            // Store chunk data and callback for when trees are ready
+            this.pendingTreeRequests.set(key, { chunkData, callback });
+            this.pendingRequests.delete(key);
+
+            // Request tree generation from TreeWorker
+            this.treeWorker.postMessage({
+                type: 'GENERATE_TREES',
+                data: {
+                    chunkX,
+                    chunkZ,
+                    heightMap,
+                    waterMap,
+                    biomeData: null // TreeWorker will calculate biomes itself
+                }
+            });
+        } else if (callback) {
+            // Fallback: TreeWorker not ready, return chunk without trees
+            console.warn('⚠️ TreeWorker not ready, generating chunk without trees');
+            chunkData.trees = [];
             callback(chunkData);
             this.pendingRequests.delete(key);
         }

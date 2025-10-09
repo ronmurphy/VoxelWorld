@@ -44,12 +44,19 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - **Biome Generation**: Climate-based (temperature + moisture) terrain generation
   - Plains (y=3-6), Forest (y=4-10), Desert (y=3-8), Mountains (y=15-30), Tundra (y=4-10)
   - Mega Mountains (y=40-60) - rare super mountains with hollow interiors for dungeons
-- **Web Workers**: Background chunk generation with WorkerManager and ChunkWorker
+- **Web Workers**: Background chunk and tree generation with WorkerManager, ChunkWorker, and TreeWorker
+  - **TreeWorker**: Dedicated worker for tree placement (off main thread for smooth performance)
+  - **ChunkWorker**: Terrain generation + simple LOD trees for distant chunks
+  - **WorkerManager**: Orchestrates ChunkWorker → TreeWorker pipeline
 - **Caching**: Hybrid RAM (ChunkCache) + Disk (ChunkPersistence/IndexedDB) system
-- **Tree System**: Dual noise-based + guaranteed placement for consistent density
-  - Ancient trees (20% spawn) with 3x3 trunks and large canopies
-  - Mega ancient trees (5% of ancient) with 20-32 block height
-  - Dead trees (5% spawn) with treasure loot
+- **Tree System**: Worker-based procedural tree generation (50% reduced density for performance)
+  - **Regular trees**: Noise-based placement with 3-block minimum spacing
+  - **Ancient/Mega trees**: 5% chunk-exclusive spawn (one special tree per chunk, no other trees)
+    - 50/50 split between regular ancient (3x3 trunk) and mega ancient (20-32 blocks tall)
+    - Spawn at chunk center for landmark visibility
+  - **Dead trees**: 5% spawn in regular chunks with treasure loot
+  - **LOD trees**: Simple colored blocks (brown trunk + green canopy) in distant LOD chunks
+  - ⚠️ **Known visual mismatch**: LOD trees visible in distance chunks do NOT match actual trees that generate when full chunks load (LOD uses simplified noise, full chunks use TreeWorker with spacing logic)
 - **Resource Gathering**: Biome-specific shrubs, ores (iron, gold), and collectibles
 - **Billboard System**: Floating emoji sprites (backpack 🎒, ghosts 👻, shrubs 🌿)
 - **Crafting**: Workbench (shapes) and ToolBench (tools) with recipe systems
@@ -80,6 +87,11 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
   - Battle interface integration pending
 - **Mobile Support**: Virtual joysticks with automatic device detection
 - **Performance Scaling**: Automatic render distance adjustment
+- **LOD System**: ChunkLODManager renders simplified colored chunks beyond render distance
+  - `visualDistance = 2` chunks past render distance (reduced from 3 for fog compatibility)
+  - LOD chunks show simplified terrain (biome surface colors only)
+  - LOD chunks auto-unload when full chunks load in same position
+  - Hard fog ends at render distance, so LOD chunks appear through/past fog wall
 
 ### Technologies
 

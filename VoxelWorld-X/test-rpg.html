@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG System Test - VoxelWorld</title>
+    <link rel="stylesheet" href="/src/ui/modals.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 30px;
+            border-radius: 12px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .test-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .test-btn {
+            padding: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .test-btn:hover {
+            background: #66BB6A;
+            transform: translateY(-2px);
+        }
+
+        .test-btn.secondary {
+            background: #2196F3;
+        }
+
+        .test-btn.secondary:hover {
+            background: #42A5F5;
+        }
+
+        .output {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .output h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+
+        .output pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎲 RPG System Test</h1>
+
+        <div class="test-buttons">
+            <button class="test-btn" onclick="testCharacterCreation()">
+                📖 Character Creation
+            </button>
+            <button class="test-btn secondary" onclick="testCombat()">
+                ⚔️ Test Combat
+            </button>
+            <button class="test-btn secondary" onclick="testStats()">
+                📊 Show Stats
+            </button>
+            <button class="test-btn secondary" onclick="clearData()">
+                🗑️ Clear Save Data
+            </button>
+        </div>
+
+        <div class="output" id="output">
+            <h3>Console Output</h3>
+            <pre id="console">Ready to test! Click a button above.</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import { PlayerStats } from '/src/rpg/PlayerStats.js';
+        import { CombatSystem } from '/src/rpg/CombatSystem.js';
+        import { UIModals } from '/src/ui/UI-Modals.js';
+
+        // Create test instances
+        window.testStats = new PlayerStats();
+        window.testCombat = new CombatSystem();
+        window.testUI = new UIModals(null);
+
+        window.testCharacterCreation = async function() {
+            log('📖 Opening character creation modal...');
+
+            window.testUI.showCharacterCreation((charData) => {
+                log('✅ Character created!');
+                log(JSON.stringify(charData, null, 2));
+
+                // Apply to test stats
+                window.testStats.attributes = {...charData.attributes};
+                window.testStats.updateDerivedStats();
+
+                log('Stats updated:', window.testStats.getSummary());
+            });
+        };
+
+        window.testCombatFunc = function() {
+            log('⚔️ Testing combat system...');
+
+            // Create a dummy enemy
+            const enemy = {
+                name: 'Test Goblin',
+                stats: new PlayerStats(),
+                weapon: { bonus: 1, damageDice: 'd6' }
+            };
+
+            enemy.stats.attributes.str = 4;
+            enemy.stats.attributes.dex = 3;
+
+            // Create player entity
+            const player = {
+                name: 'Player',
+                stats: window.testStats,
+                weapon: { bonus: 0, damageDice: 'd4' },
+                id: 'player'
+            };
+
+            log('Player HP:', window.testStats.currentHP);
+            log('Enemy HP:', enemy.stats.currentHP);
+            log('');
+
+            // Execute attack
+            const result = window.testCombat.resolveAttack(player, enemy);
+
+            log('Attack Result:');
+            log(`  Hit: ${result.hit ? 'YES' : 'NO'}`);
+            log(`  Damage: ${result.damage}`);
+            log(`  Critical: ${result.critical ? 'YES' : 'NO'}`);
+            log(`  Margin: ${result.margin}`);
+            log(`  Attack Roll: ${result.attackRoll.total} (d20=${result.attackRoll.d20} + STR=${result.attackRoll.attribute} + luck=${result.attackRoll.luck})`);
+            log(`  Defense Roll: ${result.defenseRoll.total} (d20=${result.defenseRoll.d20} + DEX=${result.defenseRoll.dex} + luck=${result.defenseRoll.luck})`);
+
+            if (result.hit) {
+                enemy.stats.takeDamage(result.damage);
+                log(`Enemy HP after damage: ${enemy.stats.currentHP}/${enemy.stats.maxHP}`);
+            }
+        };
+
+        window.testStatsFunc = function() {
+            log('📊 Current Stats:');
+            const summary = window.testStats.getSummary();
+            log(JSON.stringify(summary, null, 2));
+
+            log('\n💚 Health: ' + summary.hp);
+            log('💙 Magic: ' + summary.mp);
+            log('🍀 Luck: ' + summary.luck);
+        };
+
+        window.clearData = function() {
+            localStorage.removeItem('voxelWorld_playerStats');
+            log('🗑️ Save data cleared!');
+            log('Refresh page to start fresh.');
+        };
+
+        function log(message) {
+            const consoleEl = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            consoleEl.textContent += `\n[${timestamp}] ${message}`;
+            consoleEl.parentElement.scrollTop = consoleEl.parentElement.scrollHeight;
+        }
+
+        // Alias for button onclick
+        window.testCombat = window.testCombatFunc;
+        window.testStats = window.testStatsFunc;
+    </script>
+</body>
+</html>

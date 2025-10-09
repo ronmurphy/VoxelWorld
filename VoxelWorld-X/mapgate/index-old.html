@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShapeForge - 3D Geometry Editor</title>
+
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+
+  <!-- CSS - Minimal set -->
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/new-ui.css">
+  <link rel="stylesheet" href="css/new-rm-ui.css">
+
+  <!-- Load Shoelace components -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/themes/light.css" />
+
+  <!-- Load required Shoelace components -->
+  <script type="module">
+    import { setBasePath } from "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/utilities/base-path.js";
+    setBasePath(
+      "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/"
+    );
+  </script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/button/button.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/button-group/button-group.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/dialog/dialog.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/drawer/drawer.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/icon/icon.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/input/input.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tooltip/tooltip.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tab/tab.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tab-group/tab-group.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/tab-panel/tab-panel.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/drawer/drawer.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/progress-bar/progress-bar.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/radio/radio.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/radio-group/radio-group.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/checkbox/checkbox.js"></script>
+
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/select/select.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/option/option.js"></script>
+
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/range/range.js"></script>
+
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/switch/switch.js"></script>
+
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/components/alert/alert.js"></script>
+
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/color-picker/color-picker.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/divider/divider.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/dropdown/dropdown.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/menu/menu.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/menu-item/menu-item.js"></script>
+
+  <!-- html2canvas-->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.138.0/examples/js/controls/PointerLockControls.js"></script>
+
+  <!-- fps-->
+  <script src="js/libs/stats.min.js"></script>
+
+  <!-- Core Dependencies -->
+  <script src="js/classes/Token.js"></script>
+  <script src="js/classes/Room.js"></script>
+
+  <!-- Resource Management -->
+  <script src="js/classes/resource-manager.js"></script>
+  <script src="js/classes/texture-manager.js"></script>
+
+  <!-- UI and Control Classes -->
+  <script src="js/classes/LayersPanel.js"></script>
+  <!-- Physics -->
+  <script src="js/classes/PhysicsController.js"></script>
+
+  <!-- Add post-processing scripts -->
+  <script src="js/classes/GameMenu.js"></script>
+  <script src="js/classes/day-night-cycle.js"></script>
+  <script src="js/classes/Scene3DController.js"></script>
+  <script src="js/classes/MonsterManager.js"></script>
+  <script src="js/classes/ShaderEffectsManager.js"></script>
+
+  <!-- Main Editor Class -->
+  <script src="js/classes/MapEditor.js"></script>
+  <script src="js/classes/Storyboard.js"></script>
+
+  <!-- Add party and combat systems -->
+  <script src="js/classes/PartyManager.js"></script>
+  <script src="js/classes/CombatSystem.js"></script>
+  <script src="js/classes/DungeonGenerator.js"></script>
+  <script src="js/classes/ShapeForge.js"></script>
+  <script src="js/classes/ShapeForgeParser.js"></script>
+
+  <!-- Initialize Everything -->
+  <script src="js/main.js"></script>
+  <!-- Add new sidebar tabs functionality -->
+  <!-- <script src="js/classes/sidebar-tabs.js"></script> -->
+  <script src="js/classes/drawer-management.js"></script>
+</head>
+
+<body class="new-ui">
+  <div class="app-container">
+    <!-- Application Header -->
+    <header class="app-header">
+      <div class="app-logo">
+        <span class="material-icons">map</span>
+        <span>D&D Map Editor</span>
+      </div>
+
+      <!-- Map Title (keep original ID for JS compatibility) -->
+      <div class="map-title" id="mapTitle">
+        <span class="material-icons">edit</span>
+        <span id="mapTitleText">Untitled Map</span>
+      </div>
+
+      <!-- File Operations Group (keep original IDs) -->
+      <div class="header-actions">
+        <sl-button size="small" variant="neutral" id="openMapBtn">
+          <span slot="prefix" class="material-icons">map</span>
+          Open
+        </sl-button>
+
+        <sl-button size="small" variant="neutral" id="saveProjectBtn">
+          <span slot="prefix" class="material-icons">save</span>
+          Save
+        </sl-button>
+      </div>
+
+      <div class="spacer"></div>
+
+      <!-- Special Tools (keep original IDs) -->
+      <sl-button size="small" variant="neutral" id="resourceManagerBtn">
+        <span slot="prefix" class="material-icons">palette</span>
+        Resources
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="storyboardTool">
+        <span slot="prefix" class="material-icons">auto_stories</span>
+        Storyboard
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="shapeForgeBtn">
+        <span slot="prefix" class="material-icons">3d_rotation</span>
+        ShapeForge
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="preferencesBtn">
+        <span slot="prefix" class="material-icons">settings</span>
+        Graphics
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="editorPrefsBtn">
+        <span slot="prefix" class="material-icons">tune</span>
+        Editor
+      </sl-button>
+
+      <sl-button size="small" variant="neutral" id="helpBtn">
+        <span slot="prefix" class="material-icons">help_outline</span>
+        Help
+      </sl-button>
+
+      <!-- 3D View button (keep original ID) -->
+      <button class="view-3d-toggle" id="create3d">
+        <span class="material-icons">view_in_ar</span>
+        3D View
+      </button>
+    </header>
+
+    <!-- Vertical Toolbar -->
+    <aside class="vertical-toolbar">
+      <!-- Shape Tools -->
+      <div class="tool-group">
+        <div class="tool-button" id="selectionTool" data-tooltip="Selection">
+          <span class="material-icons">pan_tool</span>
+        </div>
+        <div class="tool-button" id="selectTool" data-tooltip="Rectangle">
+          <span class="material-icons">crop_square</span>
+        </div>
+        <div class="tool-button" id="circleTool" data-tooltip="Circle">
+          <span class="material-icons">circle</span>
+        </div>
+        <div class="tool-button" id="wallTool" data-tooltip="Polygon/Wall">
+          <span class="material-icons">account_tree</span>
+        </div>
+        <div class="tool-button" id="freehandTool" data-tooltip="Freehand Drawing">
+          <span class="material-icons">gesture</span>
+        </div>
+      </div>
+
+      <!-- Marker Tools -->
+      <div class="tool-group marker-tools">
+        <div class="tool-button" id="playerStartTool" data-tooltip="Player Start">
+          <span class="material-icons">person_pin_circle</span>
+        </div>
+        <div class="tool-button" id="encounterTool" data-tooltip="Add Encounter">
+          <span class="material-icons">local_fire_department</span>
+        </div>
+        <div class="tool-button" id="treasureTool" data-tooltip="Add Treasure">
+          <span class="material-icons">workspace_premium</span>
+        </div>
+        <div class="tool-button" id="trapTool" data-tooltip="Add Trap">
+          <span class="material-icons">warning</span>
+        </div>
+        <div class="tool-button" id="teleportTool" data-tooltip="Add Teleport">
+          <span class="material-icons">swap_calls</span>
+        </div>
+        <div class="tool-button" id="doorTool" data-tooltip="Add Door">
+          <span class="material-icons">door_front</span>
+        </div>
+        <div class="tool-button" id="propTool" data-tooltip="Add Prop">
+          <span class="material-icons">category</span>
+        </div>
+        <div class="tool-button" id="splashArtTool" data-tooltip="Add Splash Art">
+          <span class="material-icons">add_photo_alternate</span>
+        </div>
+        <div class="tool-button" id="storyboardTriggerTool" data-tooltip="Add Story Trigger">
+          <span class="material-icons">auto_stories</span>
+        </div>
+        <div class="tool-button" id="dungeonTool" data-tooltip="Add Dungeon">
+          <span class="material-icons">castle</span>
+        </div>
+        <div class="tool-button" id="editMarkerTool" data-tooltip="Edit Markers">
+          <span class="material-icons">edit_location</span>
+        </div>
+        <div class="tool-button" id="shapeforgeModelTool" data-tooltip="3D Model">
+          <span class="material-icons" hoist>view_in_ar</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Canvas Area - Preserve original ID for JS compatibility -->
+    <main class="canvas-container" id="canvasWrapper">
+      <canvas id="mainCanvas"></canvas>
+    </main>
+
+    <!-- Sidebar - Preserve original structure for JS compatibility -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Layers & Objects</div>
+        <sl-button size="small" variant="neutral" circle id="newFolderBtn">
+          <span slot="icon" class="material-icons">create_new_folder</span>
+        </sl-button>
+      </div>
+
+      <!-- <div class="sidebar-tabs">
+        <div class="sidebar-tab active" id="layersTab">Walls</div>
+        <div class="sidebar-tab" id="markersTab">Markers</div>
+      </div> -->
+
+      <div class="sidebar-content">
+        <!-- Layers Panel - Keep original structure and IDs for JS -->
+        <div class="layers-panel">
+          <div class="tool-section-title"></div>
+          <div class="layers-list" id="layersList">
+            <!-- Room layers will be added here dynamically -->
+          </div>
+        </div>
+
+        <!-- Markers Panel (hidden by default) -->
+        <div id="markersPanel" style="display: none;"></div>
+      </div>
+    </aside>
+
+    <!-- Footer with status information -->
+    <footer class="app-footer">
+      <div class="status-info">
+        <div class="status-item" id="gridSizeStatus">
+          <span class="material-icons">grid_4x4</span>
+          <span>Grid: --</span>
+        </div>
+        <div class="status-item" id="zoomStatus">
+          <span class="material-icons">zoom_in</span>
+          <span>Zoom: 100%</span>
+        </div>
+        <div class="status-item" id="objectsStatus">
+          <span class="material-icons">room</span>
+          <span>Objects: 0</span>
+        </div>
+      </div>
+      <div id="saveStatus">
+        <span>Last saved: --</span>
+      </div>
+    </footer>
+  </div>
+</body>
+
+</html>
