@@ -211,6 +211,7 @@ export class WorkerManager {
         const { chunkX, chunkZ, trees, treesPlaced } = treeData;
         const key = `${chunkX},${chunkZ}`;
 
+        console.log(`🌲 WorkerManager: Received ${treesPlaced} trees for chunk (${chunkX}, ${chunkZ})`);
         this.stats.treesGenerated += treesPlaced;
 
         // Get the pending tree request data

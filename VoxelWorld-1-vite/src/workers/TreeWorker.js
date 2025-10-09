@@ -39,13 +39,23 @@ function initWorker({ seed, biomeConfig, size }) {
     biomes = biomeConfig;
     chunkSize = size || 8;
 
+    console.log('🌲 TreeWorker initialized:', {
+        seed: worldSeed,
+        chunkSize,
+        biomeCount: Object.keys(biomes || {}).length,
+        biomes: biomes
+    });
+
     self.postMessage({ type: 'INIT_COMPLETE' });
 }
 
 function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData }) {
+    console.log(`🌲 TreeWorker: Generating trees for chunk (${chunkX}, ${chunkZ})`);
     const trees = [];
     let treesAttempted = 0;
     let treesPlaced = 0;
+    let debugFirstBiome = null;
+    let debugFirstNoiseCheck = null;
 
     for (let x = 0; x < chunkSize; x++) {
         for (let z = 0; z < chunkSize; z++) {
@@ -55,8 +65,20 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
             // Get biome at this location
             const biome = getBiomeAt(worldX, worldZ);
 
+            // Debug: log first biome
+            if (!debugFirstBiome) {
+                debugFirstBiome = biome;
+                console.log(`🌲 First biome at (${worldX}, ${worldZ}):`, biome.name, 'treeChance:', biome.treeChance);
+            }
+
             // Check if we should generate a tree using noise-based placement
             const passesNoiseCheck = shouldGenerateTree(worldX, worldZ, biome);
+
+            // Debug: log first noise check
+            if (debugFirstNoiseCheck === null) {
+                debugFirstNoiseCheck = passesNoiseCheck;
+                console.log(`🌲 First noise check: ${passesNoiseCheck}`);
+            }
 
             if (passesNoiseCheck) {
                 // Check spacing to prevent tree crowding
@@ -129,6 +151,7 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
     }
 
     // Send tree data back to main thread
+    console.log(`🌲 TreeWorker: Sending ${treesPlaced} trees for chunk (${chunkX}, ${chunkZ})`);
     self.postMessage({
         type: 'TREES_READY',
         data: {
@@ -179,16 +202,17 @@ function getBiomeAt(worldX, worldZ) {
 }
 
 function shouldGenerateTree(worldX, worldZ, biome) {
-    // Use dual noise for natural tree distribution
-    const noise1 = seededNoise(worldX + 1000, worldZ + 1000);
-    const noise2 = seededNoise(worldX * 2 + 5000, worldZ * 2 + 5000);
+    // Match BiomeWorldGen.js tree placement logic
+    // Use treeChance property (0.08 for Plains, 0.12 for Forest, etc.)
+    const treeChance = biome.treeChance || 0.08;
 
-    // Combine noises for more natural distribution
-    const combined = (noise1 + noise2 * 0.5) / 1.5;
+    // Use noise to determine if tree should spawn
+    const treeNoise = seededNoise(worldX + 4000, worldZ + 4000);
 
-    const treeChance = biome.treeChance || 0.1;
-
-    return combined < treeChance;
+    // Tree spawns if noise is GREATER than threshold
+    // Higher treeChance = lower threshold = more trees
+    // Example: treeChance=0.12 → threshold=0.88 → 12% spawn rate
+    return treeNoise > (1 - treeChance);
 }
 
 function hasNearbyTree(worldX, worldZ, chunkX, chunkZ) {
