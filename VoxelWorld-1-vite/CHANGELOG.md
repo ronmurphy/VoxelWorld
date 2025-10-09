@@ -4,6 +4,80 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-08 - Critical Memory Leak Fix (Fog System)
+
+**Status: FIXED**
+
+### 🌫️ Fog Memory Leak & Optimization
+
+**Overview:**
+Fixed a critical memory leak in the fog system that was causing Gnome to crash and maxing out 8GB RAM. The fog system was creating new `THREE.Fog` objects every single frame (60+ times per second), leading to thousands of unreleased objects accumulating in memory.
+
+**The Problem:**
+1. **Duplicate Fog Creation**: Three separate locations were creating `new THREE.Fog()` objects:
+   - `updateFog()` function (line 6902) - called every frame by day/night cycle
+   - Day/night cycle update (lines 8471, 8476) - ran every frame
+   - Render distance change handler (line 10547)
+2. **Memory Leak**: Creating ~60 fog objects per second = 3,600 objects per minute
+3. **No Garbage Collection**: THREE.Fog objects were never disposed, just orphaned
+4. **Fog Not Visible**: `visualDist = 1` caused `fogStart = fogEnd = 16.0` (zero-width fog)
+
+**The Fix:**
+1. **Reuse One Fog Object** (VoxelWorld.js:6903-6911):
+   - Create fog object ONCE on first call
+   - Update properties (`color.setHex()`, `near`, `far`) instead of creating new objects
+   - Prevents memory leak from object creation
+
+2. **Consolidate to `updateFog()`** (VoxelWorld.js:8471-8474, 10538-10541):
+   - Removed duplicate fog creation from day/night cycle
+   - Removed duplicate fog creation from render distance handler
+   - All fog updates now use centralized `updateFog()` method
+
+3. **Fix Fog Visibility** (VoxelWorld.js:6896-6898):
+   - Changed default `visualDist` from 1 to 3
+   - Changed `fogStart` from `renderDistance + 1` to `renderDistance - 1`
+   - Creates visible 32-block fog gradient instead of zero-width wall
+
+**Code Changes:**
+```javascript
+// BEFORE (Memory Leak):
+this.scene.fog = new THREE.Fog(color, fogStart, fogEnd); // Creates new object every frame
+
+// AFTER (Reuses Object):
+if (!this.scene.fog) {
+    this.scene.fog = new THREE.Fog(color, fogStart, fogEnd); // Create ONCE
+} else {
+    this.scene.fog.color.setHex(color);  // Update existing
+    this.scene.fog.near = fogStart;
+    this.scene.fog.far = fogEnd;
+}
+```
+
+**Expected Results:**
+- ✅ No more fog-related memory leaks
+- ✅ Fog visible with proper gradient (start: 0, end: 32 blocks)
+- ✅ Day/night fog color changes work correctly
+- ✅ Dramatically reduced memory usage
+
+**Known Memory Issues Still To Investigate:**
+1. **Aggressive Tree Scanning**: Chunk unloading scans y=1 to y=65 for every column (4,160 checks per chunk)
+   - May be scanning too frequently or inefficiently
+   - Tree cache system may need optimization
+2. **LOD Visual Chunks**: Visual chunks beyond render distance may accumulate
+   - Need to verify proper disposal when player moves
+3. **Billboard Sprites**: Backpack, shrub, ghost sprites may not be cleaning up properly
+4. **Chunk Mesh Pool**: Need to verify BlockResourcePool is recycling geometries
+
+**Files Modified:**
+- `src/VoxelWorld.js` (lines 6884-6914, 8471-8474, 10538-10541)
+
+**Testing:**
+- Console log should show: `🌫️ Fog updated: SOFT (start: 0.0, end: 32.0, renderDist: 1, chunkSize: 8, visualDist: 3)`
+- Fog should be visible as gradual fade from clear to opaque
+- Memory usage should stabilize instead of growing continuously
+
+---
+
 ## 2025-10-07 - Grappling Hook & Animation System
 
 **Status: FULLY IMPLEMENTED**

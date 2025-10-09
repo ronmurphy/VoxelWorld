@@ -169,7 +169,7 @@ class NebulaVoxelApp {
         this.harvestSpeed = 1.0;      // Can upgrade to 1.5 (machete upgrade)
 
         // �️ Fog settings
-        this.useHardFog = false; // Set to true for Silent Hill-style hard fog wall
+        this.useHardFog = false; // Set to true for  b Hill-style hard fog wall
 
         // �🌍 Initialize Advanced BiomeWorldGen System (reverted for performance)
         this.biomeWorldGen = new BiomeWorldGen(this);
@@ -6881,7 +6881,7 @@ class NebulaVoxelApp {
         // Three.js setup
         this.scene = new THREE.Scene();
 
-        // 🌫️ Helper function to update fog
+        // 🌫️ Helper function to update fog (reuses one fog object to prevent memory leaks)
         this.updateFog = (fogColor = null) => {
             const chunkSize = this.chunkSize; // Use actual chunk size (8 blocks), not hardcoded 64
             let fogStart, fogEnd;
@@ -6892,15 +6892,23 @@ class NebulaVoxelApp {
                 fogStart = (this.renderDistance - 0.5) * chunkSize; // Start close to edge
                 fogEnd = this.renderDistance * chunkSize; // End exactly at render distance
             } else {
-                // Soft fog: Start 1 chunk before render distance so player sees it
-                // This obscures the landscape and hides that visual chunks aren't real
-                const visualDist = this.lodManager ? this.lodManager.visualDistance : 1;
+                // Soft fog: Gradual fade over LOD range (if LOD manager exists)
+                const visualDist = this.lodManager ? this.lodManager.visualDistance : 3;
                 fogStart = (this.renderDistance - 1) * chunkSize; // Start 1 chunk before render distance
-                fogEnd = (this.renderDistance + visualDist) * chunkSize; // End at visual chunk boundary
+                fogEnd = (this.renderDistance + visualDist) * chunkSize; // Extend to LOD visual distance
             }
 
             const color = fogColor !== null ? fogColor : (this.scene.background ? this.scene.background.getHex() : 0x87CEEB);
-            this.scene.fog = new THREE.Fog(color, fogStart, fogEnd);
+
+            // Create fog object ONCE, then reuse it (prevents memory leak from creating new objects every frame)
+            if (!this.scene.fog) {
+                this.scene.fog = new THREE.Fog(color, fogStart, fogEnd);
+            } else {
+                // Update existing fog object properties instead of creating new one
+                this.scene.fog.color.setHex(color);
+                this.scene.fog.near = fogStart;
+                this.scene.fog.far = fogEnd;
+            }
 
             console.log(`🌫️ Fog updated: ${this.useHardFog ? 'HARD' : 'SOFT'} (start: ${fogStart.toFixed(1)}, end: ${fogEnd.toFixed(1)}, renderDist: ${this.renderDistance}, chunkSize: ${chunkSize}, visualDist: ${this.lodManager ? this.lodManager.visualDistance : 3})`);
         };
@@ -8460,10 +8468,10 @@ class NebulaVoxelApp {
             const time = this.dayNightCycle.currentTime;
             this.isTorchAllowed = (time >= 17 || time < 6);
             
-            // 🌫️ Update fog based on time of day using unified updateFog()
+            // 🌫️ Update fog based on time of day using centralized updateFog()
             const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
             const fogColor = isNight ? 0x0a0a0f : skyColor.getHex(); // Dark at night, sky color during day
-            this.updateFog(fogColor); // Use centralized fog calculation
+            this.updateFog(fogColor); // Use centralized fog calculation (prevents memory leak)
             
             this.scene.background = skyColor;
 
@@ -10527,7 +10535,7 @@ class NebulaVoxelApp {
             localStorage.setItem('voxelWorld_renderDistancePref', next.toString());
             this.renderDistance = next;
 
-            // 🌫️ Update fog for new render distance using unified updateFog()
+            // 🌫️ Update fog for new render distance using centralized updateFog()
             const isNight = this.dayNightCycle.currentTime >= 19 || this.dayNightCycle.currentTime < 6;
             const fogColor = isNight ? 0x0a0a0f : this.scene.background.getHex();
             this.updateFog(fogColor);
