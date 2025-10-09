@@ -4,6 +4,53 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-09 - Tree Block Type Registry Fix (CRITICAL)
+
+**Status: FIXED ✅**
+
+### 🐛 Critical Bug: Trees Rendering as Stone Blocks
+
+**Overview:**
+Fixed a critical bug where all tree trunks and leaves were rendering/harvesting as stone blocks instead of wood. The issue existed since biome-specific trees were first added and was caused by missing block type definitions in the BlockTypes registry.
+
+**The Problem:**
+1. **Missing Block Types**: Tree generation code used block types like `'oak_wood-leaves'`, `'pine_wood-leaves'`, `'birch_wood-leaves'`, `'palm_wood-leaves'`, and `'dead_wood-leaves'`
+2. **Registry Mismatch**: Only trunk types (`oak_wood`, `pine_wood`, `birch_wood`, `palm_wood`) were defined in `blockTypes` object - leaf types were missing
+3. **Undefined Materials**: When `addBlock()` tried to access `this.materials['oak_wood-leaves']`, it returned `undefined`
+4. **Fallback Rendering**: Trees rendered with broken/fallback materials, appearing as stone blocks
+5. **Wrong Harvesting**: Harvesting tree trunks yielded stone/coal instead of wood
+
+**The Fix:**
+
+Added missing block type definitions in `src/VoxelWorld.js:6482-6496`:
+
+```javascript
+// NEW: Dead wood trunk type
+dead_wood: { color: 0x3C3C3C, texture: 'dead_wood' },
+
+// Tree-specific leaf types (matching tree generation function naming)
+'oak_wood-leaves': { color: 0x228B22, texture: 'oak_wood-leaves' },   // Oak tree leaves
+'pine_wood-leaves': { color: 0x006400, texture: 'pine_wood-leaves' }, // Pine needles
+'palm_wood-leaves': { color: 0x9ACD32, texture: 'palm_wood-leaves' }, // Palm fronds
+'birch_wood-leaves': { color: 0x90EE90, texture: 'birch_wood-leaves' }, // Birch leaves
+'dead_wood-leaves': { color: 0x4A4A4A, texture: 'dead_wood-leaves' }, // Dead leaves (gray-brown)
+```
+
+**Result:**
+- ✅ Tree trunks now render as brown wood (oak, pine, palm, birch variants)
+- ✅ Tree leaves render with proper green colors
+- ✅ Dead trees render with gray trunks and leaves
+- ✅ Harvesting trees yields wood blocks (with timber falling animation)
+- ✅ No more stone/coal from tree trunks
+
+**Root Cause Analysis:**
+This bug existed since the introduction of biome-specific trees because the hyphenated leaf block types (`oak_wood-leaves`, etc.) were never added to the BlockTypes registry. The tree generation functions (lines 7606-7815) were using these types, but the materials system couldn't find them, causing a silent failure that defaulted to stone rendering.
+
+**Files Modified:**
+- `src/VoxelWorld.js:6482-6496` - Added 6 missing block type definitions
+
+---
+
 ## 2025-10-09 - TreeWorker Performance & Memory Leak Fixes
 
 **Status: FULLY IMPLEMENTED**

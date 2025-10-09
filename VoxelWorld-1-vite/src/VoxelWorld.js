@@ -6479,13 +6479,22 @@ class NebulaVoxelApp {
             pine_wood: { color: 0x654321, texture: 'pine_wood' },    // Darker brown pine
             palm_wood: { color: 0xD2B48C, texture: 'palm_wood' },    // Light tan palm
             birch_wood: { color: 0xF5F5DC, texture: 'birch_wood' },  // Pale birch
+            dead_wood: { color: 0x3C3C3C, texture: 'dead_wood' },    // Dark gray dead wood
 
-            // NEW: Biome-specific leaf types
+            // NEW: Biome-specific leaf types (with hyphenated versions for tree generation)
             forest_leaves: { color: 0x228B22, texture: 'forest_leaves' },   // Bright green
             mountain_leaves: { color: 0x006400, texture: 'mountain_leaves' }, // Dark green needles
             desert_leaves: { color: 0x9ACD32, texture: 'desert_leaves' },   // Yellow-green fronds
             plains_leaves: { color: 0x90EE90, texture: 'plains_leaves' },   // Light green
             tundra_leaves: { color: 0x708090, texture: 'tundra_leaves' },   // Gray-green hardy
+
+            // Tree-specific leaf types (matching tree generation function naming)
+            'oak_wood-leaves': { color: 0x228B22, texture: 'oak_wood-leaves' },   // Oak tree leaves
+            'pine_wood-leaves': { color: 0x006400, texture: 'pine_wood-leaves' }, // Pine needles
+            'palm_wood-leaves': { color: 0x9ACD32, texture: 'palm_wood-leaves' }, // Palm fronds
+            'birch_wood-leaves': { color: 0x90EE90, texture: 'birch_wood-leaves' }, // Birch leaves
+            'dead_wood-leaves': { color: 0x4A4A4A, texture: 'dead_wood-leaves' }, // Dead leaves (gray-brown)
+
             workbench: { color: 0x8B7355, texture: 'workbench' } // Tan brown workbench
         };
 
@@ -8151,24 +8160,31 @@ class NebulaVoxelApp {
             }
 
             // Generate tree based on biome type
+            console.log(`🌲 Attempting tree generation - Biome: "${biome.name}" at (${worldX}, ${treeHeight}, ${worldZ})`);
+
             switch (biome.name) {
                 case 'Forest':
+                    console.log('🌳 Generating Forest oak tree');
                     this.generateOakTree(worldX, treeHeight, worldZ);
                     break;
                 case 'Plains':
+                    console.log('🌳 Generating Plains oak tree');
                     this.generateOakTree(worldX, treeHeight, worldZ); // Oak trees in plains too
                     break;
                 case 'Mountain':
+                    console.log('🌲 Generating Mountain pine tree');
                     this.generatePineTree(worldX, treeHeight, worldZ);
                     break;
                 case 'Desert':
+                    console.log('🌴 Generating Desert palm tree');
                     this.generatePalmTree(worldX, treeHeight, worldZ);
                     break;
                 case 'Tundra':
+                    console.log('🌲 Generating Tundra birch tree');
                     this.generateBirchTree(worldX, treeHeight, worldZ);
                     break;
                 default:
-                    // Fallback to oak tree for unknown biomes
+                    console.log(`⚠️ Unknown biome "${biome.name}" - using fallback oak tree`);
                     this.generateOakTree(worldX, treeHeight, worldZ);
             }
         };
