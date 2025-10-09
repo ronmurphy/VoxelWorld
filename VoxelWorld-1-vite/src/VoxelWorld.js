@@ -7822,7 +7822,10 @@ class NebulaVoxelApp {
             }
 
             // 🎁 Mark this tree as containing treasure (will spawn billboard item on harvest)
-            this.treeRegistry[treeId].hasTreasure = true;
+            const treeMetadata = this.treeRegistry.get(treeId);
+            if (treeMetadata) {
+                treeMetadata.hasTreasure = true;
+            }
 
             console.log(`💀 Dead tree ${treeId} completed with ${height} trunk blocks and 3x3 leaf grid on ground - treasure inside!`);
         };
@@ -8083,12 +8086,31 @@ class NebulaVoxelApp {
                     }
                 }
 
-                // If isolated column (2 or fewer neighbors), it's a Pillar Tree - keep stone!
+                // If isolated column (2 or fewer neighbors), it's a Pillar Tree!
                 if (solidNeighbors <= 2) {
-                    if (Math.random() < 0.1) { // 10% logging
-                        console.log(`🏛️ Pillar Tree spawned at (${worldX}, ${groundY}, ${worldZ}) - stone column preserved!`);
+                    // 🏛️ PILLAR TREE: Convert stone pillar to wood pillar (matches tree type)
+                    // Determine wood type based on biome
+                    let pillarWoodType = 'oak_wood'; // Default
+                    switch (biome.name) {
+                        case 'Mountain': pillarWoodType = 'pine_wood'; break;
+                        case 'Desert': pillarWoodType = 'palm_wood'; break;
+                        case 'Tundra': pillarWoodType = 'birch_wood'; break;
+                        default: pillarWoodType = 'oak_wood'; break; // Forest, Plains
                     }
-                    // Don't convert to dirt - let the stone pillar remain for that unique look
+
+                    this.removeBlock(worldX, groundY, worldZ, false);
+                    this.addBlock(worldX, groundY, worldZ, pillarWoodType, false);
+
+                    // Also convert block below for wooden pillar look
+                    const deeperBlock = this.getBlock(worldX, groundY - 1, worldZ);
+                    if (deeperBlock && ['stone', 'iron', 'sand'].includes(deeperBlock.type)) {
+                        this.removeBlock(worldX, groundY - 1, worldZ, false);
+                        this.addBlock(worldX, groundY - 1, worldZ, pillarWoodType, false);
+                    }
+
+                    if (Math.random() < 0.1) { // 10% logging
+                        console.log(`🏛️ Pillar Tree spawned at (${worldX}, ${groundY}, ${worldZ}) - ${pillarWoodType} pillar created!`);
+                    }
                 } else {
                     // Normal terrain - replace ground with dirt for natural tree placement
                     this.removeBlock(worldX, groundY, worldZ, false);
@@ -8149,6 +8171,38 @@ class NebulaVoxelApp {
             }
 
             console.log(`✅ Tree placement approved at (${worldX},${treeHeight},${worldZ}) - no conflicts detected`);
+
+            // 🏛️ PILLAR TREE FIX: Fill gap between tree and ground with wood trunk
+            // Search downward from tree base to find actual ground, fill with wood
+            let groundFound = false;
+            let woodType = 'oak_wood';
+            switch (biome.name) {
+                case 'Mountain': woodType = 'pine_wood'; break;
+                case 'Desert': woodType = 'palm_wood'; break;
+                case 'Tundra': woodType = 'birch_wood'; break;
+                default: woodType = 'oak_wood'; break;
+            }
+
+            // Search downward from treeHeight to find first solid ground
+            for (let checkY = treeHeight - 1; checkY >= 0; checkY--) {
+                const block = this.getBlock(worldX, checkY, worldZ);
+
+                if (!block || block.type === 'air') {
+                    // Fill air gap with wood trunk (roots extending down)
+                    this.addBlock(worldX, checkY, worldZ, woodType, false);
+                    console.log(`🌳 Extended trunk down to Y=${checkY} (filling air gap)`);
+                } else if (['grass', 'dirt', 'stone', 'sand', 'iron', 'snow'].includes(block.type)) {
+                    // Found solid ground - convert top layer to wood for root connection
+                    this.removeBlock(worldX, checkY, worldZ, false);
+                    this.addBlock(worldX, checkY, worldZ, woodType, false);
+                    console.log(`🏛️ Converted ground (${block.type}) to ${woodType} at Y=${checkY} (tree base)`);
+                    groundFound = true;
+                    break; // Stop searching once we hit solid ground
+                } else {
+                    // Hit water or another block type - stop here
+                    break;
+                }
+            }
 
             // 🎲 5% chance to spawn a rare dead tree with treasure!
             const deadTreeNoise = this.seededNoise(worldX + 15000, worldZ + 15000, this.worldSeed);
@@ -9503,6 +9557,37 @@ class NebulaVoxelApp {
             if (key === 'l') {
                 if (this.lodDebugOverlay) {
                     this.lodDebugOverlay.toggle();
+                }
+                e.preventDefault();
+            }
+            // 🔍 I key for Block Inspector (show info about targeted block)
+            if (key === 'i') {
+                // Use raycaster to find targeted block
+                this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+                const intersects = this.raycaster.intersectObjects(this.scene.children.filter(obj => obj.isMesh && obj !== this.targetHighlight));
+
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const pos = hit.object.position;
+                    const key = `${pos.x},${pos.y},${pos.z}`;
+                    const blockData = this.world[key];
+
+                    console.log('╔═══════════════════════════════════════════════════════════');
+                    console.log('║ 🔍 BLOCK INSPECTOR');
+                    console.log('╠═══════════════════════════════════════════════════════════');
+                    console.log('║ Position:', `(${pos.x}, ${pos.y}, ${pos.z})`);
+                    console.log('║ Block Type:', blockData?.type || 'UNKNOWN');
+                    console.log('║ Player Placed:', blockData?.playerPlaced || false);
+                    console.log('║ Has Billboard:', !!blockData?.billboard);
+                    console.log('║ Material:', blockData?.mesh?.material?.type || 'UNKNOWN');
+                    console.log('║ Material Color:', blockData?.mesh?.material?.color);
+                    console.log('║ Expected Material:', this.materials[blockData?.type]?.type || 'UNKNOWN');
+                    console.log('║ Material Match:', blockData?.mesh?.material === this.materials[blockData?.type]);
+                    console.log('╠═══════════════════════════════════════════════════════════');
+                    console.log('║ BlockType Definition:', this.blockTypes[blockData?.type]);
+                    console.log('╚═══════════════════════════════════════════════════════════');
+                } else {
+                    console.log('🔍 No block targeted (aim at a block and press I)');
                 }
                 e.preventDefault();
             }
