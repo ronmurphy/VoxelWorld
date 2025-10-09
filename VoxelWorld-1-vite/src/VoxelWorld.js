@@ -20,6 +20,7 @@ import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
+import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -7043,6 +7044,8 @@ class NebulaVoxelApp {
         this.lodManager = new ChunkLODManager(this);
         console.log('🎨 LOD Manager initialized - Visual Horizon enabled!');
 
+        // 🔍 Initialize LOD Debug Overlay (toggle with 'L' key)
+        this.lodDebugOverlay = new LODDebugOverlay(this);
 
         // 🌫️ Update fog now that LOD manager exists (fixes fog distance calculation)
         this.updateFog();
@@ -8940,6 +8943,11 @@ class NebulaVoxelApp {
             // 🌍 Update biome indicator based on player position
             this.updateBiomeIndicator();
 
+            // 🔍 Update LOD debug overlay (ring positions and stats)
+            if (this.lodDebugOverlay) {
+                this.lodDebugOverlay.update();
+            }
+
             // Always continue animation loop, but skip input processing if paused
             if (this.isPaused) {
                 // Still render the scene even when paused
@@ -9388,6 +9396,13 @@ class NebulaVoxelApp {
                     } else {
                         this.companionCodex.show(); // Open it
                     }
+                }
+                e.preventDefault();
+            }
+            // 🔍 L key for LOD Debug Overlay (toggle)
+            if (key === 'l') {
+                if (this.lodDebugOverlay) {
+                    this.lodDebugOverlay.toggle();
                 }
                 e.preventDefault();
             }

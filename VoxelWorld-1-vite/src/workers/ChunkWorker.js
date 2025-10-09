@@ -273,15 +273,16 @@ function generateLODChunk({ chunkX, chunkZ, chunkSize }) {
 
             // Determine actual surface block type
             const surfaceBlockType = hasSnow ? 'snow' : biome.surfaceBlock;
-            
+
             // Get BLOCK color (not biome gradient!)
             const blockColor = BLOCK_COLORS[surfaceBlockType] || BLOCK_COLORS.grass;
 
-            // Add surface block with actual block color
+            // Add surface block with actual block color AND block type
             colorBlocks.push({
                 x: worldX,
                 y: height,
                 z: worldZ,
+                blockType: surfaceBlockType, // 🎨 NEW: For mini texture mapping
                 color: blockColor
             });
         }

@@ -102,6 +102,7 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
 - **E** - Interact (workbench, toolbench)
 - **M** - Toggle World Map (Explorer's Journal)
 - **C** - Toggle Companion Codex
+- **L** - Toggle LOD Debug Overlay (development tool)
 - **ESC** - Close modals (workbench, toolbench, backpack)
 
 ### Mobile Controls
@@ -203,6 +204,10 @@ window.voxelApp.nuclearClear();
 // BiomeWorldGen debug mode
 window.voxelApp.worldGen.enableDebugMode();
 window.voxelApp.worldGen.getStats();
+
+// LOD Debug Overlay (also toggled with 'L' key)
+window.voxelApp.lodDebugOverlay.toggle();
+window.voxelApp.lodDebugOverlay.enabled; // Check status
 ```
 
 ## Development Notes

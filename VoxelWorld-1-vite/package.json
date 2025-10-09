@@ -19,6 +19,7 @@
     "build-all": "npm run build && electron-builder --win --linux --mac"
   },
   "devDependencies": {
+    "canvas": "^3.2.0",
     "concurrently": "^9.1.2",
     "electron": "^38.1.2",
     "electron-builder": "^26.0.12",

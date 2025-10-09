@@ -1,22 +1,24 @@
 /**
  * ChunkLODManager.js - Level of Detail System for Extended Visual Horizon
- * 
- * Renders distant chunks using simplified colored blocks beyond fog
+ *
+ * Renders distant chunks using simplified textured blocks beyond fog
  * Uses existing chunk cache data for zero-cost visual extension
- * 
+ *
  * LOD Tiers:
  * - Tier 0 (renderDistance): Full detail, interactive chunks
- * - Tier 1 (visualDistance): Simple colored blocks from cache (this system)
+ * - Tier 1 (visualDistance): Textured surface blocks from cache (this system)
  * - Tier 2 (future): Billboards/flat terrain
- * 
+ *
  * Performance Strategy:
- * - InstancedMesh for each color (1 mesh = many blocks)
+ * - 32x32 mini textures (64x smaller than full res)
+ * - InstancedMesh for each block type (1 mesh = many blocks)
  * - Frustum culling (only render visible chunks)
  * - Occlusion culling (skip chunks behind other chunks)
- * - Simple geometry (BoxGeometry without textures)
+ * - Surface-only rendering (no interior blocks)
  */
 
 import * as THREE from 'three';
+import { MiniTextureLoader } from './MiniTextureLoader.js';
 
 export class ChunkLODManager {
     constructor(app) {
@@ -38,7 +40,11 @@ export class ChunkLODManager {
         this.loadQueue = []; // Queue of chunks to load progressively
         this.chunksPerFrame = 1; // Load 1 chunk per frame (reduced from 2 for performance)
         this.maxActiveLODChunks = 12; // Hard limit to prevent slowdown
-        
+
+        // Mini texture loader (environment-aware)
+        this.miniTextureLoader = new MiniTextureLoader();
+        this.preloadCommonTextures(); // Background load common block types
+
         // Stats
         this.stats = {
             lodChunksActive: 0,
@@ -46,7 +52,7 @@ export class ChunkLODManager {
             instancedMeshes: 0,
             culledChunks: 0
         };
-        
+
         console.log('🎨 ChunkLODManager initialized - Visual Horizon System ready!');
     }
     
@@ -257,48 +263,62 @@ export class ChunkLODManager {
     
     /**
      * Create LOD mesh from worker data (world coordinates)
+     * Now uses 32x32 mini textures instead of solid colors!
      */
     createLODMeshFromWorkerData(chunkX, chunkZ, colorBlocks) {
         if (!colorBlocks || colorBlocks.length === 0) return null;
-        
+
         const group = new THREE.Group();
         group.userData = {
             type: 'lodChunk',
             chunkX: chunkX,
             chunkZ: chunkZ
         };
-        
-        // Group blocks by color for instancing
-        const colorGroups = new Map();
-        
+
+        // Group blocks by BLOCK TYPE (not color) for textured instancing
+        const blockTypeGroups = new Map();
+
         for (const block of colorBlocks) {
-            const color = block.color || 0x808080;
-            
-            if (!colorGroups.has(color)) {
-                colorGroups.set(color, []);
+            const blockType = block.blockType || 'grass'; // Fallback to grass
+
+            if (!blockTypeGroups.has(blockType)) {
+                blockTypeGroups.set(blockType, []);
             }
-            
+
             // Worker data already has world coordinates
-            colorGroups.get(color).push({
+            blockTypeGroups.get(blockType).push({
                 x: block.x,
                 y: block.y,
                 z: block.z
             });
         }
-        
+
         // 🎯 USE OBJECT POOL for geometry (like regular blocks do!)
         const geometry = this.app.resourcePool.getGeometry('cube');
 
-        for (const [color, positions] of colorGroups.entries()) {
-            // 🎨 USE POOLED MATERIAL (eliminates material creation overhead!)
-            const material = this.app.resourcePool.getLODMaterial(color);
+        for (const [blockType, positions] of blockTypeGroups.entries()) {
+            // 🎨 Try to load mini texture (async, may return null if not loaded yet)
+            const texture = this.miniTextureLoader.get(blockType);
+
+            let material;
+            if (texture) {
+                // ✨ TEXTURED material (32x32 mini texture)
+                material = new THREE.MeshLambertMaterial({
+                    map: texture,
+                    side: THREE.FrontSide
+                });
+            } else {
+                // Fallback to color-only (texture not loaded yet)
+                const color = colorBlocks.find(b => b.blockType === blockType)?.color || 0x808080;
+                material = this.app.resourcePool.getLODMaterial(color);
+            }
 
             const instancedMesh = new THREE.InstancedMesh(
                 geometry,
                 material,
                 positions.length
             );
-            
+
             // Set instance transforms
             const matrix = new THREE.Matrix4();
             for (let i = 0; i < positions.length; i++) {
@@ -306,11 +326,11 @@ export class ChunkLODManager {
                 matrix.setPosition(pos.x, pos.y, pos.z);
                 instancedMesh.setMatrixAt(i, matrix);
             }
-            
+
             instancedMesh.instanceMatrix.needsUpdate = true;
             group.add(instancedMesh);
         }
-        
+
         return group;
     }
     
@@ -480,6 +500,20 @@ export class ChunkLODManager {
             visualDistance: this.visualDistance,
             enabled: this.enabled
         };
+    }
+
+    /**
+     * Preload common block type textures in background
+     */
+    async preloadCommonTextures() {
+        const commonBlocks = [
+            'grass', 'dirt', 'stone', 'sand', 'snow',
+            'oak_wood', 'pine_wood', 'birch_wood',
+            'bedrock', 'iron', 'gold'
+        ];
+
+        console.log('🔄 Preloading mini textures for common blocks...');
+        await this.miniTextureLoader.preload(commonBlocks);
     }
     
     /**
