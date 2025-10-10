@@ -224,6 +224,45 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
                         }
                     }
                 }
+                // 🫐 SHRUB GENERATION: Separate from trees, spawns on open ground
+                // 8% chance to spawn shrub (separate from tree spawning)
+                else if (!passesNoiseCheck) {
+                    const shrubRoll = seededRandom(worldX + 50000, worldZ + 50000, worldSeed + 50000);
+                    if (shrubRoll < 0.08) { // 8% chance for shrubs
+                        const heightIndex = x * chunkSize + z;
+
+                        // Skip if water position
+                        if (waterMap && waterMap[heightIndex] === 1) {
+                            continue;
+                        }
+
+                        const groundHeight = heightMap[heightIndex];
+                        const surfaceY = groundHeight + 1;
+
+                        // Only place shrub on valid ground (not too high/low)
+                        if (surfaceY > 1 && surfaceY <= 65) {
+                            // Ensure no nearby trees (shrubs need at least 2 block clearance)
+                            const tooCloseToTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ, 'shrub');
+
+                            if (!tooCloseToTree) {
+                                trees.push({
+                                    x: worldX,
+                                    y: surfaceY,
+                                    z: worldZ,
+                                    treeType: 'shrub', // Special type for shrubs
+                                    biome: biome.name,
+                                    isAncient: false,
+                                    isMega: false,
+                                    isShrub: true
+                                });
+
+                                treesPlaced++;
+                                // Track shrub position to prevent overlap
+                                trackTreePosition(worldX, worldZ, chunkX, chunkZ);
+                            }
+                        }
+                    }
+                }
             }
         }
         }

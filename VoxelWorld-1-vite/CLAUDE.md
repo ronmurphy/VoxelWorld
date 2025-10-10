@@ -211,78 +211,61 @@ Console utilities (exposed via `window.voxelApp`):
 
 ---
 
-### 🌾 **NEXT PROJECT: Farming & Agriculture System** (Stardew Valley Inspired!)
+### 🌾 **CURRENT PROJECT: Farming & Agriculture System** (In Progress - 2025-10-09)
 
-**Overview:**
-Create a comprehensive farming system inspired by Stardew Valley, allowing players to till soil, plant crops, water plants, and harvest for food/crafting materials. This system will integrate with existing crafting, inventory, and potentially add cooking mechanics.
+**Status: Core Implementation Complete! ✅**
 
-**Phase 1: Basic Farming Mechanics**
-1. **Tilled Soil System**:
-   - New block type: `tilled_soil` (brown dirt with furrow texture)
-   - Tool: Hoe (craft from 2 wood + 1 stick)
+**Implemented Features:**
+1. **✅ Tilled Soil System**:
+   - Hoe tool crafted from 2 wood + 1 stick (ToolBench)
    - Right-click grass/dirt with hoe to till into farmland
-   - Tilled soil slowly reverts to dirt if not planted (24-hour real-time timer)
+   - Tilled soil reverts to dirt if not planted within 24 in-game days
 
-2. **Seed Planting**:
-   - Seed items: pumpkin_seeds, wheat_seeds, carrot_seeds, berry_seeds
+2. **✅ Seed System**:
+   - Seed items: wheat_seeds, carrot_seeds, pumpkin_seeds, berry_seeds
+   - Seeds obtained from:
+     - Grass blocks: 10% chance wheat_seeds, 8% chance carrot_seeds
+     - Pumpkins: Always drop pumpkin_seeds
+     - Shrubs: Always drop berry_seeds (re-enabled in TreeWorker)
    - Right-click tilled soil with seeds to plant
-   - Seeds obtained from harvesting wild crops or purchasing (future NPC system)
 
-3. **Growth Stages**:
-   - 4 visual stages: sprout → young → mature → ready_to_harvest
-   - Each stage = 10 in-game days (100 minutes real-time)
-   - Different crops have different growth rates (wheat: 30 days, pumpkin: 40 days)
-   - Use block variants (pumpkin_stage1, pumpkin_stage2, pumpkin_stage3, pumpkin)
+3. **✅ Crop Growth Stages**:
+   - 3 visual stages per crop: sprout → young → mature
+   - Growth rates:
+     - Wheat/Carrot: 10 in-game days per stage (30 days total)
+     - Pumpkin: 15 in-game days per stage (45 days total)
+     - Berry Bush: 12 in-game days per stage (36 days total)
+   - Watered crops grow 2x faster
+   - Real-time growth tracking with CropGrowthManager
 
-4. **Watering System**:
-   - Water bucket item (craft from iron blocks)
-   - Right-click on planted crop to water (visual: darker soil color)
-   - Watered crops grow 2x faster (5 days per stage instead of 10)
-   - Water lasts 1 in-game day, then needs re-watering
-   - Rain auto-waters all crops (future weather system integration)
-
-5. **Harvesting**:
+4. **✅ Harvesting System**:
    - Right-click fully grown crop to harvest
-   - Returns crop item (pumpkin, wheat, carrot, berries) + seeds for replanting
-   - Crop quantity based on care (watered crops yield 2x, dry crops yield 1x)
+   - Returns crop item + seeds for replanting
+   - Yield multiplier: Watered crops yield 2x items
 
-**Phase 2: Advanced Features** (After basic farming works)
-1. **Scarecrows**: Protect crops from birds (reduces random crop loss)
-2. **Fertilizer**: Use compost (dead leaves + dirt) to boost growth speed
-3. **Crop Quality**: Perfect/Good/Normal based on watering consistency
-4. **Greenhouse**: Indoor farming structure (year-round crops, no seasons)
-5. **Irrigation**: Sprinkler systems for auto-watering (craft from iron + gears)
-
-**Phase 3: Animal Farming** (Long-term)
-1. **Chickens**: Eggs for cooking
-2. **Cows**: Milk for crafting
-3. **Sheep**: Wool for textiles
-4. **Barns & Coops**: Build shelters, feed animals daily
-
-**Phase 4: Cooking System** (Pairs with farming)
-1. **Cooking Station**: Craft from campfire + iron blocks
-2. **Recipes**: Combine crops into meals (bread, soup, pie, salad)
-3. **Meal Buffs**: Speed boost, jump height, mining efficiency, health regen
-4. **Recipe Discovery**: Experimentation unlocks new recipes
-
-**Implementation Files to Create:**
-- `src/FarmingSystem.js` - Main farming logic (tilling, planting, growth, harvesting)
+**Implementation Files:**
+- `src/FarmingSystem.js` - Main farming logic (tilling, planting, harvesting)
+- `src/FarmingBlockTypes.js` - Block type definitions for farming
 - `src/CropGrowthManager.js` - Growth stage tracking, watering timers
-- `src/SeedRegistry.js` - Seed types, growth rates, yield data
-- Block types: tilled_soil, pumpkin_stage1-3, wheat_stage1-3, carrot_stage1-3, berry_bush_stage1-3
-- Tool: hoe (ToolBench recipe)
-- Items: various seeds, harvested crops
+- `src/ToolBenchSystem.js` - Hoe recipe added
+- `src/workers/TreeWorker.js` - Shrubs re-enabled for berry seeds
+- `src/VoxelWorld.js` - Integrated farming right-click handlers, seed drops, day tracking
 
-**Integration Points:**
-- InventorySystem.js - Add seed/crop items
-- ToolBenchSystem.js - Add hoe recipe (2 wood + 1 stick → hoe)
-- VoxelWorld.js - Right-click handlers for hoe (till soil) and seeds (plant)
-- BiomeWorldGen.js - Optional: wild crop spawns (wheat in plains, berries in forest)
+**How to Use:**
+1. Harvest grass blocks to get wheat/carrot seeds
+2. Craft hoe at ToolBench (2 wood + 1 stick)
+3. Right-click grass/dirt with hoe to till soil
+4. Right-click tilled soil with seeds to plant
+5. Wait for crops to grow (check back each in-game day!)
+6. Left-click (harvest) mature crops to collect food + seeds
 
-**User Inspiration:**
-- Michelle's request for Stardew-style farming
-- Pumpkins already exist in game (perfect first crop!)
-- Natural progression: exploration → crafting → farming → cooking
+**Next Steps (Phase 2 - Future):**
+- Water bucket item for manual watering
+- Scarecrows to protect crops
+- Fertilizer system (compost)
+- Crop quality tiers
+- Greenhouse structures
+- Irrigation/sprinkler systems
 
 ---
 

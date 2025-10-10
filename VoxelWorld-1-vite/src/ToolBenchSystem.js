@@ -140,6 +140,21 @@ export class ToolBenchSystem {
                 }
             },
 
+            // 🌾 FARMING TOOLS
+            hoe: {
+                name: '🌾 Hoe',
+                items: { wood: 2, stick: 1 },
+                description: 'Till soil to create farmland. Right-click grass or dirt.',
+                clues: {
+                    wood: 'Two pieces of timber, flat and wide...',
+                    stick: 'A single handle to hold with pride...'
+                },
+                category: 'farming',
+                isTool: true,
+                isFarmingTool: true,
+                toolType: 'hoe'
+            },
+
             machete_upgrade: {
                 name: '🔪 Enhanced Machete',
                 items: { machete: 1, crystal: 2, skull: 1 },

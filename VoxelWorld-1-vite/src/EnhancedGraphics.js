@@ -29,7 +29,8 @@ export class EnhancedGraphics {
             blocks: 'art/blocks',
             tools: 'art/tools',
             time: 'art/time',
-            entities: 'art/entities'
+            entities: 'art/entities',
+            food: 'art/food'
         };
 
         console.log('🎨 Final asset paths:', this.assetPaths);
@@ -39,7 +40,8 @@ export class EnhancedGraphics {
             blocks: [],
             tools: [],
             time: [],
-            entities: []
+            entities: [],
+            food: []
         };
 
         // Texture aliases - map item/block types to texture filenames
@@ -60,7 +62,10 @@ export class EnhancedGraphics {
             crafted_machete: 'machete',
             crafted_compass: 'compass',
             crafted_compass_upgrade: 'compass',
-            crafted_speed_boots: 'boots_speed'
+            crafted_speed_boots: 'boots_speed',
+            // Farming items
+            crafted_hoe: 'stick',  // Temporary: using stick.png until hoe.png is created
+            hoe: 'stick'           // Temporary: using stick.png until hoe.png is created
         };
 
         // UI element size configurations
@@ -161,7 +166,8 @@ export class EnhancedGraphics {
             blocks: {},
             tools: {},
             time: {},
-            entities: {}
+            entities: {},
+            food: {}
         };
 
         // Extract base name and extension from filename
@@ -182,7 +188,7 @@ export class EnhancedGraphics {
             // Electron: Use filesystem API to list actual files
             console.log('🔍 Using Electron filesystem API for asset discovery');
 
-            for (const category of ['blocks', 'tools', 'time', 'entities']) {
+            for (const category of ['blocks', 'tools', 'time', 'entities', 'food']) {
                 try {
                     const files = await window.electronAPI.listAssetFiles(category);
                     const baseNames = new Set();
@@ -260,7 +266,8 @@ export class EnhancedGraphics {
                 blocks: ['.jpeg', '.jpg', '.png'],
                 tools: ['.png', '.jpg', '.jpeg'],
                 time: ['.png', '.jpg', '.jpeg'],
-                entities: ['.png', '.jpg', '.jpeg']
+                entities: ['.png', '.jpg', '.jpeg'],
+                food: ['.png', '.jpg', '.jpeg']
             };
 
             const candidates = {
@@ -268,16 +275,18 @@ export class EnhancedGraphics {
                     'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone', 'pumpkin', 'iron', 'gold',
                     'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir',
                     'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'douglas_fir-leaves',
-                    'gift_wrapped', 'gift_wrapped-all'
+                    'gift_wrapped', 'gift_wrapped-all', 'tilled_soil'
                 ],
                 tools: [
                     'backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 
                     'compass', 'toolbench', 'tool_bench', 'grapple', 'sword', 'pickaxe',
                     'boots_speed', 'cryatal', 'club', 'stone_spear', 'torch', 'wood_shield',
-                    'coal', 'gold', 'iron', 'feather', 'fur'  // Materials added to tools folder
+                    'coal', 'gold', 'iron', 'feather', 'fur',  // Materials added to tools folder
+                    'hoe'  // Farming tool
                 ],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun'],
-                entities: ['ghost', 'angry_ghost']
+                entities: ['ghost', 'angry_ghost'],
+                food: ['wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds', 'rice', 'corn_ear']
             };
 
             for (const [category, names] of Object.entries(candidates)) {
@@ -294,7 +303,8 @@ export class EnhancedGraphics {
             blocks: this.availableAssets.blocks.length,
             tools: this.availableAssets.tools.length,
             time: this.availableAssets.time.length,
-            entities: this.availableAssets.entities.length
+            entities: this.availableAssets.entities.length,
+            food: this.availableAssets.food.length
         });
     }
 
@@ -306,14 +316,15 @@ export class EnhancedGraphics {
             this._loadBlockTextures(),
             this._loadToolImages(),
             this._loadTimeImages(),
-            this._loadEntityImages()
+            this._loadEntityImages(),
+            this._loadFoodImages()
         ]);
 
         let totalLoaded = 0;
         let totalErrors = 0;
 
         results.forEach((result, index) => {
-            const category = ['blocks', 'tools', 'time', 'entities'][index];
+            const category = ['blocks', 'tools', 'time', 'entities', 'food'][index];
             if (result.status === 'fulfilled') {
                 totalLoaded += result.value.loaded;
                 console.log(`✅ ${category}: ${result.value.loaded} assets loaded`);
@@ -358,7 +369,7 @@ export class EnhancedGraphics {
         const basePath = this.assetPaths.blocks;
 
         // Define which blocks have multi-face textures (wood blocks, pumpkin, ores, etc - not leaves)
-        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir', 'pumpkin', 'iron', 'gold', 'gift_wrapped'];
+        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir', 'pumpkin', 'iron', 'gold', 'gift_wrapped', 'tilled_soil'];
         const isMultiFace = multiFaceBlocks.includes(blockType);
 
         const faceTextures = {
@@ -604,6 +615,33 @@ export class EnhancedGraphics {
         const loaded = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
 
         return { loaded, total: this.availableAssets.entities.length };
+    }
+
+    /**
+     * Load food image assets (seeds, crops, etc.)
+     * These are merged into toolImages for inventory display
+     */
+    async _loadFoodImages() {
+        const promises = this.availableAssets.food.map(async (foodType) => {
+            try {
+                const imagePath = `${this.assetPaths.food}/${foodType}.png`;
+                const image = await this._loadImage(imagePath);
+                // Store in toolImages map so they work with inventory system
+                this.toolImages.set(foodType, {
+                    image: image,
+                    path: imagePath
+                });
+                return { foodType, success: true };
+            } catch (error) {
+                console.warn(`⚠️ Failed to load food image: ${foodType}`, error);
+                return { foodType, success: false, error };
+            }
+        });
+
+        const results = await Promise.allSettled(promises);
+        const loaded = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+
+        return { loaded, total: this.availableAssets.food.length };
     }
 
     /**

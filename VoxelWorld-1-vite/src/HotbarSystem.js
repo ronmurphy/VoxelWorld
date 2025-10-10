@@ -61,7 +61,7 @@ export class HotbarSystem {
         const toolIdentifiers = [
             'crafted_', 'grappling_hook', 'speed_boots', 'combat_sword',
             'mining_pick', 'stone_hammer', 'magic_amulet', 'compass',
-            'machete', 'club', 'stone_spear', 'torch', 'wood_shield'
+            'machete', 'club', 'stone_spear', 'torch', 'wood_shield', 'hoe'
         ];
 
         return toolIdentifiers.some(id => itemType.includes(id));

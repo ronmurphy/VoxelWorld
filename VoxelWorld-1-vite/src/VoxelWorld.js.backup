@@ -1103,16 +1103,6 @@ class NebulaVoxelApp {
             return null;
         };
 
-        // 🌾 Get current day for farming system
-        this.getCurrentDay = () => {
-            return this.dayNightCycle ? this.dayNightCycle.currentDay : 0;
-        };
-
-        // 🌾 Set block (helper for farming system)
-        this.setBlock = (x, y, z, blockType) => {
-            this.addBlock(x, y, z, blockType, false);
-        };
-
         this.removeBlock = (x, y, z, giveItems = true) => {
             const key = `${x},${y},${z}`;
             if (this.world[key]) {
@@ -2286,7 +2276,7 @@ class NebulaVoxelApp {
 
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools
-            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 'tool_bench', 'grappling_hook', 'crafted_grappling_hook', 'hoe'].includes(itemType)) {
+            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 'tool_bench', 'grappling_hook', 'crafted_grappling_hook'].includes(itemType)) {
                 if (context === 'status') {
                     return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
                 } else if (context === 'hotbar') {
@@ -6040,11 +6030,7 @@ class NebulaVoxelApp {
                 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
                 'magic_amulet', 'club', 'stone_spear', 'torch', 'wood_shield',
                 
-                // � Farming items
-                'hoe', 'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
-                'carrot', 'rice', 'corn_ear',
-                
-                // �🏗️ Workbench/ToolBench items
+                // 🏗️ Workbench/ToolBench items
                 'workbench', 'backpack', 'tool_bench',
                 
                 // 🎨 Crafted items (with crafted_ prefix) - allow any starting with 'crafted_'
@@ -6066,10 +6052,7 @@ class NebulaVoxelApp {
                 console.log('  stone, stick, iron, gold, coal, machete, stone_hammer, compass');
                 console.log('  grappling_hook, speed_boots, combat_sword, mining_pick, magic_amulet');
                 console.log('  club, stone_spear, torch, wood_shield');
-                console.log('%c� Valid Farming Items:', 'font-weight: bold; color: #8BC34A;');
-                console.log('  hoe, wheat_seeds, carrot_seeds, pumpkin_seeds, berry_seeds');
-                console.log('  carrot, rice, corn_ear');
-                console.log('%c�🎨 Valid Crafted Items:', 'font-weight: bold; color: #9C27B0;');
+                console.log('%c🎨 Valid Crafted Items:', 'font-weight: bold; color: #9C27B0;');
                 console.log('  Any tool with "crafted_" prefix (e.g., crafted_grappling_hook)');
                 console.log('  Or use the tools list above with crafted_ prefix');
                 return;
@@ -7270,9 +7253,7 @@ class NebulaVoxelApp {
             isActive: true,
             lastUpdate: Date.now(),
             directionalLight: directionalLight,
-            ambientLight: ambientLight,
-            currentDay: 0, // Track total days passed for farming
-            lastDayTime: 12 // Track when day changed for comparison
+            ambientLight: ambientLight
         };
 
         // Biome definitions
@@ -8742,17 +8723,7 @@ class NebulaVoxelApp {
             this.dayNightCycle.currentTime += (24 / this.dayNightCycle.cycleDuration) * deltaTime * this.dayNightCycle.timeScale;
             if (this.dayNightCycle.currentTime >= 24) {
                 this.dayNightCycle.currentTime -= 24;
-                // 🌾 FARMING: Increment day counter when day rolls over
-                this.dayNightCycle.currentDay++;
-                console.log(`🌅 New day! Day ${this.dayNightCycle.currentDay}`);
             }
-
-            // 🌾 FARMING: Track day changes (also handles initial dawn crossing)
-            if (this.dayNightCycle.lastDayTime > this.dayNightCycle.currentTime && this.dayNightCycle.lastDayTime !== 12) {
-                // Day has changed (time wrapped around midnight)
-                this.dayNightCycle.currentDay++;
-            }
-            this.dayNightCycle.lastDayTime = this.dayNightCycle.currentTime;
 
             // Calculate sun position based on time of day
             const sunAngle = ((this.dayNightCycle.currentTime - 6) / 12) * Math.PI; // Sun rises at 6am, peaks at noon, sets at 6pm
@@ -9274,11 +9245,6 @@ class NebulaVoxelApp {
             // 🎄 Update Christmas system - Mega Fir proximity alerts and snow melt
             if (this.christmasSystem) {
                 this.christmasSystem.update(deltaTime, this.player.position);
-            }
-
-            // 🌾 Update farming system - crop growth and tilled soil management
-            if (this.farmingSystem) {
-                this.farmingSystem.update();
             }
 
             // Check for nearby workbench (even when paused)
@@ -9925,28 +9891,6 @@ class NebulaVoxelApp {
                 }
 
                 if (e.button === 0) { // Left click - harvesting (blocks or crafted objects)
-                    // 🌾 HOE TILLING: Check if player has hoe equipped in player bar
-                    const hasHoe = this.hasEquippedTool('hoe');
-                    const blockData = this.getBlock(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
-                    const blockType = blockData?.type || blockData; // Handle both object and string return
-                    
-                    console.log('🌾 Hoe check:', { hasHoe, blockType, blockData, pos: { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) } });
-                    
-                    if (hasHoe && (blockType === 'grass' || blockType === 'dirt')) {
-                        // Quick till with hoe - instant action, no harvesting timer
-                        console.log('🌾 Attempting to till soil...');
-                        const success = this.farmingSystem.handleHoeUse({
-                            x: Math.floor(pos.x),
-                            y: Math.floor(pos.y),
-                            z: Math.floor(pos.z)
-                        });
-                        console.log('🌾 Till result:', success);
-                        if (success) {
-                            this.updateStatus(`🌾 Soil tilled!`, 'craft');
-                        }
-                        return; // Don't continue to harvesting
-                    }
-                    
                     // PHASE 6: Check if clicked object is a crafted object
                     if (hit.object.userData && hit.object.userData.isCraftedObject) {
                         console.log(`🎨 Harvesting crafted object: ${hit.object.userData.originalName}`);
@@ -9962,24 +9906,7 @@ class NebulaVoxelApp {
                     const selectedBlock = selectedSlot?.itemType;
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
-                        // 🌾 FARMING: Check for seeds (plantable items)
-                        if (this.farmingSystem.isSeedItem(selectedBlock)) {
-                            // Plant seeds at clicked block position
-                            const success = this.farmingSystem.handleSeedUse({
-                                x: Math.floor(pos.x),
-                                y: Math.floor(pos.y),
-                                z: Math.floor(pos.z)
-                            }, selectedBlock);
-                            
-                            if (success) {
-                                // Seed was planted and inventory already updated by farmingSystem
-                                // Just refresh the UI displays
-                                this.updateHotbarCounts();
-                                this.updateBackpackInventoryDisplay();
-                            }
-                            return; // Don't continue to block placement
-                        }
-
+                        // �️ GRAPPLING HOOK: Check if item is a grappling hook (ender pearl style teleport)
                         const metadata = this.inventoryMetadata?.[selectedBlock];
                         const isGrapplingHook = metadata?.isGrapplingHook || 
                                                selectedBlock === 'grapple_hook' || 
@@ -10029,17 +9956,14 @@ class NebulaVoxelApp {
                             return; // Don't continue to block placement
                         }
 
-                        // 🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
+                        // �🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
                         const nonPlaceableItems = [
-                            'machete', 'stone_hammer', 'hoe', 'workbench', 'backpack',
+                            'machete', 'stone_hammer', 'workbench', 'backpack',
                             'grapple_hook', 'grappling_hook', 'crafted_grappling_hook', 'speed_boots', 'crafted_speed_boots', 
                             'combat_sword', 'crafted_combat_sword', 'mining_pick', 'crafted_mining_pick',
                             'healing_potion', 'light_orb', 'magic_amulet',
                             'backpack_upgrade_1', 'backpack_upgrade_2', 'machete_upgrade',
-                            'compass', 'compass_upgrade',
-                            // 🌾 FARMING: Seeds and crops are not placeable
-                            'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
-                            'carrot', 'rice', 'corn_ear'
+                            'compass', 'compass_upgrade'
                         ];
 
                         if (nonPlaceableItems.includes(selectedBlock)) {
