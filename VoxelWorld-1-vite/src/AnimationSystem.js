@@ -191,6 +191,81 @@ export class AnimationSystem {
         return this.activeAnimations.size > 0;
     }
 
+    /**
+     * 💧 WATERING EFFECT: Particle effect for watering crops
+     * Creates falling water droplets above the target position
+     * @param {number} x - World X coordinate
+     * @param {number} y - World Y coordinate
+     * @param {number} z - World Z coordinate
+     * @param {number} duration - Effect duration in seconds (default: 1.5)
+     */
+    animateWateringEffect(x, y, z, duration = 1.5) {
+        const particles = [];
+        const particleCount = 15; // Number of water droplets
+
+        // Create water droplet particles
+        for (let i = 0; i < particleCount; i++) {
+            const geometry = new THREE.SphereGeometry(0.1, 4, 4);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x3399ff,  // Water blue
+                transparent: true,
+                opacity: 0.7
+            });
+            const droplet = new THREE.Mesh(geometry, material);
+
+            // Random starting position above the crop (spread out)
+            const offsetX = (Math.random() - 0.5) * 1.5;
+            const offsetZ = (Math.random() - 0.5) * 1.5;
+            droplet.position.set(
+                x + 0.5 + offsetX,
+                y + 2 + Math.random() * 0.5,  // Start 2-2.5 blocks above
+                z + 0.5 + offsetZ
+            );
+
+            // Store velocity for falling animation
+            droplet.userData.velocity = -2 - Math.random(); // Fall speed variation
+            droplet.userData.targetY = y + 0.5; // Land on crop
+
+            this.voxelWorld.scene.add(droplet);
+            particles.push({ mesh: droplet, geometry, material });
+        }
+
+        console.log(`💧 Watering effect started at (${x}, ${y}, ${z}) with ${particleCount} droplets`);
+
+        // Animate droplets falling and fading
+        const animId = this.animationId++;
+        this.activeAnimations.set(animId, {
+            progress: 0,
+            duration: duration,
+            onUpdate: (progress) => {
+                particles.forEach(particle => {
+                    const { mesh } = particle;
+
+                    // Fall animation
+                    if (mesh.position.y > mesh.userData.targetY) {
+                        mesh.position.y += mesh.userData.velocity * 0.016; // ~60fps
+                    }
+
+                    // Fade out over time
+                    if (mesh.material) {
+                        mesh.material.opacity = 0.7 * (1 - progress);
+                    }
+                });
+            },
+            onComplete: () => {
+                // Clean up particles
+                particles.forEach(({ mesh, geometry, material }) => {
+                    this.voxelWorld.scene.remove(mesh);
+                    geometry.dispose();
+                    material.dispose();
+                });
+                console.log(`💧 Watering effect complete - ${particleCount} droplets disposed`);
+            }
+        });
+
+        return animId;
+    }
+
     // ============================================
     // FUTURE ANIMATIONS (to be implemented)
     // ============================================

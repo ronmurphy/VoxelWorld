@@ -2211,13 +2211,14 @@ class NebulaVoxelApp {
             // ⚡ TOOLBENCH TOOLS: Check for ToolBench crafted tools FIRST (before general crafted_ parsing)
             // These are special items like crafted_grappling_hook, crafted_speed_boots, etc.
             const toolBenchTools = [
-                'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword', 
+                'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword',
                 'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
                 'crafted_compass', 'crafted_compass_upgrade', 'crafted_machete',
                 'crafted_club', 'crafted_stone_spear', 'crafted_torch', 'crafted_wood_shield',
+                'crafted_hoe', 'crafted_watering_can',
                 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
                 'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade', 'machete',
-                'club', 'stone_spear', 'torch', 'wood_shield'
+                'club', 'stone_spear', 'torch', 'wood_shield', 'hoe', 'watering_can'
             ];
             
             if (toolBenchTools.includes(itemType)) {
@@ -2325,6 +2326,7 @@ class NebulaVoxelApp {
 
                 // 🌾 FARMING ITEMS
                 hoe: '🌾',           // Hoe for tilling soil
+                watering_can: '💧',  // Watering can for crops
                 wheat_seeds: '🌾',   // Wheat seeds
                 carrot_seeds: '🥕',  // Carrot seeds
                 pumpkin_seeds: '🎃', // Pumpkin seeds
@@ -6213,6 +6215,7 @@ class NebulaVoxelApp {
             console.log('  crafted_torch, crafted_wood_shield');
             console.log('  crafted_backpack_upgrade_1, crafted_backpack_upgrade_2');
             console.log('  crafted_healing_potion, crafted_light_orb');
+            console.log('  crafted_hoe, crafted_watering_can');
             console.log('');
             
             console.log('%c💡 Usage Examples:', 'font-weight: bold; color: #FFC107;');
@@ -10046,6 +10049,27 @@ class NebulaVoxelApp {
                     const selectedBlock = selectedSlot?.itemType;
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
+                        // 🌾 FARMING TOOLS: Hoe and watering can
+                        if (selectedBlock === 'crafted_hoe' || selectedBlock === 'hoe') {
+                            // Till soil at clicked block position
+                            const success = this.farmingSystem.tillSoil(
+                                Math.floor(pos.x),
+                                Math.floor(pos.y),
+                                Math.floor(pos.z)
+                            );
+                            return; // Don't continue to block placement
+                        }
+
+                        if (selectedBlock === 'crafted_watering_can' || selectedBlock === 'watering_can') {
+                            // Water crop at clicked block position
+                            const success = this.farmingSystem.waterCrop(
+                                Math.floor(pos.x),
+                                Math.floor(pos.y),
+                                Math.floor(pos.z)
+                            );
+                            return; // Don't continue to block placement
+                        }
+
                         // 🌾 FARMING: Check for seeds (plantable items)
                         if (this.farmingSystem.isSeedItem(selectedBlock)) {
                             // Plant seeds at clicked block position
@@ -10054,7 +10078,7 @@ class NebulaVoxelApp {
                                 y: Math.floor(pos.y),
                                 z: Math.floor(pos.z)
                             }, selectedBlock);
-                            
+
                             if (success) {
                                 // Seed was planted and inventory already updated by farmingSystem
                                 // Just refresh the UI displays
@@ -10115,8 +10139,9 @@ class NebulaVoxelApp {
 
                         // 🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
                         const nonPlaceableItems = [
-                            'machete', 'stone_hammer', 'hoe', 'workbench', 'backpack',
-                            'grapple_hook', 'grappling_hook', 'crafted_grappling_hook', 'speed_boots', 'crafted_speed_boots', 
+                            'machete', 'stone_hammer', 'hoe', 'crafted_hoe', 'watering_can', 'crafted_watering_can',
+                            'workbench', 'backpack',
+                            'grapple_hook', 'grappling_hook', 'crafted_grappling_hook', 'speed_boots', 'crafted_speed_boots',
                             'combat_sword', 'crafted_combat_sword', 'mining_pick', 'crafted_mining_pick',
                             'healing_potion', 'light_orb', 'magic_amulet',
                             'backpack_upgrade_1', 'backpack_upgrade_2', 'machete_upgrade',

@@ -155,6 +155,20 @@ export class ToolBenchSystem {
                 toolType: 'hoe'
             },
 
+            watering_can: {
+                name: '💧 Watering Can',
+                items: { iron: 3, stick: 1 },
+                description: 'Water crops for 2x faster growth. Right-click farmland.',
+                clues: {
+                    iron: 'Three metal pieces, shaped to hold...',
+                    stick: 'A handle to grip, steady and bold...'
+                },
+                category: 'farming',
+                isTool: true,
+                isFarmingTool: true,
+                toolType: 'watering_can'
+            },
+
             machete_upgrade: {
                 name: '🔪 Enhanced Machete',
                 items: { machete: 1, crystal: 2, skull: 1 },

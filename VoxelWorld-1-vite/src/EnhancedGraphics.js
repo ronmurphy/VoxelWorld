@@ -65,7 +65,9 @@ export class EnhancedGraphics {
             crafted_speed_boots: 'boots_speed',
             // Farming items
             crafted_hoe: 'stick',  // Temporary: using stick.png until hoe.png is created
-            hoe: 'stick'           // Temporary: using stick.png until hoe.png is created
+            hoe: 'stick',          // Temporary: using stick.png until hoe.png is created
+            crafted_watering_can: 'watering_can',  // Will use emoji fallback until watering_can.png is created
+            watering_can: 'watering_can'           // Will use emoji fallback until watering_can.png is created
         };
 
         // UI element size configurations
