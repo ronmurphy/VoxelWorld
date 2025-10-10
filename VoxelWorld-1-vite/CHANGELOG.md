@@ -169,6 +169,91 @@ listItems()                  // Shows farming category
 - More crop varieties
 - Seasonal crops
 
+**Future Farming Enhancements (Next Session):**
+
+🌾 **High Priority (Core Mechanics):**
+1. **Watering System** - CropGrowthManager has 2x growth logic ready, needs:
+   - Water bucket tool (craft from iron?)
+   - Right-click tilled soil to water
+   - Visual indicator (darker/wetter soil texture or particle effect)
+   - Water state persists in crop save data
+
+2. **Visual Improvements**:
+   - Billboard sprites for crops (Minecraft-style X-shaped plants)
+   - Or simple 3D models instead of solid block stages
+   - Animated growth transitions
+   - Crop sway animation in wind
+
+🌱 **Medium Priority (Expansion):**
+3. **More Crop Varieties**: Tomatoes, corn, potatoes, onions, beets
+4. **Fertilizer System**: Compost from dead leaves/grass → boost growth speed or quality
+5. **Crop Quality Tiers**: Perfect/Good/Normal based on watering consistency
+6. **Cooking Station**: Upgrade from campfire, combine crops into meals with buffs
+
+🎃 **Optional (Advanced Features):**
+7. **Scarecrows**: Decorative + future pest/bird protection mechanic
+8. **Greenhouse Building**: Multi-block structure for year-round farming
+9. **Seasonal Crops**: Winter/summer exclusives tied to day/night cycle seasons
+10. **Irrigation System**: Sprinklers or water channels for auto-watering
+
+---
+
+## 2025-10-10 Late Night - Combat Arena Ground Positioning Fix
+
+**Status: FIXED ✅**
+
+### ⚔️ Combat Arena Positioning & Sprite Clipping
+
+**Overview:**
+Fixed combat arena and combatant sprite positioning to properly align with player's ground level. Identified near-plane clipping issue when sprites get close to camera.
+
+**Fixes Applied:**
+
+1. **Arena Ground Level Calculation** (BattleArena.js:93-95):
+   - **Problem**: Arena and combatants were floating in air (player.position.y is at eye level, not feet)
+   - **First Attempt**: Subtracted 1.6 blocks (full player height) - went too far underground
+   - **Final Fix**: Subtract 0.80 blocks for proper ground-level positioning
+   ```javascript
+   const groundOffset = 0.80; // Adjust slightly down to raise combatants a bit
+   const footY = playerPos.y - groundOffset;
+   ```
+
+2. **Arena Wall Height Reduction** (BattleArena.js:76):
+   - Reduced from 2.5 blocks to 0.5 blocks for subtle border
+   - Creates attention-grabbing boundary without blocking view
+   - Arena square stays at ground level while combatants positioned correctly
+
+3. **Companion Portrait HP Sync** (CombatantSprite.js:192-195, BattleArena.js:51):
+   - Added VoxelWorld reference to companion sprite
+   - HP updates during combat now sync to companion portrait UI
+   - Real-time HP bar updates on portrait during battles
+
+**Known Issue (Not Yet Fixed):**
+
+⚠️ **Near-Plane Clipping**: When combatants move close to camera during attack animations, parts of their sprites get cut off (pass through camera's near clipping plane).
+
+**Planned Fix:**
+Adjust camera near plane in VoxelWorld.js from default (~0.1 or 1.0) to smaller value like 0.01:
+```javascript
+this.camera = new THREE.PerspectiveCamera(
+    75,                          // FOV
+    window.innerWidth / window.innerHeight,  // Aspect
+    0.01,                        // Near plane (smaller = less clipping)
+    1000                         // Far plane
+);
+```
+
+**Console Log Cleanup** (VoxelWorld.js:7055, ChunkLODManager.js:201, 236):
+- Commented out fog update debug logs
+- Commented out LOD chunk loading logs
+- Cleaner console output during battles
+
+**Files Modified:**
+- `src/BattleArena.js` (lines 76, 93-95, 51) - Ground positioning and wall height
+- `src/CombatantSprite.js` (lines 11, 16, 192-195) - HP sync with portrait
+- `src/VoxelWorld.js` (line 7055) - Fog log cleanup
+- `src/rendering/ChunkLODManager.js` (lines 201, 236) - LOD log cleanup
+
 ---
 
 ## 2025-10-09 - Christmas System & Advanced Battle System
