@@ -4,7 +4,155 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
-## 2025-10-10 - 🌾 Complete Farming System Implementation
+## 2025-10-10 (Evening) - 🔥 Campfire Respawn System & Battle Fixes
+
+**Status: FULLY IMPLEMENTED ✅**
+
+### 🔥 Campfire Respawn System
+
+**Overview:**
+Implemented campfire-based respawn system where crafted pyramids named "Campfire" become save points. Players respawn at the last placed campfire when defeated in battle.
+
+**Core Features:**
+
+1. **Pyramid → Campfire Crafting**:
+   - Craft any wood pyramid in ShapeForge
+   - Naming modal automatically suggests "Campfire" as default name
+   - Gold hint box displays: "💡 Tip: Name it 'Campfire' to set as your respawn point when placed!"
+   - System automatically appends "_campfire" suffix to itemId when named "Campfire"
+
+2. **Campfire Detection**:
+   - Pattern matching detects: `'campfire'`, `'Campfire'`, or any itemId containing `'_campfire'`
+   - Works with crafted items: `crafted_oak_wood_pyramid_0.8x0.8x0.6_campfire`
+   - Tracks last placed campfire coordinates + timestamp
+
+3. **Save System Integration**:
+   - Placing campfire saves respawn point to localStorage
+   - Bottom-left status notification: "🔥 Game saved! Respawn point updated!"
+   - Status icon changes to 🔥 for 3 seconds, then reverts to 🎮
+   - Persists across game sessions
+
+4. **Respawn Mechanics**:
+   - Player defeated in battle → respawn at campfire (or world spawn if no campfire)
+   - Spawn offset: +2 blocks X/Z, +1 block Y (avoids clipping into campfire)
+   - Player respawns with 1 heart, companion healed to full HP
+   - Hearts HUD persists when damaged, auto-hides when fully healed
+
+5. **Cleanup Functions Updated**:
+   - `clearCaches()` - Now clears campfire data
+   - `clearAllData()` - Now clears campfire data
+   - `nuclearClear()` - Full reset including campfire saves
+
+**Implementation Files:**
+
+- **VoxelWorld.js**:
+  - Line 77: Added `respawnCampfire` property
+  - Line 78: Added `spawnPosition` default
+  - Lines 613-642: Campfire detection with pattern matching
+  - Lines 756-771: `saveRespawnPoint()` and `loadRespawnPoint()` methods
+  - Updated cleanup functions to remove campfire data
+
+- **WorkbenchSystem.js**:
+  - Lines 1758-1790: Pyramid detection + "Campfire" default name + hint UI
+  - Lines 2083-2088: Automatic "_campfire" suffix appending
+  - Campfire hint: Orange background with gold text
+
+- **BattleArena.js**:
+  - Lines 693-706: Campfire respawn logic with fallback to world spawn
+  - Lines 685-688: Immediate movement flag clearing on respawn
+  - Context-aware dialogue mentions campfire if present
+
+**User Experience:**
+
+```
+1. Craft wood pyramid in ShapeForge
+2. Name it "Campfire" (pre-filled, hint shown)
+3. Place campfire in world
+4. Status shows: "🔥 Game saved! Respawn point updated!"
+5. Die in battle
+6. Respawn at campfire with 1 heart
+7. Movement works immediately, no restrictions
+```
+
+---
+
+### ⚔️ Battle System Fixes
+
+**Critical Bug Fixes:**
+
+1. **Movement Restriction After Respawn** ✅
+   - **Issue**: Player couldn't move after respawning from battle defeat
+   - **Cause**: Race condition - `cleanup()` had 500ms setTimeout but respawn was immediate
+   - **Fix**: Added immediate movement flag clearing before cleanup (BattleArena.js:685-688)
+   ```javascript
+   this.voxelWorld.movementEnabled = true;
+   this.voxelWorld.inBattleArena = false;
+   this.voxelWorld.keys = {}; // Clear stuck keys
+   ```
+
+2. **CombatantSprite Null Position Error** ✅
+   - **Issue**: `Cannot read properties of null (reading 'position')` at line 407
+   - **Cause**: Animation intervals tried to access sprite.position after sprite was destroyed
+   - **Fix**: Added null safety checks to 3 animation methods (CombatantSprite.js):
+     - `playVictory()` - Lines 402-430
+     - `playFallback()` - Lines 344-382
+     - `playDefeat()` - Lines 450-472
+   - Each method now checks `if (!this.sprite)` before and during animations
+
+3. **Notification System Fix** ✅
+   - **Issue**: Campfire notification used wrong method
+   - **Fix**: Now directly manipulates HTML status elements:
+     - `status-icon` → 🔥
+     - `status-text` → "Game saved! Respawn point updated!"
+     - Auto-resets after 3 seconds
+
+**Files Modified:**
+- `src/BattleArena.js` - Respawn movement fix
+- `src/CombatantSprite.js` - Animation safety checks
+- `src/VoxelWorld.js` - Campfire detection + notification
+
+---
+
+### 🎃 Future Feature Note: Pumpkin Ghost Attraction
+
+**Concept**: Jack-o'-lantern ghost magnet mechanic
+
+**Behavior**:
+1. **Holding Pumpkin**: When player has pumpkin selected in hotbar:
+   - Nearby ghosts (ruin ghosts, forest ghosts) detect pumpkin
+   - Ghosts follow player while pumpkin is held
+   - Peaceful following behavior (no attacks)
+
+2. **Placing Pumpkin**: When pumpkin placed as block:
+   - Following ghosts orbit around placed pumpkin
+   - Ghosts circle/float near pumpkin location
+   - Creates spooky ambient decoration
+
+3. **Removing Pumpkin**: When pumpkin picked up/destroyed:
+   - Ghosts lose attraction and wander away
+   - Return to original spawn zones
+   - Resume normal ghost behavior
+
+**Technical Notes**:
+- Add proximity detection for ghosts (scan radius ~20 blocks)
+- Check player's selected hotbar slot for pumpkin itemId
+- Ghost follow AI: lerp toward player position when pumpkin held
+- Ghost orbit AI: circle animation around placed pumpkin block
+- Reset ghost behavior on pumpkin removal
+
+**Similar Systems**:
+- Minecraft: Pigs/cows follow wheat
+- Terraria: Town NPCs move to houses
+- Stardew Valley: Animals follow when you hold hay
+
+**Files to Modify**:
+- `VoxelWorld.js` - Hotbar pumpkin detection
+- Ghost billboard system - Follow/orbit behavior
+- Block placement/removal handlers
+
+---
+
+## 2025-10-10 (Morning) - 🌾 Complete Farming System Implementation
 
 **Status: FULLY IMPLEMENTED ✅**
 

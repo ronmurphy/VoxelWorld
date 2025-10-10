@@ -74,6 +74,8 @@ class NebulaVoxelApp {
         this.selectedSlot = 0;
         this.movementEnabled = true; // Separate flag for movement vs camera controls
         this.inBattleArena = false; // Flag for 8x8 arena movement restriction
+        this.respawnCampfire = null; // 🔥 Track last placed campfire for respawn point
+        this.spawnPosition = { x: 0, y: 20, z: 0 }; // Default world spawn
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
@@ -607,6 +609,37 @@ class NebulaVoxelApp {
                 position: { x, y, z },
                 dimensions: dimensions
             };
+
+            // 🔥 CAMPFIRE RESPAWN SYSTEM: Track last placed campfire
+            // Check for campfire items: 'campfire', 'Campfire', or crafted items with '_campfire' suffix
+            const isCampfire = itemId === 'campfire' ||
+                             itemId === 'Campfire' ||
+                             itemId.toLowerCase().includes('_campfire');
+
+            if (isCampfire) {
+                this.respawnCampfire = {
+                    x: Math.floor(x),
+                    y: Math.floor(y),
+                    z: Math.floor(z),
+                    timestamp: Date.now()
+                };
+                this.saveRespawnPoint();
+                console.log(`🔥 Respawn point set at campfire (${Math.floor(x)}, ${Math.floor(y)}, ${Math.floor(z)})`);
+
+                // Update bottom-left status area
+                const statusIcon = document.getElementById('status-icon');
+                const statusText = document.getElementById('status-text');
+                if (statusIcon && statusText) {
+                    statusIcon.textContent = '🔥';
+                    statusText.textContent = 'Game saved! Respawn point updated!';
+
+                    // Reset back to default after 3 seconds
+                    setTimeout(() => {
+                        statusIcon.textContent = '🎮';
+                        statusText.textContent = 'Ready to explore!';
+                    }, 3000);
+                }
+            }
         };
 
         // 🪜 AUTO-STACKING LADDER PLACEMENT SYSTEM
@@ -735,6 +768,25 @@ class NebulaVoxelApp {
 
             return null; // No wall found
         };
+
+        // 🔥 CAMPFIRE RESPAWN SYSTEM: Save/Load Methods
+        this.saveRespawnPoint = () => {
+            if (this.respawnCampfire) {
+                localStorage.setItem('NebulaWorld_respawnCampfire', JSON.stringify(this.respawnCampfire));
+                console.log('💾 Respawn point saved to localStorage');
+            }
+        };
+
+        this.loadRespawnPoint = () => {
+            const saved = localStorage.getItem('NebulaWorld_respawnCampfire');
+            if (saved) {
+                this.respawnCampfire = JSON.parse(saved);
+                console.log(`🔥 Loaded respawn campfire from localStorage: (${this.respawnCampfire.x}, ${this.respawnCampfire.y}, ${this.respawnCampfire.z})`);
+            }
+        };
+
+        // Load campfire respawn point immediately after defining the function
+        this.loadRespawnPoint();
 
         // Check if block type should use billboard
         this.shouldUseBillboard = (type) => {
@@ -5887,9 +5939,9 @@ class NebulaVoxelApp {
         // Can be called from browser console: clearAllData()
         window.clearAllData = () => {
             console.log('🧹 Clearing all localStorage and IndexedDB data...');
-            localStorage.clear();
+            localStorage.clear(); // This includes campfire respawn data
             indexedDB.deleteDatabase('VoxelWorld').onsuccess = () => {
-                console.log('✅ All data cleared! Reloading page...');
+                console.log('✅ All data cleared (including campfire respawn)! Reloading page...');
                 location.reload();
             };
         };
@@ -5898,8 +5950,8 @@ class NebulaVoxelApp {
         window.nuclearClear = () => {
             console.log('🧨💥 NUCLEAR CLEAR - WIPING EVERYTHING...');
 
-            // 1. Clear all localStorage
-            console.log('🧹 Clearing localStorage...');
+            // 1. Clear all localStorage (includes campfire respawn)
+            console.log('🧹 Clearing localStorage (including campfire respawn)...');
             localStorage.clear();
 
             // 2. Clear all sessionStorage
@@ -6011,6 +6063,10 @@ class NebulaVoxelApp {
             // 7. Clear tutorial flags (you can see tutorials again)
             console.log('🧹 Clearing tutorial flags...');
             localStorage.removeItem('voxelworld_workbench_tutorial_seen');
+
+            // 8. Clear campfire respawn point (temporary data)
+            console.log('🧹 Clearing campfire respawn point...');
+            localStorage.removeItem('NebulaWorld_respawnCampfire');
 
             console.log('🧹✅ CACHE CLEAR COMPLETE! Reloading page in 1 second...');
             console.log('💾 Your saved game (NebulaWorld) has been preserved!');
@@ -7191,7 +7247,7 @@ class NebulaVoxelApp {
 
         const width = window.innerWidth;
         const height = window.innerHeight;
-        this.camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(75, width / height, 0.01, 1000); // Near-plane: 0.01 (was 0.1) to prevent sprite clipping
         this.camera.position.set(0, 10, 20);
 
         // � Initialize LOD Manager now that camera is ready
@@ -9411,11 +9467,13 @@ class NebulaVoxelApp {
             };
 
             // AABB collision detection between two hitboxes
+            // Added small epsilon (0.001) to prevent exact edge-touching from registering as collision
+            const COLLISION_EPSILON = 0.001;
             const hitboxesCollide = (hitbox1, hitbox2) => {
                 return (
-                    hitbox1.minX <= hitbox2.maxX && hitbox1.maxX >= hitbox2.minX &&
-                    hitbox1.minY <= hitbox2.maxY && hitbox1.maxY >= hitbox2.minY &&
-                    hitbox1.minZ <= hitbox2.maxZ && hitbox1.maxZ >= hitbox2.minZ
+                    hitbox1.minX < hitbox2.maxX - COLLISION_EPSILON && hitbox1.maxX > hitbox2.minX + COLLISION_EPSILON &&
+                    hitbox1.minY < hitbox2.maxY - COLLISION_EPSILON && hitbox1.maxY > hitbox2.minY + COLLISION_EPSILON &&
+                    hitbox1.minZ < hitbox2.maxZ - COLLISION_EPSILON && hitbox1.maxZ > hitbox2.minZ + COLLISION_EPSILON
                 );
             };
 

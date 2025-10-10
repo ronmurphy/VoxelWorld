@@ -55,7 +55,7 @@ export class CombatantSprite {
             opacity: 1.0,
         });
 
-        // Create sprite (2 blocks tall for visibility)
+        // Create sprite (2.0 blocks tall - reasonable size with PNG padding)
         this.sprite = new THREE.Sprite(material);
         this.sprite.scale.set(2.0, 2.0, 1);
         this.sprite.position.set(x, y, z);
@@ -342,6 +342,12 @@ export class CombatantSprite {
      * Shows when losing 50%+ HP in one hit
      */
     playFallback() {
+        // Safety check: Don't animate if sprite is destroyed
+        if (!this.sprite) {
+            console.warn('⚠️ Cannot play fallback animation: sprite is null');
+            return;
+        }
+
         const originalPos = this.sprite.position.clone();
 
         // Knockback
@@ -357,13 +363,21 @@ export class CombatantSprite {
         // Shake effect
         let shakeTime = 0;
         const shakeInterval = setInterval(() => {
+            // Safety check inside interval
+            if (!this.sprite) {
+                clearInterval(shakeInterval);
+                return;
+            }
+
             shakeTime += 50;
             this.sprite.position.y += (Math.random() - 0.5) * 0.1;
 
             if (shakeTime >= 500) {
                 clearInterval(shakeInterval);
-                this.sprite.position.copy(originalPos);
-                this.showReadyPose();
+                if (this.sprite) {
+                    this.sprite.position.copy(originalPos);
+                    this.showReadyPose();
+                }
             }
         }, 50);
     }
@@ -399,16 +413,30 @@ export class CombatantSprite {
      * Play victory animation
      */
     playVictory() {
+        // Safety check: Don't animate if sprite is destroyed
+        if (!this.sprite) {
+            console.warn('⚠️ Cannot play victory animation: sprite is null');
+            return;
+        }
+
         // Bounce animation
         const originalY = this.sprite.position.y;
         let bounceTime = 0;
         const bounceInterval = setInterval(() => {
+            // Safety check inside interval
+            if (!this.sprite) {
+                clearInterval(bounceInterval);
+                return;
+            }
+
             bounceTime += 0.05;
             this.sprite.position.y = originalY + Math.sin(bounceTime * 10) * 0.3;
 
             if (bounceTime > 1) {
                 clearInterval(bounceInterval);
-                this.sprite.position.y = originalY;
+                if (this.sprite) {
+                    this.sprite.position.y = originalY;
+                }
             }
         }, 50);
 
@@ -420,8 +448,20 @@ export class CombatantSprite {
      * Play defeat animation (fade out)
      */
     playDefeat() {
+        // Safety check: Don't animate if sprite is destroyed
+        if (!this.sprite) {
+            console.warn('⚠️ Cannot play defeat animation: sprite is null');
+            return;
+        }
+
         let opacity = 1.0;
         const fadeInterval = setInterval(() => {
+            // Safety check inside interval
+            if (!this.sprite || !this.sprite.material) {
+                clearInterval(fadeInterval);
+                return;
+            }
+
             opacity -= 0.05;
             this.sprite.material.opacity = opacity;
 

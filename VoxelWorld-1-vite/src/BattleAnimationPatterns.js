@@ -11,7 +11,7 @@ import * as THREE from 'three';
  * Base class for all battle animation patterns
  */
 class BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.0) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         this.arenaCenter = arenaCenter;
         this.arenaRadius = arenaRadius;
         this.time = 0;
@@ -51,7 +51,7 @@ class BattlePattern {
  * Combatants stay on opposite sides with slight side-to-side movement
  */
 export class SemiOrbitPattern extends BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.0) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         super(arenaCenter, arenaRadius);
         this.swaySpeed = 1.5; // Speed of side-to-side movement
         this.swayAmount = 0.3; // How far they sway
@@ -87,7 +87,7 @@ export class SemiOrbitPattern extends BattlePattern {
  * Combatants dash toward center during attacks, retreat to edges
  */
 export class RadialBurstPattern extends BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.5) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         super(arenaCenter, arenaRadius); // Slightly larger radius for burst effect
         this.pulseSpeed = 0.8;
         this.pulseAmount = 0.2;
@@ -134,7 +134,7 @@ export class RadialBurstPattern extends BattlePattern {
  * Combatants orbit in opposite directions, stalking each other
  */
 export class CircleStrafePattern extends BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.0) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         super(arenaCenter, arenaRadius);
         this.rotationSpeed = 0.5; // Radians per second
         this.companionAngle = 0;
@@ -180,7 +180,7 @@ export class CircleStrafePattern extends BattlePattern {
  * Both combatants trace figure-8 paths around two focal points
  */
 export class Figure8Pattern extends BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.0) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         super(arenaCenter, arenaRadius);
         this.loopSpeed = 0.4; // Speed of figure-8 trace
         this.companionPhase = 0;
@@ -226,7 +226,7 @@ export class Figure8Pattern extends BattlePattern {
  * Combatants swing back and forth like pendulums on opposite sides
  */
 export class PendulumPattern extends BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.0) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         super(arenaCenter, arenaRadius);
         this.swingSpeed = 1.2;
         this.swingArc = 0.8; // Radians of swing arc
@@ -262,7 +262,7 @@ export class PendulumPattern extends BattlePattern {
  * Combatants spiral toward center, then back out in a cycle
  */
 export class SpiralPattern extends BattlePattern {
-    constructor(arenaCenter, arenaRadius = 2.5) {
+    constructor(arenaCenter, arenaRadius = 3.0) {
         super(arenaCenter, arenaRadius);
         this.spiralSpeed = 0.6;
         this.spiralCycle = 6.0; // Seconds for full in/out cycle
@@ -300,7 +300,7 @@ export class SpiralPattern extends BattlePattern {
 /**
  * Pattern factory - randomly select a pattern
  */
-export function getRandomBattlePattern(arenaCenter, arenaRadius = 2.0) {
+export function getRandomBattlePattern(arenaCenter, arenaRadius = 3.0) {
     const patterns = [
         SemiOrbitPattern,
         RadialBurstPattern,

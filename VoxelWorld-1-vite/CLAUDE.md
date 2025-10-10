@@ -92,12 +92,22 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
   - **BattleArena.js**: 3D arena combat with visual walls and floor
   - **BattleAnimationPatterns.js**: 6 dynamic movement patterns (randomly selected)
   - **CombatantSprite.js**: Billboard sprites with HP bars and pose swapping
+  - **PlayerHP.js**: 3-heart health system with damage/defeat mechanics
   - Turn-based combat with d20 hit rolls, d6 damage, speed-based initiative
   - Player can move within 8x8 arena during battle
+  - Player can enter danger zone (red walls) at risk of damage from enemy collision
   - Item targeting system (aim at companion to use potions/buffs)
   - Dodge/critical/fallback animations based on combat outcomes
   - Context-aware victory dialogue (HP-based companion responses)
   - Equipment bonuses from CompanionCodex integration
+  - Player defeat respawns at campfire (or world spawn) with 1 heart
+- **Campfire Respawn System**: Save point system using crafted pyramids
+  - Craft any wood pyramid in ShapeForge, name it "Campfire"
+  - Placing campfire saves respawn point to localStorage
+  - Pattern detection: checks for 'campfire', 'Campfire', or '_campfire' suffix
+  - Status notification shows "🔥 Game saved! Respawn point updated!"
+  - Player respawns at campfire (+2 blocks offset) when defeated in battle
+  - Campfire data persists across sessions, cleared by cleanup functions
 - **Mobile Support**: Virtual joysticks with automatic device detection
 - **Performance Scaling**: Automatic render distance adjustment
 - **LOD System**: ChunkLODManager renders simplified colored chunks beyond render distance
@@ -284,7 +294,11 @@ Console utilities (exposed via `window.voxelApp`):
 
 ### Optional Enhancements
 1. **Companion Portrait UI**: Clickable companion portrait near hotbar (show HP, chat access)
-2. **Halloween Ghost Following**: Ruin ghosts and night forest ghosts with cumulative spawn chance
+2. **Pumpkin Ghost Attraction**: Jack-o'-lantern ghost magnet mechanic
+   - Holding pumpkin in hotbar → nearby ghosts follow player peacefully
+   - Placing pumpkin → ghosts orbit around placed pumpkin
+   - Removing pumpkin → ghosts wander back to original spawn zones
+   - Proximity detection (~20 block radius), lerp follow AI, circle orbit animation
 3. **Floating Islands**: Add special loot, quest markers, visual effects
 4. **Potions & Consumables**: Healing items for battle system (integrate with farming crops)
 

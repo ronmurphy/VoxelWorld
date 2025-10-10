@@ -1754,7 +1754,11 @@ export class WorkbenchSystem {
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.placeholder = 'Enter a name for your creation...';
-        nameInput.value = `Custom ${itemData.shape.charAt(0).toUpperCase() + itemData.shape.slice(1)}`;
+
+        // 🔥 Special handling for pyramids - suggest "Campfire" as default name
+        const isPyramid = itemData.shape === 'pyramid';
+        nameInput.value = isPyramid ? 'Campfire' : `Custom ${itemData.shape.charAt(0).toUpperCase() + itemData.shape.slice(1)}`;
+
         nameInput.style.cssText = `
             width: 100%;
             padding: 12px;
@@ -1763,10 +1767,27 @@ export class WorkbenchSystem {
             border-radius: 8px;
             background: rgba(255, 255, 255, 0.9);
             color: #333;
-            margin-bottom: 20px;
+            margin-bottom: ${isPyramid ? '10px' : '20px'};
             outline: none;
             box-sizing: border-box;
         `;
+
+        // 🔥 Add hint for pyramid campfires
+        let campfireHint = null;
+        if (isPyramid) {
+            campfireHint = document.createElement('div');
+            campfireHint.style.cssText = `
+                color: #FFD700;
+                font-size: 13px;
+                text-align: center;
+                margin-bottom: 20px;
+                padding: 8px;
+                background: rgba(255, 165, 0, 0.2);
+                border-radius: 6px;
+                border: 1px solid rgba(255, 215, 0, 0.3);
+            `;
+            campfireHint.innerHTML = `💡 <strong>Tip:</strong> Name it "Campfire" to set as your respawn point when placed!`;
+        }
 
         // Focus and select text
         setTimeout(() => {
@@ -1864,6 +1885,12 @@ export class WorkbenchSystem {
         container.appendChild(title);
         container.appendChild(itemInfo);
         container.appendChild(nameInput);
+
+        // 🔥 Add campfire hint if it's a pyramid
+        if (campfireHint) {
+            container.appendChild(campfireHint);
+        }
+
         container.appendChild(buttonsContainer);
 
         namingModal.appendChild(container);
@@ -2074,7 +2101,14 @@ export class WorkbenchSystem {
         };
 
         // Create item identifier for Material Icons system (no timestamp for icon matching)
-        const itemId = `crafted_${itemData.material}_${itemData.shape}_${itemData.length}x${itemData.width}x${itemData.height}`;
+        let itemId = `crafted_${itemData.material}_${itemData.shape}_${itemData.length}x${itemData.width}x${itemData.height}`;
+
+        // 🔥 Special handling: Append "_campfire" suffix for pyramids named "Campfire"
+        // This allows the respawn system to detect campfires by checking for "_campfire" in the itemId
+        if (itemData.shape === 'pyramid' && itemName === 'Campfire') {
+            itemId += '_campfire';
+            console.log('🔥 Campfire detected! Appended "_campfire" suffix to itemId:', itemId);
+        }
 
         console.log('🎨 Enhanced Item Data:', enhancedItemData);
 

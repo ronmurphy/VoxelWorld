@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { CombatantSprite } from './CombatantSprite.js';
 import { ChatOverlay } from './ui/Chat.js';
 import { getRandomBattlePattern, getBattlePatternByName } from './BattleAnimationPatterns.js';
+import { PlayerHP } from './PlayerHP.js';
 
 export class BattleArena {
     constructor(voxelWorld) {
@@ -20,11 +21,16 @@ export class BattleArena {
         this.companionSprite = null;
         this.enemySprite = null;
 
-        // Arena settings
+        // Arena settings (configurable per battle)
         this.arenaCenter = new THREE.Vector3();
-        this.arenaRadius = 2.0; // How far combatants orbit from center
-        this.arenaSize = 8; // 8x8 block arena for player movement
-        this.arenaWalls = []; // Visual boundary walls
+        this.arenaSize = 10; // Outer arena boundary (gold walls) - player movement limit
+        this.defaultArenaSize = 10; // Base size for normal battles
+        this.dangerZoneSize = 7; // Inner danger zone (red walls) - entering = risk damage from enemies
+        this.defaultDangerZoneSize = 7; // Default danger zone (visual warning only)
+        this.battleRadius = 3.5; // Inner circle where combatants orbit (independent of arena size)
+        this.defaultBattleRadius = 3.5; // Default battle radius (keeps sprites away from camera)
+        this.arenaWalls = []; // Outer boundary walls (gold) - hard limit
+        this.dangerZoneWalls = []; // Inner danger zone walls (red) - visual warning, player can enter at risk
         this.arenaFloor = null; // Arena floor marker
 
         // Player movement restriction
@@ -76,9 +82,19 @@ export class BattleArena {
         }
 
         console.log(`⚔️ Arena Battle: ${companionData.name} vs ${enemyData.name}`);
-        
+
         // Store special effects for companion
         this.companionSpecialEffects = companionSpecialEffects;
+
+        // 🎯 Configure arena sizes and battle radius based on enemy data
+        // arenaSize: Outer player boundary (default 10x10, gold walls) - HARD LIMIT
+        // dangerZoneSize: Inner danger zone (default 7x7, red walls) - VISUAL WARNING, player can enter at risk
+        // battleRadius: Where sprites orbit (default 3.5)
+        this.arenaSize = enemyData.arenaSize || this.defaultArenaSize;
+        this.dangerZoneSize = enemyData.dangerZoneSize || this.defaultDangerZoneSize;
+        this.battleRadius = enemyData.battleRadius || this.defaultBattleRadius;
+
+        console.log(`⚔️ Arena configured: ${this.arenaSize}x${this.arenaSize} boundary, ${this.dangerZoneSize}x${this.dangerZoneSize} danger zone, battle radius: ${this.battleRadius}`);
 
         this.isActive = true;
 
@@ -94,29 +110,49 @@ export class BattleArena {
         const groundOffset = 0.80; // Adjust slightly down to raise combatants a bit
         const footY = playerPos.y - groundOffset;
 
-        // Position arena 4 blocks ahead of player at ground/foot level
+        // Position arena ahead of player at ground/foot level
+        // Arena center is (arenaSize/2 + 2) blocks ahead so player starts at back edge with 2 block buffer
+        const arenaDistance = (this.arenaSize / 2) + 2;
         this.arenaCenter.set(
-            playerPos.x + (forwardX * 4),
+            playerPos.x + (forwardX * arenaDistance),
             footY, // Ground level (player's feet)
-            playerPos.z + (forwardZ * 4)
+            playerPos.z + (forwardZ * arenaDistance)
         );
 
         // Store player start position
         this.playerStartPos.copy(playerPos);
 
-        // Calculate 8x8 movement bounds centered on arena
-        const halfSize = this.arenaSize / 2;
+        // Calculate movement bounds: only restrict to outer arena (gold walls)
+        // Player can move freely in entire arena, including danger zone (red walls = visual warning only)
+        const halfArena = this.arenaSize / 2;
         this.movementBounds = {
-            minX: this.arenaCenter.x - halfSize,
-            maxX: this.arenaCenter.x + halfSize,
-            minZ: this.arenaCenter.z - halfSize,
-            maxZ: this.arenaCenter.z + halfSize
+            minX: this.arenaCenter.x - halfArena,
+            maxX: this.arenaCenter.x + halfArena,
+            minZ: this.arenaCenter.z - halfArena,
+            maxZ: this.arenaCenter.z + halfArena
         };
 
-        // Create arena walls and floor
-        this.createArenaWalls();
+        // Store danger zone bounds for future damage detection
+        const halfDanger = this.dangerZoneSize / 2;
+        this.dangerZoneBounds = {
+            minX: this.arenaCenter.x - halfDanger,
+            maxX: this.arenaCenter.x + halfDanger,
+            minZ: this.arenaCenter.z - halfDanger,
+            maxZ: this.arenaCenter.z + halfDanger
+        };
 
-        // Enable player MOVEMENT but restrict to 8x8 area
+        // Create arena walls (outer, gold) and danger zone walls (inner, red)
+        this.createArenaWalls();
+        this.createDangerZoneWalls();
+
+        // Initialize player HP system (show hearts HUD)
+        if (!this.voxelWorld.playerHP) {
+            this.voxelWorld.playerHP = new PlayerHP(this.voxelWorld);
+        }
+        this.voxelWorld.playerHP.show();
+        this.voxelWorld.playerHP.reset(); // Reset to 3 hearts at battle start
+
+        // Enable player MOVEMENT but restrict to arena boundaries
         this.voxelWorld.movementEnabled = true;
         this.voxelWorld.inBattleArena = true; // Flag for movement restriction
 
@@ -127,8 +163,8 @@ export class BattleArena {
         this.enemyData = enemyData;
         this.companionData = companionData;
 
-        // Select random battle animation pattern
-        this.currentPattern = getRandomBattlePattern(this.arenaCenter, this.arenaRadius);
+        // Select random battle animation pattern (uses battleRadius for inner circle)
+        this.currentPattern = getRandomBattlePattern(this.arenaCenter, this.battleRadius);
         console.log(`🎭 Battle pattern selected: ${this.currentPattern.constructor.name}`);
 
         // Create combatant sprites (pass voxelWorld to companion for portrait updates)
@@ -162,8 +198,8 @@ export class BattleArena {
         const wallColor = 0x8B4513; // Brown/bronze color
         const glowColor = 0xFFD700; // Gold glow
 
-        // Material with emissive glow
-        const wallMaterial = new THREE.MeshBasicMaterial({
+        // Material with emissive glow (use MeshLambertMaterial for emissive support)
+        const wallMaterial = new THREE.MeshLambertMaterial({
             color: wallColor,
             emissive: glowColor,
             emissiveIntensity: 0.3,
@@ -199,14 +235,14 @@ export class BattleArena {
             this.arenaWalls.push(wall);
         });
 
-        // Create arena floor marker (subtle glowing circle)
+        // Create arena floor marker (invisible - just for reference/future use)
         const floorGeometry = new THREE.CircleGeometry(halfSize, 32);
-        const floorMaterial = new THREE.MeshBasicMaterial({
+        const floorMaterial = new THREE.MeshLambertMaterial({
             color: 0x444444,
             emissive: glowColor,
             emissiveIntensity: 0.1,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.0, // Made invisible (was 0.3)
             side: THREE.DoubleSide
         });
 
@@ -220,7 +256,56 @@ export class BattleArena {
 
         this.scene.add(this.arenaFloor);
 
-        console.log('⚔️ Arena walls created (8x8 boundary)');
+        console.log(`⚔️ Arena walls created (${this.arenaSize}x${this.arenaSize} boundary)`);
+    }
+
+    /**
+     * Create danger zone walls (visual warning - player can enter at risk)
+     */
+    createDangerZoneWalls() {
+        const wallHeight = 0.8; // Taller than outer walls for visibility
+        const wallThickness = 0.15; // Slightly thicker
+        const wallColor = 0xFF4444; // Red/danger color
+        const glowColor = 0xFF0000; // Red glow
+
+        // Material with bright emissive glow (highly visible warning)
+        const wallMaterial = new THREE.MeshLambertMaterial({
+            color: wallColor,
+            emissive: glowColor,
+            emissiveIntensity: 0.5, // Brighter glow than outer walls
+            transparent: true,
+            opacity: 0.7
+        });
+
+        const halfSize = this.dangerZoneSize / 2;
+
+        // Create 4 wall segments (north, south, east, west)
+        const walls = [
+            // North wall
+            { x: 0, z: halfSize, width: this.dangerZoneSize, depth: wallThickness },
+            // South wall
+            { x: 0, z: -halfSize, width: this.dangerZoneSize, depth: wallThickness },
+            // East wall
+            { x: halfSize, z: 0, width: wallThickness, depth: this.dangerZoneSize },
+            // West wall
+            { x: -halfSize, z: 0, width: wallThickness, depth: this.dangerZoneSize }
+        ];
+
+        walls.forEach(wallData => {
+            const geometry = new THREE.BoxGeometry(wallData.width, wallHeight, wallData.depth);
+            const wall = new THREE.Mesh(geometry, wallMaterial);
+
+            wall.position.set(
+                this.arenaCenter.x + wallData.x,
+                this.arenaCenter.y + wallHeight / 2, // Just above ground
+                this.arenaCenter.z + wallData.z
+            );
+
+            this.scene.add(wall);
+            this.dangerZoneWalls.push(wall);
+        });
+
+        console.log(`⚔️ Danger zone walls created (${this.dangerZoneSize}x${this.dangerZoneSize} - visual warning, enter at risk!)`);
     }
 
     /**
@@ -228,9 +313,9 @@ export class BattleArena {
      */
     getCirclePosition(angle) {
         return {
-            x: this.arenaCenter.x + Math.cos(angle) * this.arenaRadius,
-            y: this.arenaCenter.y, // At player's feet level
-            z: this.arenaCenter.z + Math.sin(angle) * this.arenaRadius
+            x: this.arenaCenter.x + Math.cos(angle) * this.battleRadius,
+            y: this.arenaCenter.y + 2.5, // Lifted 2.5 blocks above ground (prevents terrain clipping)
+            z: this.arenaCenter.z + Math.sin(angle) * this.battleRadius
         };
     }
 
@@ -268,6 +353,11 @@ export class BattleArena {
         }
         if (this.enemySprite) {
             this.enemySprite.update(deltaTime);
+        }
+
+        // Check player collision with enemy in danger zone
+        if (this.voxelWorld.playerHP && this.enemySprite) {
+            this.voxelWorld.playerHP.checkDangerZoneCollision(this.dangerZoneBounds, this.enemySprite);
         }
 
         // Handle attack animation
@@ -340,14 +430,29 @@ export class BattleArena {
         // Show attack pose
         attacker.sprite.showAttackPose();
 
-        // Lunge forward
+        // Lunge forward (but not too close to camera)
         const attackerPos = attacker.sprite.position;
         const defenderPos = defender.sprite.position;
         const direction = new THREE.Vector3()
             .subVectors(defenderPos, attackerPos)
             .normalize();
 
-        const lungePos = attackerPos.clone().add(direction.multiplyScalar(0.5));
+        // Calculate lunge position
+        const lungeDistance = 0.5;
+        const lungePos = attackerPos.clone().add(direction.multiplyScalar(lungeDistance));
+
+        // Prevent sprites from getting too close to camera (min 1.5 blocks)
+        const cameraPos = this.voxelWorld.camera.position;
+        const distanceToCamera = lungePos.distanceTo(cameraPos);
+        if (distanceToCamera < 1.5) {
+            // Push sprite away from camera slightly
+            const awayFromCamera = new THREE.Vector3()
+                .subVectors(lungePos, cameraPos)
+                .normalize()
+                .multiplyScalar(1.5 - distanceToCamera);
+            lungePos.add(awayFromCamera);
+        }
+
         attacker.sprite.moveTo(lungePos.x, lungePos.y, lungePos.z);
 
         // Calculate hit/damage
@@ -509,7 +614,7 @@ export class BattleArena {
     }
 
     /**
-     * Show defeat dialogue
+     * Show defeat dialogue (companion loses)
      */
     async showDefeatDialogue() {
         const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
@@ -529,6 +634,103 @@ export class BattleArena {
                 console.log('✅ Battle flag reset - ready for new battle');
             }
         });
+    }
+
+    /**
+     * Show player defeat dialogue (player HP reaches 0)
+     */
+    async showPlayerDefeatDialogue() {
+        const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
+        const companionId = playerData.activeCompanion || playerData.starterMonster || 'rat';
+        const companionData = await ChatOverlay.loadCompanionData(companionId);
+        const companionName = companionData ? companionData.name : companionId;
+
+        // 🔥 Context-aware dialogue based on campfire respawn
+        const hasCampfire = !!this.voxelWorld.respawnCampfire;
+        const followUpText = hasCampfire
+            ? `Good thing we set up that campfire! Let's head back there and rest.`
+            : `We need to get you back to spawn. Please be more careful next time!`;
+
+        const chat = new ChatOverlay();
+        chat.showMessage({
+            character: companionId,
+            name: companionName,
+            text: `No! You're hurt! Hold on, I'll get you to safety!`
+        }, async () => {
+            // Wait a moment
+            await this.delay(500);
+
+            // Show context-aware follow-up message
+            const chat2 = new ChatOverlay();
+            chat2.showMessage({
+                character: companionId,
+                name: companionName,
+                text: followUpText
+            }, () => {
+                // Respawn player at campfire or spawn with 1 heart
+                this.respawnPlayer();
+            });
+        });
+    }
+
+    /**
+     * Respawn player at spawn point with 1 heart and heal companion
+     */
+    respawnPlayer() {
+        console.log('🏥 Respawning player...');
+
+        // End battle
+        this.isActive = false;
+
+        // Immediately clear movement restrictions before cleanup
+        this.voxelWorld.movementEnabled = true;
+        this.voxelWorld.inBattleArena = false;
+        this.voxelWorld.keys = {}; // Clear any stuck keys
+
+        // Clean up arena (will hide hearts temporarily)
+        this.cleanup();
+
+        // 🔥 Check for campfire respawn point first, fallback to world spawn
+        let spawnPos;
+        if (this.voxelWorld.respawnCampfire) {
+            const campfire = this.voxelWorld.respawnCampfire;
+            spawnPos = {
+                x: campfire.x + 2, // Offset 2 blocks to avoid campfire
+                y: campfire.y + 1, // Spawn 1 block above ground
+                z: campfire.z + 2  // Offset 2 blocks
+            };
+            console.log(`🔥 Respawning at campfire (${campfire.x}, ${campfire.y}, ${campfire.z})`);
+        } else {
+            spawnPos = this.voxelWorld.spawnPosition;
+            console.log(`🏔️ No campfire found, respawning at world spawn (${spawnPos.x}, ${spawnPos.y}, ${spawnPos.z})`);
+        }
+
+        // Teleport player
+        this.voxelWorld.player.position.x = spawnPos.x;
+        this.voxelWorld.player.position.y = spawnPos.y;
+        this.voxelWorld.player.position.z = spawnPos.z;
+
+        // Reset player to 1 heart and show hearts (damaged state)
+        if (this.voxelWorld.playerHP) {
+            this.voxelWorld.playerHP.setHP(1);
+            this.voxelWorld.playerHP.show(); // Show hearts since player is damaged
+        }
+
+        // Note: Companion sprite was already destroyed in cleanup()
+        // Update companion portrait to full HP for next battle
+        if (this.voxelWorld.companionPortrait) {
+            // Get companion max HP from stored data
+            const maxHP = this.companionData?.hp || 15;
+            this.voxelWorld.companionPortrait.updateHP(maxHP);
+        }
+
+        // Reset battle system
+        if (this.voxelWorld.battleSystem) {
+            this.voxelWorld.battleSystem.inBattle = false;
+            console.log('✅ Battle flag reset - ready for new battle');
+        }
+
+        console.log('🏥 Player respawned with 1 heart - movement enabled');
     }
 
     /**
@@ -572,13 +774,21 @@ export class BattleArena {
             this.enemySprite = null;
         }
 
-        // Destroy arena walls
+        // Destroy arena walls (outer)
         this.arenaWalls.forEach(wall => {
             this.scene.remove(wall);
             wall.geometry.dispose();
             wall.material.dispose();
         });
         this.arenaWalls = [];
+
+        // Destroy danger zone walls (inner)
+        this.dangerZoneWalls.forEach(wall => {
+            this.scene.remove(wall);
+            wall.geometry.dispose();
+            wall.material.dispose();
+        });
+        this.dangerZoneWalls = [];
 
         // Destroy arena floor
         if (this.arenaFloor) {
@@ -605,6 +815,14 @@ export class BattleArena {
         // Update companion portrait HP
         if (this.voxelWorld.companionPortrait && this.companionSprite) {
             this.voxelWorld.companionPortrait.updateHP(this.companionSprite.currentHP);
+        }
+
+        // Hide player HP hearts only if fully healed
+        if (this.voxelWorld.playerHP) {
+            if (this.voxelWorld.playerHP.currentHP >= this.voxelWorld.playerHP.maxHP) {
+                this.voxelWorld.playerHP.hide();
+            }
+            // If damaged, keep hearts visible as reminder
         }
 
         // Clear pattern
