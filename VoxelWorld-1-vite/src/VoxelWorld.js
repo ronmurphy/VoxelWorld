@@ -71,6 +71,7 @@ class NebulaVoxelApp {
         this.keys = {};
         this.selectedSlot = 0;
         this.movementEnabled = true; // Separate flag for movement vs camera controls
+        this.inBattleArena = false; // Flag for 8x8 arena movement restriction
         this.hasBackpack = false; // Track if player found backpack
         this.backpackPosition = null; // Track backpack location for minimap
         this.treePositions = []; // Track tree locations for minimap debugging
@@ -9427,9 +9428,19 @@ class NebulaVoxelApp {
                 const fullCollision = checkHitboxCollision(newHitbox);
 
                 if (!fullCollision.collision) {
-                    // No collision - move freely
-                    this.player.position.x = newX;
-                    this.player.position.z = newZ;
+                    // No collision - move freely (but check arena bounds if in battle)
+                    let finalX = newX;
+                    let finalZ = newZ;
+
+                    // 🏟️ Battle arena movement restriction
+                    if (this.inBattleArena && this.battleArena) {
+                        const bounds = this.battleArena.movementBounds;
+                        finalX = Math.max(bounds.minX, Math.min(bounds.maxX, newX));
+                        finalZ = Math.max(bounds.minZ, Math.min(bounds.maxZ, newZ));
+                    }
+
+                    this.player.position.x = finalX;
+                    this.player.position.z = finalZ;
                 } else {
                     // Collision detected - try sliding along walls
                     // Test X movement only
@@ -9437,7 +9448,15 @@ class NebulaVoxelApp {
                     const xCollision = checkHitboxCollision(xOnlyHitbox);
 
                     if (!xCollision.collision) {
-                        this.player.position.x = newX;
+                        let finalX = newX;
+
+                        // 🏟️ Battle arena X bounds check
+                        if (this.inBattleArena && this.battleArena) {
+                            const bounds = this.battleArena.movementBounds;
+                            finalX = Math.max(bounds.minX, Math.min(bounds.maxX, newX));
+                        }
+
+                        this.player.position.x = finalX;
                     }
 
                     // Test Z movement only
@@ -9445,7 +9464,15 @@ class NebulaVoxelApp {
                     const zCollision = checkHitboxCollision(zOnlyHitbox);
 
                     if (!zCollision.collision) {
-                        this.player.position.z = newZ;
+                        let finalZ = newZ;
+
+                        // 🏟️ Battle arena Z bounds check
+                        if (this.inBattleArena && this.battleArena) {
+                            const bounds = this.battleArena.movementBounds;
+                            finalZ = Math.max(bounds.minZ, Math.min(bounds.maxZ, newZ));
+                        }
+
+                        this.player.position.z = finalZ;
                     }
                 }
             }

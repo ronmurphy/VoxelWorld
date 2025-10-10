@@ -210,6 +210,48 @@ export class CombatantSprite {
     }
 
     /**
+     * Switch to dodge pose (if available, else use ready)
+     */
+    showDodgePose() {
+        const dodgeSprite = this.entityData.sprite_dodge || this.entityData.sprite_ready;
+
+        const dodgeTexture = new THREE.TextureLoader().load(`art/entities/${dodgeSprite}`);
+        dodgeTexture.magFilter = THREE.LinearFilter;
+        dodgeTexture.minFilter = THREE.LinearFilter;
+
+        const oldTexture = this.sprite.material.map;
+        this.sprite.material.map = dodgeTexture;
+        this.sprite.material.needsUpdate = true;
+
+        if (oldTexture) {
+            oldTexture.dispose();
+        }
+
+        this.currentPose = 'dodge';
+    }
+
+    /**
+     * Switch to fallback pose (heavy damage, if available)
+     */
+    showFallbackPose() {
+        const fallbackSprite = this.entityData.sprite_fallback || this.entityData.sprite_ready;
+
+        const fallbackTexture = new THREE.TextureLoader().load(`art/entities/${fallbackSprite}`);
+        fallbackTexture.magFilter = THREE.LinearFilter;
+        fallbackTexture.minFilter = THREE.LinearFilter;
+
+        const oldTexture = this.sprite.material.map;
+        this.sprite.material.map = fallbackTexture;
+        this.sprite.material.needsUpdate = true;
+
+        if (oldTexture) {
+            oldTexture.dispose();
+        }
+
+        this.currentPose = 'fallback';
+    }
+
+    /**
      * Switch to ready pose
      */
     showReadyPose() {
@@ -264,6 +306,86 @@ export class CombatantSprite {
         setTimeout(() => {
             this.sprite.material.color.setHex(originalColor);
         }, 200);
+    }
+
+    /**
+     * Play dodge animation (sidestep + dodge pose)
+     */
+    playDodge() {
+        const originalPos = this.sprite.position.clone();
+
+        // Quick sidestep
+        const dodgeDistance = 0.5;
+        const dodgeDirection = Math.random() > 0.5 ? 1 : -1; // Left or right
+
+        this.showDodgePose();
+
+        // Dash sideways
+        this.sprite.position.z += dodgeDirection * dodgeDistance;
+
+        // Return to position after 300ms
+        setTimeout(() => {
+            this.sprite.position.copy(originalPos);
+            this.showReadyPose();
+        }, 300);
+    }
+
+    /**
+     * Play fallback animation (critical/heavy damage)
+     * Shows when losing 50%+ HP in one hit
+     */
+    playFallback() {
+        const originalPos = this.sprite.position.clone();
+
+        // Knockback
+        const knockbackDistance = 0.8;
+        const currentX = this.sprite.position.x;
+        const knockbackDirection = currentX < 0 ? -1 : 1; // Away from center
+
+        this.showFallbackPose();
+
+        // Stagger backward
+        this.sprite.position.x += knockbackDirection * knockbackDistance;
+
+        // Shake effect
+        let shakeTime = 0;
+        const shakeInterval = setInterval(() => {
+            shakeTime += 50;
+            this.sprite.position.y += (Math.random() - 0.5) * 0.1;
+
+            if (shakeTime >= 500) {
+                clearInterval(shakeInterval);
+                this.sprite.position.copy(originalPos);
+                this.showReadyPose();
+            }
+        }, 50);
+    }
+
+    /**
+     * Enhanced damage flash with critical indicator
+     * @param {boolean} isCritical - Whether this was critical damage
+     */
+    flashDamageEnhanced(isCritical = false) {
+        const originalColor = this.sprite.material.color.getHex();
+        const originalScale = this.sprite.scale.clone();
+
+        if (isCritical) {
+            // Critical hit: bright yellow flash + scale pulse
+            this.sprite.material.color.setHex(0xFFFF00);
+            this.sprite.scale.set(2.3, 2.3, 1);
+
+            setTimeout(() => {
+                this.sprite.material.color.setHex(0xFF0000);
+            }, 100);
+
+            setTimeout(() => {
+                this.sprite.material.color.setHex(originalColor);
+                this.sprite.scale.copy(originalScale);
+            }, 300);
+        } else {
+            // Normal hit: red flash
+            this.flashDamage();
+        }
     }
 
     /**

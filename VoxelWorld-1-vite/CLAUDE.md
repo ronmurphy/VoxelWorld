@@ -59,6 +59,13 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
   - ⚠️ **Known visual mismatch**: LOD trees visible in distance chunks do NOT match actual trees that generate when full chunks load (LOD uses simplified noise, full chunks use TreeWorker with spacing logic)
 - **Resource Gathering**: Biome-specific shrubs, ores (iron, gold), and collectibles
 - **Billboard System**: Floating emoji sprites (backpack 🎒, ghosts 👻, shrubs 🌿)
+- **Christmas Event System** (ChristmasSystem.js): Self-contained holiday features
+  - **Douglas Fir Trees**: Year-round 1% spawn (cone-shaped evergreens)
+  - **Mega Douglas Fir**: Dec 24-25 only, 0.1% spawn (massive 30-40 block trees)
+  - **Gift Boxes**: Random ToolBench item loot from harvesting gift_wrapped blocks
+  - **Snow Circles**: 15x15 radius around Mega Firs, melts over 3 in-game days
+  - **Companion Alerts**: Proximity notifications at 160 blocks (distant) and 40 blocks (nearby)
+  - Date-based activation with `isChristmasTime()` check
 - **Crafting**: Workbench (shapes) and ToolBench (tools) with recipe systems
 - **Tutorial System**: Visual novel-style companion dialogue with localStorage tracking
   - ChatOverlay.js for sequential messages with character portraits
@@ -81,10 +88,16 @@ VoxelWorld-1-vite is a 3D voxel-based world building game built with JavaScript,
   - Companion Codex (C key) - Companion registry and active partner selection
   - Explorer's Menu - Time/day cycle display, settings, save/load
   - Bookmark tabs for seamless navigation between Map ↔ Codex
-- **Combat System**: Pokemon-style auto-battler (in development)
-  - Turn-based battles with companion monsters
-  - Ruin encounters and wandering enemies
-  - Battle interface integration pending
+- **Combat System**: Pokemon-style auto-battler with 3D arena battles
+  - **BattleArena.js**: 3D arena combat with visual walls and floor
+  - **BattleAnimationPatterns.js**: 6 dynamic movement patterns (randomly selected)
+  - **CombatantSprite.js**: Billboard sprites with HP bars and pose swapping
+  - Turn-based combat with d20 hit rolls, d6 damage, speed-based initiative
+  - Player can move within 8x8 arena during battle
+  - Item targeting system (aim at companion to use potions/buffs)
+  - Dodge/critical/fallback animations based on combat outcomes
+  - Context-aware victory dialogue (HP-based companion responses)
+  - Equipment bonuses from CompanionCodex integration
 - **Mobile Support**: Virtual joysticks with automatic device detection
 - **Performance Scaling**: Automatic render distance adjustment
 - **LOD System**: ChunkLODManager renders simplified colored chunks beyond render distance
@@ -170,65 +183,108 @@ Console utilities (exposed via `window.voxelApp`):
 - **Pillar Trees**: Trees on stone columns - quirky aesthetic kept intentionally
 - **Mega Ancient Palm Trees**: Inverted canopy effect in desert - alien monument aesthetic
 
-## Current Priorities (2025-10-08)
+## Current Priorities (2025-10-09)
 
-### 🚨 URGENT - Performance Critical (DO THIS FIRST!)
-**Tree Generation Worker Refactor** - **MAJOR PERFORMANCE BOTTLENECK IDENTIFIED**
+### ✅ Recently Completed
 
-**Problem:** Trees are currently generated on the main thread AFTER chunks load, causing:
-- UI freezing during world generation
-- Main thread blocking for every tree placement
-- Tree collision scanning (y=1-65) blocks rendering
-- 8GB RAM maxing out, Gnome crashing
-- Surface block logic (grass on dirt) also blocking main thread
+1. **Tree Generation Worker Refactor** ✅ (2025-10-09)
+   - Moved tree generation to TreeWorker (background thread)
+   - Eliminated main thread blocking during chunk loading
+   - Smooth 60fps world generation
+   - 50% tree density reduction for performance
+   - Ancient/mega tree system (5% chunk-exclusive spawns)
 
-**Solution:** Move tree generation INTO ChunkWorker (background thread)
+2. **Christmas Event System** ✅ (2025-10-09)
+   - ChristmasSystem.js with Douglas Fir trees
+   - Mega Douglas Fir (Dec 24-25 only, 0.1% spawn)
+   - Gift-wrapped blocks with ToolBench loot
+   - Snow circles with 3-day melt timer
+   - Companion proximity alerts
 
-**Implementation Steps:**
-1. ✅ Research current tree generation architecture and dependencies
-2. ⏳ Move tree generation logic from VoxelWorld.js to ChunkWorker.js
-   - Transfer `generateOakTree()`, `generatePineTree()`, `generateBirchTree()`, `generatePalmTree()`
-   - Transfer ancient tree logic, mega tree logic
-   - Transfer dead tree generation with treasure
-3. ⏳ Move surface block logic (grass on dirt) to ChunkWorker.js
-   - Move biome-specific surface placement
-   - Ensure proper block type synchronization
-4. ⏳ Update BiomeWorldGen to work in worker context
-   - Inline or transfer biome logic to worker
-   - Ensure seed-based noise generation works
-5. ⏳ Remove tree placement from main thread in VoxelWorld.js
-   - Clean up old tree generation code
-   - Keep tree mesh rendering only
-6. ⏳ Update tree cache system to work with worker-generated trees
-   - Tree positions should come from worker data
-   - Simplify tree tracking since trees are baked into chunks
-7. ⏳ Test chunk generation performance and verify trees generate correctly
-   - Benchmark before/after
-   - Verify all tree types spawn correctly
-   - Check biome distribution
-8. ⏳ Profile memory usage to identify remaining leaks (LOD chunks, billboards, etc.)
-   - Use Chrome DevTools memory profiler
-   - Check for accumulating objects
-   - Verify proper disposal
-
-**Expected Impact:**
-- **Massive FPS improvement** (no more main thread blocking)
-- **Smooth world generation** (workers handle heavy lifting)
-- **Lower memory usage** (better cleanup, less object accumulation)
-- **No more UI freezing** when chunks load
-
-**Related Fix (2025-10-08):**
-- ✅ Fixed fog memory leak (was creating 3,600+ fog objects per minute)
-- See CHANGELOG.md for details
+3. **Advanced 3D Battle System** ✅ (2025-10-09)
+   - 6 dynamic animation patterns (Semi-Orbit, Radial Burst, Circle Strafe, Figure-8, Pendulum, Spiral)
+   - 8x8 arena boundaries with visual walls
+   - Player movement during battle (restricted to arena)
+   - Item targeting system (aim at companion to use potions)
+   - Dodge/critical/fallback animations
+   - Context-aware sprite poses
 
 ---
 
-### Critical Features (After Performance Fix)
-1. **Auto-Battler Combat System**: Pokemon-style companion battles
-   - Battle UI overlay when encountering enemies
-   - Turn-based combat with companion stats (HP, Attack, Defense, Speed)
-   - Player commands (Fight, Items, Switch, Run)
-   - Victory/defeat outcomes with rewards/consequences
+### 🌾 **NEXT PROJECT: Farming & Agriculture System** (Stardew Valley Inspired!)
+
+**Overview:**
+Create a comprehensive farming system inspired by Stardew Valley, allowing players to till soil, plant crops, water plants, and harvest for food/crafting materials. This system will integrate with existing crafting, inventory, and potentially add cooking mechanics.
+
+**Phase 1: Basic Farming Mechanics**
+1. **Tilled Soil System**:
+   - New block type: `tilled_soil` (brown dirt with furrow texture)
+   - Tool: Hoe (craft from 2 wood + 1 stick)
+   - Right-click grass/dirt with hoe to till into farmland
+   - Tilled soil slowly reverts to dirt if not planted (24-hour real-time timer)
+
+2. **Seed Planting**:
+   - Seed items: pumpkin_seeds, wheat_seeds, carrot_seeds, berry_seeds
+   - Right-click tilled soil with seeds to plant
+   - Seeds obtained from harvesting wild crops or purchasing (future NPC system)
+
+3. **Growth Stages**:
+   - 4 visual stages: sprout → young → mature → ready_to_harvest
+   - Each stage = 10 in-game days (100 minutes real-time)
+   - Different crops have different growth rates (wheat: 30 days, pumpkin: 40 days)
+   - Use block variants (pumpkin_stage1, pumpkin_stage2, pumpkin_stage3, pumpkin)
+
+4. **Watering System**:
+   - Water bucket item (craft from iron blocks)
+   - Right-click on planted crop to water (visual: darker soil color)
+   - Watered crops grow 2x faster (5 days per stage instead of 10)
+   - Water lasts 1 in-game day, then needs re-watering
+   - Rain auto-waters all crops (future weather system integration)
+
+5. **Harvesting**:
+   - Right-click fully grown crop to harvest
+   - Returns crop item (pumpkin, wheat, carrot, berries) + seeds for replanting
+   - Crop quantity based on care (watered crops yield 2x, dry crops yield 1x)
+
+**Phase 2: Advanced Features** (After basic farming works)
+1. **Scarecrows**: Protect crops from birds (reduces random crop loss)
+2. **Fertilizer**: Use compost (dead leaves + dirt) to boost growth speed
+3. **Crop Quality**: Perfect/Good/Normal based on watering consistency
+4. **Greenhouse**: Indoor farming structure (year-round crops, no seasons)
+5. **Irrigation**: Sprinkler systems for auto-watering (craft from iron + gears)
+
+**Phase 3: Animal Farming** (Long-term)
+1. **Chickens**: Eggs for cooking
+2. **Cows**: Milk for crafting
+3. **Sheep**: Wool for textiles
+4. **Barns & Coops**: Build shelters, feed animals daily
+
+**Phase 4: Cooking System** (Pairs with farming)
+1. **Cooking Station**: Craft from campfire + iron blocks
+2. **Recipes**: Combine crops into meals (bread, soup, pie, salad)
+3. **Meal Buffs**: Speed boost, jump height, mining efficiency, health regen
+4. **Recipe Discovery**: Experimentation unlocks new recipes
+
+**Implementation Files to Create:**
+- `src/FarmingSystem.js` - Main farming logic (tilling, planting, growth, harvesting)
+- `src/CropGrowthManager.js` - Growth stage tracking, watering timers
+- `src/SeedRegistry.js` - Seed types, growth rates, yield data
+- Block types: tilled_soil, pumpkin_stage1-3, wheat_stage1-3, carrot_stage1-3, berry_bush_stage1-3
+- Tool: hoe (ToolBench recipe)
+- Items: various seeds, harvested crops
+
+**Integration Points:**
+- InventorySystem.js - Add seed/crop items
+- ToolBenchSystem.js - Add hoe recipe (2 wood + 1 stick → hoe)
+- VoxelWorld.js - Right-click handlers for hoe (till soil) and seeds (plant)
+- BiomeWorldGen.js - Optional: wild crop spawns (wheat in plains, berries in forest)
+
+**User Inspiration:**
+- Michelle's request for Stardew-style farming
+- Pumpkins already exist in game (perfect first crop!)
+- Natural progression: exploration → crafting → farming → cooking
+
+---
 
 ### High Priority Features
 1. **Greedy Meshing**: Required for ocean biome (10,000 water blocks = 10,000 draw calls currently)
@@ -237,38 +293,44 @@ Console utilities (exposed via `window.voxelApp`):
 
 ### Medium Priority Bugs
 1. **Biome Labeling Bug**: Shows "Plains" when on mountains (height-based detection issue)
-3. **Terrain Smoothing**: Reduce "Borg cube" artifacts at chunk boundaries
-4. **Drag & Drop Inventory**: Currently only right-click transfer works
+2. **Terrain Smoothing**: Reduce "Borg cube" artifacts at chunk boundaries
+3. **Drag & Drop Inventory**: Currently only right-click transfer works
 
 ### Long-Term Refactoring
 1. **Continue VoxelWorld.js Refactoring**: Extract Physics, PlayerController, UI, SaveLoad (reduce from 10,900+ lines to <2000)
 
 ### Optional Enhancements
-1. **Companion Portrait UI**: Clickable companion portrait near hotbar
-   - Click to open chat with active companion
-   - Re-read tutorials, get hints, friendly interactions
-   - Show HP/status during battles
+1. **Companion Portrait UI**: Clickable companion portrait near hotbar (show HP, chat access)
 2. **Halloween Ghost Following**: Ruin ghosts and night forest ghosts with cumulative spawn chance
 3. **Floating Islands**: Add special loot, quest markers, visual effects
-4. **Farming System**: Stardew Valley-inspired agriculture (see CHANGELOG.md)
+4. **Potions & Consumables**: Healing items for battle system (integrate with farming crops)
 
 ## Debug Commands
 
 ```javascript
-// Enable Halloween mode year-round
-window.voxelApp.debugHalloween = true;
+// 🎄 Christmas System
+testDouglas()      // Spawn regular Douglas Fir at reticle target
+testChristmas()    // Spawn Mega Douglas Fir at reticle (with player safety check)
 
-// Clear caches (preserves saves)
-window.voxelApp.clearCaches();
+// ⚔️ Combat System
+testCombat()                              // Start battle with angry_ghost
+testCombat('rat')                         // Start battle with any enemy ID
+window.voxelApp.battleArena.isTargetingCompanion()  // Check if aiming at companion
+window.voxelApp.battleArena.useItemOnCompanion('potion', 10)  // Heal companion 10 HP
 
-// Nuclear clear (wipe everything)
-window.voxelApp.nuclearClear();
+// 👻 Halloween mode
+window.voxelApp.debugHalloween = true;    // Enable year-round ghost spawns
 
-// BiomeWorldGen debug mode
+// 🗑️ Cache Management
+window.voxelApp.clearCaches();    // Clear caches (preserves saves)
+window.voxelApp.clearAllData();   // Clear localStorage + IndexedDB
+window.voxelApp.nuclearClear();   // Nuclear option (wipe everything + hard reload)
+
+// 🌍 BiomeWorldGen debug
 window.voxelApp.worldGen.enableDebugMode();
 window.voxelApp.worldGen.getStats();
 
-// LOD Debug Overlay (also toggled with 'L' key)
+// 📊 LOD Debug Overlay (also toggled with 'L' key)
 window.voxelApp.lodDebugOverlay.toggle();
 window.voxelApp.lodDebugOverlay.enabled; // Check status
 ```

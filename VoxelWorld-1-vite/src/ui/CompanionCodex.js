@@ -534,11 +534,13 @@ export class CompanionCodex {
      * @param {string} companionId - Companion ID
      * @returns {object} Stats object with hp, attack, defense, speed
      */
-    getCompanionStats(companionId) {
+    async getCompanionStats(companionId) {
         // Ensure data is loaded
         if (!this.allCompanions) {
             console.warn('⚠️ Companion data not loaded, loading now...');
-            // Return base stats from localStorage as fallback
+            await this.loadCompanionData();
+
+            // Load equipment data from localStorage
             const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
             this.companionEquipment = playerData.companionEquipment || {};
         }
