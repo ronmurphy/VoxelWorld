@@ -17,6 +17,9 @@ export default class ChristmasSystem {
         // Track Mega Douglas Fir positions
         this.megaFirPositions = []; // { x, y, z, chunkX, chunkZ, spawnDate }
 
+        // Track indestructible Mega Fir blocks
+        this.megaFirBlocks = new Set(); // Set of "x,y,z" keys for indestructible blocks
+
         // Track snow circles with melt timers
         this.snowCircles = new Map(); // key: "x,z" -> { blocks: [{x,y,z,originalType}], meltTimer: days }
 
@@ -36,6 +39,14 @@ export default class ChristmasSystem {
         const day = now.getDate(); // 1-31
 
         return (month === 11 && day >= 24 && day <= 25); // Dec 24-25
+    }
+
+    /**
+     * Check if a block is part of an indestructible Mega Douglas Fir
+     */
+    isMegaFirBlock(x, y, z) {
+        const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
+        return this.megaFirBlocks.has(key);
     }
 
     /**
@@ -88,11 +99,20 @@ export default class ChristmasSystem {
             for (let h = 0; h < height; h++) {
                 if (size === 1) {
                     // Single trunk block
-                    this.voxelWorld.addBlock(x, currentY + h, z, woodType, false);
+                    const blockX = x;
+                    const blockY = currentY + h;
+                    const blockZ = z;
+                    this.voxelWorld.addBlock(blockX, blockY, blockZ, woodType, false);
+                    // Mark as indestructible
+                    this.megaFirBlocks.add(`${blockX},${blockY},${blockZ}`);
                 } else {
                     // Square layer with leaves/wood mix
                     for (let dx = -radius; dx <= radius; dx++) {
                         for (let dz = -radius; dz <= radius; dz++) {
+                            const blockX = x + dx;
+                            const blockY = currentY + h;
+                            const blockZ = z + dz;
+
                             // Use wood for center column, leaves for outer blocks
                             const isCenter = (dx === 0 && dz === 0);
                             const blockType = isCenter ? woodType : leavesType;
@@ -106,7 +126,11 @@ export default class ChristmasSystem {
                                 }
                             }
 
-                            this.voxelWorld.addBlock(x + dx, currentY + h, z + dz, finalBlockType, false);
+                            this.voxelWorld.addBlock(blockX, blockY, blockZ, finalBlockType, false);
+                            // Mark douglas_fir and douglas_fir-leaves as indestructible (not snow)
+                            if (finalBlockType === woodType || finalBlockType === leavesType) {
+                                this.megaFirBlocks.add(`${blockX},${blockY},${blockZ}`);
+                            }
                         }
                     }
                 }

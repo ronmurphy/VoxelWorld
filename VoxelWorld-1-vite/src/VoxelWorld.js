@@ -5816,6 +5816,12 @@ class NebulaVoxelApp {
                 return;
             }
 
+            // 🎄 MEGA DOUGLAS FIR BLOCKS ARE INDESTRUCTIBLE
+            if (this.christmasSystem && this.christmasSystem.isMegaFirBlock(x, y, z)) {
+                this.updateStatus(`🎄 The Christmas tree is magical and indestructible!`);
+                return;
+            }
+
             const harvestTime = this.getHarvestTime(blockData.type);
 
             // Check if block can be harvested with current tool
@@ -7769,11 +7775,50 @@ class NebulaVoxelApp {
             this.registerTreeBlock(treeId, x, y, z, blockType, isLeaf);
         };
 
+        // 🏛️ PILLAR TREE FIX: Convert stone pillars under trees to registered trunk blocks
+        this.fixTreePillars = (treeId, x, y, z, woodType) => {
+            console.log(`🏛️ Scanning for pillars under tree ${treeId} at (${x}, ${y}, ${z})`);
+            let pillarBlocksConverted = 0;
+
+            // Search downward from tree base to find actual ground
+            for (let checkY = y - 1; checkY >= 0; checkY--) {
+                const block = this.getBlock(x, checkY, z);
+
+                if (!block || block.type === 'air') {
+                    // Fill air gap with wood trunk (roots extending down)
+                    this.addTreeBlock(treeId, x, checkY, z, woodType, false);
+                    pillarBlocksConverted++;
+                } else if (['stone', 'sand', 'iron'].includes(block.type)) {
+                    // 🏛️ PILLAR BLOCK: Convert stone/sand/iron to wood trunk
+                    // Remove the pillar block and replace with registered trunk
+                    this.removeBlock(x, checkY, z, false);
+                    this.addTreeBlock(treeId, x, checkY, z, woodType, false);
+                    pillarBlocksConverted++;
+                    // Continue searching downward to convert entire pillar
+                } else if (['grass', 'dirt', 'snow'].includes(block.type)) {
+                    // Found natural ground (dirt/grass/snow) - this is the real base
+                    break; // Stop at natural ground
+                } else {
+                    // Hit water or another block type - stop here
+                    break;
+                }
+            }
+
+            if (pillarBlocksConverted > 0) {
+                console.log(`🏛️✅ Tree ${treeId}: Converted ${pillarBlocksConverted} pillar blocks to ${woodType} (now registered for harvest)`);
+            }
+
+            return pillarBlocksConverted;
+        };
+
         // 🌳 TREE GENERATION ALGORITHMS
         // Generate Oak Tree (Forest/Plains biomes) - ENHANCED with Tree ID System
         this.generateOakTree = (x, y, z) => {
             // 🌳 Create unique tree registry
             const treeId = this.createTreeRegistry('oak_wood', x, y, z);
+
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, x, y, z, 'oak_wood');
 
             // 🗺️ Track tree position for minimap
             this.treePositions.push({ x, z, type: 'oak', treeId });
@@ -7824,6 +7869,9 @@ class NebulaVoxelApp {
             // 🌳 Create unique tree registry
             const treeId = this.createTreeRegistry('pine_wood', x, y, z);
 
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, x, y, z, 'pine_wood');
+
             // 🗺️ Track tree position for minimap
             this.treePositions.push({ x, z, type: 'pine', treeId });
             console.log(`🌲 Generated Pine tree ID ${treeId} at (${x}, ${y}, ${z}) - Total trees: ${this.treePositions.length}`);
@@ -7864,6 +7912,9 @@ class NebulaVoxelApp {
         this.generatePalmTree = (x, y, z) => {
             // 🌳 Create unique tree registry
             const treeId = this.createTreeRegistry('palm_wood', x, y, z);
+
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, x, y, z, 'palm_wood');
 
             // 🗺️ Track tree position for minimap
             this.treePositions.push({ x, z, type: 'palm', treeId });
@@ -7909,6 +7960,9 @@ class NebulaVoxelApp {
         this.generateBirchTree = (x, y, z) => {
             // 🌳 Create unique tree registry
             const treeId = this.createTreeRegistry('birch_wood', x, y, z);
+
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, x, y, z, 'birch_wood');
 
             // 🗺️ Track tree position for minimap
             this.treePositions.push({ x, z, type: 'birch', treeId });
@@ -7956,6 +8010,9 @@ class NebulaVoxelApp {
             // 🌳 Create unique tree registry
             const treeId = this.createTreeRegistry('dead_wood', x, y, z);
 
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, x, y, z, 'dead_wood');
+
             // 🗺️ Track tree position for minimap (skull icon for dead trees!)
             this.treePositions.push({ x, z, type: 'dead', treeId });
             console.log(`💀 Generated Dead tree ID ${treeId} at (${x}, ${y}, ${z}) - Contains treasure!`);
@@ -7994,19 +8051,21 @@ class NebulaVoxelApp {
             // 🌳 Create unique tree registry
             const treeId = this.createTreeRegistry('douglas_fir', x, y, z);
 
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, x, y, z, 'douglas_fir');
+
             // 🗺️ Track tree position for minimap
             this.treePositions.push({ x, z, type: 'douglas_fir', treeId });
             console.log(`🎄 Generated Douglas Fir tree ID ${treeId} at (${x}, ${y}, ${z})`);
 
-            // 🎄 Regular Douglas Fir: 7x7 → 5x5 → 3x3 → 1 cone (20-25 blocks tall)
+            // 🎄 Regular Douglas Fir: 7x7 → 5x5 → 3x3 → 1 cone (~25 blocks tall, 3/4 of Mega Fir's 34 blocks)
             const layers = [
                 { size: 7, height: 3 },   // Wide base (7x7, 3 layers)
                 { size: 7, height: 3 },   // Maintain width (7x7, 3 layers)
-                { size: 7, height: 3 },   // Maintain width (7x7, 3 layers)
-                { size: 5, height: 3 },   // Middle tier (5x5, 3 layers)
-                { size: 5, height: 3 },   // Maintain middle (5x5, 3 layers)
-                { size: 3, height: 4 },   // Upper tier (3x3, 4 layers)
-                { size: 1, height: 3 }    // Trunk to point (1x1, 3 layers)
+                { size: 5, height: 4 },   // Middle tier (5x5, 4 layers)
+                { size: 5, height: 4 },   // Maintain middle (5x5, 4 layers)
+                { size: 3, height: 6 },   // Upper tier (3x3, 6 layers)
+                { size: 1, height: 5 }    // Trunk to point (1x1, 5 layers)
             ];
 
             let currentY = y;
@@ -8073,6 +8132,10 @@ class NebulaVoxelApp {
 
             // 🌳 Create tree registry
             const treeId = this.createTreeRegistry(treeType, worldX, surfaceY, worldZ);
+
+            // 🏛️ Fix any stone pillars under this tree (convert to registered trunk blocks)
+            this.fixTreePillars(treeId, worldX, surfaceY, worldZ, treeType);
+
             this.treePositions.push({ x: worldX, z: worldZ, type: treeType.replace('_wood', ''), treeId });
 
             // 🏛️ MEGA ANCIENT TREE: Cone-shaped base (5% chance)
@@ -8392,43 +8455,6 @@ class NebulaVoxelApp {
             }
 
             console.log(`✅ Tree placement approved at (${worldX},${treeHeight},${worldZ}) - no conflicts detected`);
-
-            // 🏛️ PILLAR TREE FIX: Fill gap between tree and ground with wood trunk
-            // Search downward from tree base to find actual ground, fill with wood
-            let groundFound = false;
-            let woodType = 'oak_wood';
-            switch (biome.name) {
-                case 'Mountain': woodType = 'pine_wood'; break;
-                case 'Desert': woodType = 'palm_wood'; break;
-                case 'Tundra': woodType = 'birch_wood'; break;
-                default: woodType = 'oak_wood'; break;
-            }
-
-            // Search downward from treeHeight to find first solid ground
-            let pillarBlocksConverted = 0;
-
-            for (let checkY = treeHeight - 1; checkY >= 0; checkY--) {
-                const block = this.getBlock(worldX, checkY, worldZ);
-
-                if (!block || block.type === 'air') {
-                    // Fill air gap with wood trunk (roots extending down)
-                    this.addBlock(worldX, checkY, worldZ, woodType, false);
-                } else if (['stone', 'sand', 'iron'].includes(block.type)) {
-                    // 🏛️ PILLAR BLOCK: Convert stone/sand/iron to wood trunk
-                    // Don't stop - keep converting downward to cover entire pillar!
-                    this.removeBlock(worldX, checkY, worldZ, false);
-                    this.addBlock(worldX, checkY, worldZ, woodType, false);
-                    pillarBlocksConverted++;
-                    // Continue searching downward to convert entire pillar
-                } else if (['grass', 'dirt', 'snow'].includes(block.type)) {
-                    // Found natural ground (dirt/grass/snow) - this is the real base
-                    groundFound = true;
-                    break; // Stop at natural ground
-                } else {
-                    // Hit water or another block type - stop here
-                    break;
-                }
-            }
 
             // 🎲 5% chance to spawn a rare dead tree with treasure!
             const deadTreeNoise = this.seededNoise(worldX + 15000, worldZ + 15000, this.worldSeed);
