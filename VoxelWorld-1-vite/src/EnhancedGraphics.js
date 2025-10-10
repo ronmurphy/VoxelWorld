@@ -172,8 +172,8 @@ export class EnhancedGraphics {
             const nameWithExt = match[1];
             const ext = `.${match[2].toLowerCase()}`;
 
-            // Remove variant suffixes like -sides, -top-bottom to get base name
-            const baseName = nameWithExt.replace(/-(sides|top|bottom|top-bottom)$/i, '');
+            // Remove variant suffixes like -sides, -top-bottom, -all to get base name
+            const baseName = nameWithExt.replace(/-(sides|top|bottom|top-bottom|all)$/i, '');
 
             return { baseName, variant: nameWithExt, ext };
         };
@@ -266,8 +266,9 @@ export class EnhancedGraphics {
             const candidates = {
                 blocks: [
                     'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone', 'pumpkin', 'iron', 'gold',
-                    'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
-                    'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'
+                    'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir',
+                    'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'douglas_fir-leaves',
+                    'gift_wrapped', 'gift_wrapped-all'
                 ],
                 tools: [
                     'backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 
@@ -357,10 +358,11 @@ export class EnhancedGraphics {
         const basePath = this.assetPaths.blocks;
 
         // Define which blocks have multi-face textures (wood blocks, pumpkin, ores, etc - not leaves)
-        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'pumpkin', 'iron', 'gold'];
+        const multiFaceBlocks = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir', 'pumpkin', 'iron', 'gold', 'gift_wrapped'];
         const isMultiFace = multiFaceBlocks.includes(blockType);
 
         const faceTextures = {
+            all: null,      // -all suffix (same texture on all 6 faces)
             sides: null,
             topBottom: null,
             main: null
@@ -395,25 +397,30 @@ export class EnhancedGraphics {
 
         // Load textures based on block type
         if (isMultiFace) {
-            // Try sides texture
-            faceTextures.sides = await tryLoadTexture(`${blockType}-sides`);
+            // Try -all suffix first (same texture on all 6 faces)
+            faceTextures.all = await tryLoadTexture(`${blockType}-all`);
 
-            // Try combined top-bottom texture first
-            faceTextures.topBottom = await tryLoadTexture(`${blockType}-top-bottom`);
+            if (!faceTextures.all) {
+                // Try sides texture
+                faceTextures.sides = await tryLoadTexture(`${blockType}-sides`);
 
-            // If no combined texture, try separate top and bottom
-            if (!faceTextures.topBottom) {
-                faceTextures.top = await tryLoadTexture(`${blockType}-top`);
-                faceTextures.bottom = await tryLoadTexture(`${blockType}-bottom`);
+                // Try combined top-bottom texture first
+                faceTextures.topBottom = await tryLoadTexture(`${blockType}-top-bottom`);
+
+                // If no combined texture, try separate top and bottom
+                if (!faceTextures.topBottom) {
+                    faceTextures.top = await tryLoadTexture(`${blockType}-top`);
+                    faceTextures.bottom = await tryLoadTexture(`${blockType}-bottom`);
+                }
             }
 
-            if (faceTextures.sides || faceTextures.topBottom || faceTextures.top || faceTextures.bottom) {
-                console.log(`🎨 Loaded ${blockType} multi-face textures`);
+            if (faceTextures.all || faceTextures.sides || faceTextures.topBottom || faceTextures.top || faceTextures.bottom) {
+                console.log(`🎨 Loaded ${blockType} multi-face textures (all=${!!faceTextures.all})`);
             }
         }
 
         // Always try main texture as fallback
-        if (!faceTextures.sides && !faceTextures.topBottom) {
+        if (!faceTextures.all && !faceTextures.sides && !faceTextures.topBottom) {
             faceTextures.main = await tryLoadTexture(blockType);
             if (faceTextures.main) {
                 console.log(`🎨 Loaded ${blockType} main texture`);
@@ -428,6 +435,21 @@ export class EnhancedGraphics {
      * Build the final texture mapping using fallback hierarchy
      */
     _buildFaceTextureMapping(faceTextures, blockType) {
+        // If -all texture exists, use it for all 6 faces
+        if (faceTextures.all) {
+            const cubeTextures = [
+                faceTextures.all,   // +X (right)
+                faceTextures.all,   // -X (left)
+                faceTextures.all,   // +Y (top)
+                faceTextures.all,   // -Y (bottom)
+                faceTextures.all,   // +Z (front)
+                faceTextures.all    // -Z (back)
+            ];
+
+            console.log(`🎯 Created -all texture for ${blockType}: same texture on all 6 faces`);
+            return cubeTextures;
+        }
+
         // If we have face-specific textures, create array for cube faces
         const hasSpecificTextures = faceTextures.top || faceTextures.bottom || faceTextures.sides || faceTextures.topBottom;
 

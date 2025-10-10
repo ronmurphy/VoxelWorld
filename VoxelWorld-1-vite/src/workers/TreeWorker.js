@@ -59,12 +59,44 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
     let treesAttempted = 0;
     let treesPlaced = 0;
 
+    // 🎄 MEGA DOUGLAS FIR CHECK: 0.1% Dec 24-25 ONLY (ultra-rare Christmas landmark)
+    // Check this FIRST before ancient trees (separate system)
+    const megaFirRoll = seededRandom(chunkX, chunkZ, worldSeed + 70000);
+    const spawnMegaFir = megaFirRoll < 0.001; // 0.1% chance (1 in 1000 chunks)
+
+    if (spawnMegaFir) {
+        const centerX = chunkX * chunkSize + Math.floor(chunkSize / 2);
+        const centerZ = chunkZ * chunkSize + Math.floor(chunkSize / 2);
+
+        const heightIndex = Math.floor(chunkSize / 2) * chunkSize + Math.floor(chunkSize / 2);
+        const groundHeight = heightMap[heightIndex];
+        const surfaceY = groundHeight + 1;
+
+        // Check valid location (not water, valid height)
+        if (waterMap && waterMap[heightIndex] !== 1 && surfaceY > 1 && surfaceY <= 65) {
+            trees.push({
+                x: centerX,
+                y: surfaceY,
+                z: centerZ,
+                treeType: 'douglas_fir',
+                biome: 'Christmas',
+                isAncient: false,
+                isMega: false,
+                isMegaFir: true // 🎄 Special flag for ChristmasSystem
+            });
+
+            treesPlaced++;
+            console.log(`🎄✨ MEGA DOUGLAS FIR SITE (${chunkX}, ${chunkZ}): Will spawn Dec 24-25!`);
+        }
+        // Mega Fir chunk has NO other trees (it's a landmark)
+    }
     // 🏛️ ANCIENT TREE SYSTEM: Very rare (1% = every 100 chunks)
     // Generate special landmark trees: Ancient, Mega, or Cone
-    const ancientTreeRoll = seededRandom(chunkX, chunkZ, worldSeed + 50000);
-    const spawnAncientTree = ancientTreeRoll < 0.01; // 1% chance (every ~100 chunks)
+    else {
+        const ancientTreeRoll = seededRandom(chunkX, chunkZ, worldSeed + 50000);
+        const spawnAncientTree = ancientTreeRoll < 0.01; // 1% chance (every ~100 chunks)
 
-    if (spawnAncientTree) {
+        if (spawnAncientTree) {
         const centerX = chunkX * chunkSize + Math.floor(chunkSize / 2);
         const centerZ = chunkZ * chunkSize + Math.floor(chunkSize / 2);
         const biome = getBiomeAt(centerX, centerZ);
@@ -99,7 +131,7 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
             console.log(`🏛️ ANCIENT TREE (${chunkX}, ${chunkZ}): ${ancientType.toUpperCase()} ${treeType}`);
         }
         // Ancient tree chunk has NO other trees (it's a landmark)
-    } else {
+        } else {
         // ✅ NORMAL CHUNK: Generate regular scattered trees
         for (let x = 0; x < chunkSize; x++) {
             for (let z = 0; z < chunkSize; z++) {
@@ -113,13 +145,6 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
                 const passesNoiseCheck = shouldGenerateTree(worldX, worldZ, biome);
 
                 if (passesNoiseCheck) {
-                    // Check spacing to prevent tree crowding
-                    const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ);
-
-                    if (tooCloseToOtherTree) {
-                        continue; // Skip this tree, too close to another
-                    }
-
                     treesAttempted++;
 
                     // Get height from worker's heightMap
@@ -136,6 +161,7 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
 
                     // Only place tree if we found a valid surface
                     if (surfaceY > 1 && surfaceY <= 65) {
+                        // 🌲 DETERMINE TREE TYPE FIRST (needed for spacing calculation)
                         let treeType = getTreeTypeForBiome(biome);
 
                         // 🎃 DEAD TREE SPAWN (5% chance in any biome)
@@ -144,6 +170,21 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
 
                         if (isDeadTree) {
                             treeType = 'dead_wood';
+                        }
+
+                        // 🎄 DOUGLAS FIR SPAWN (1% year-round chance in any biome)
+                        const douglasFirRoll = seededRandom(worldX + 70000, worldZ + 70000, worldSeed + 70000);
+                        const isDouglasFir = douglasFirRoll < 0.01; // 1% chance
+
+                        if (isDouglasFir) {
+                            treeType = 'douglas_fir';
+                        }
+
+                        // Check spacing based on tree type (different trees need different space!)
+                        const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ, treeType);
+
+                        if (tooCloseToOtherTree) {
+                            continue; // Skip this tree, too close to another
                         }
 
                         trees.push({
@@ -160,9 +201,31 @@ function generateTreesForChunk({ chunkX, chunkZ, heightMap, waterMap, biomeData 
 
                         // Track tree position for spacing
                         trackTreePosition(worldX, worldZ, chunkX, chunkZ);
+
+                        // 🎃 PUMPKIN NEAR TREE: 5% chance for oak, birch, pine trees
+                        if (['oak_wood', 'birch_wood', 'pine_wood'].includes(treeType)) {
+                            const pumpkinRoll = seededRandom(worldX + 40000, worldZ + 40000, worldSeed + 40000);
+                            if (pumpkinRoll < 0.05) { // 5% chance
+                                // Place pumpkin 2-3 blocks away from tree in random direction
+                                const angle = seededRandom(worldX + 41000, worldZ + 41000, worldSeed + 41000) * Math.PI * 2;
+                                const distance = 2 + Math.floor(seededRandom(worldX + 42000, worldZ + 42000, worldSeed + 42000) * 2); // 2-3 blocks
+                                const pumpkinX = Math.round(worldX + Math.cos(angle) * distance);
+                                const pumpkinZ = Math.round(worldZ + Math.sin(angle) * distance);
+
+                                // Add pumpkin to tree data (main thread will place it)
+                                if (!trees[trees.length - 1].pumpkin) {
+                                    trees[trees.length - 1].pumpkin = {
+                                        x: pumpkinX,
+                                        z: pumpkinZ,
+                                        y: surfaceY // Place on same surface level as tree
+                                    };
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
         }
     }
 
@@ -253,8 +316,19 @@ function shouldGenerateTree(worldX, worldZ, biome) {
     return normalizedNoise > threshold;
 }
 
-function hasNearbyTree(worldX, worldZ, chunkX, chunkZ) {
-    const MIN_TREE_DISTANCE = 3;
+function hasNearbyTree(worldX, worldZ, chunkX, chunkZ, treeType) {
+    // 🌲 TREE-TYPE-SPECIFIC SPACING: Different trees need different space for their canopies
+    const TREE_SPACING = {
+        'oak_wood': 5,      // 5x5 canopy needs room
+        'pine_wood': 6,     // Tall conical canopy
+        'birch_wood': 3,    // Sparse canopy, can be tight
+        'palm_wood': 5,     // Extended fronds
+        'dead_wood': 3,     // No canopy, just trunk + loot
+        'douglas_fir': 6,   // 🎄 Tall cone (similar to pine)
+        'default': 4        // Fallback spacing
+    };
+
+    const minDistance = TREE_SPACING[treeType] || TREE_SPACING['default'];
 
     // Check current chunk
     const currentChunkKey = `${chunkX},${chunkZ}`;
@@ -270,7 +344,7 @@ function hasNearbyTree(worldX, worldZ, chunkX, chunkZ) {
                 const [tx, tz] = posKey.split(',').map(Number);
                 const distance = Math.sqrt((worldX - tx) ** 2 + (worldZ - tz) ** 2);
 
-                if (distance < MIN_TREE_DISTANCE) {
+                if (distance < minDistance) {
                     return true;
                 }
             }
@@ -359,8 +433,11 @@ function generateLODTreesForChunk({ chunkX, chunkZ, heightMap, waterMap }) {
             const passesNoiseCheck = shouldGenerateTree(worldX, worldZ, biome);
 
             if (passesNoiseCheck) {
-                // Check spacing
-                const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ);
+                // Determine tree type for spacing (LOD trees are simplified but need same spacing)
+                const treeType = getTreeTypeForBiome(biome);
+
+                // Check spacing based on tree type
+                const tooCloseToOtherTree = hasNearbyTree(worldX, worldZ, chunkX, chunkZ, treeType);
                 if (tooCloseToOtherTree) {
                     continue;
                 }

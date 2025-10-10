@@ -59,6 +59,11 @@ window.addEventListener('DOMContentLoaded', () => {
     window['testCombat'] = (enemyId) => app.testCombat(enemyId);
     console.log('🎮 testCombat() available globally');
 
+    // Add global convenience functions for testing Douglas Fir trees
+    window['testDouglas'] = () => app.testDouglas();
+    window['testChristmas'] = () => app.testChristmas();
+    console.log('🎄 testDouglas() and testChristmas() available globally');
+
     // Helper function to get companion info for tutorials
     const getCompanionInfo = async () => {
       const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');

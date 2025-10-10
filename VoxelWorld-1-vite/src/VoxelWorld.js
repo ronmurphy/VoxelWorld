@@ -21,6 +21,7 @@ import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
+import ChristmasSystem from './ChristmasSystem.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -290,7 +291,7 @@ class NebulaVoxelApp {
 
         // 🌳 HELPER: Check if a block type is any kind of leaf (must be defined before addBlock)
         this.isLeafBlock = (blockType) => {
-            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves', 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves'];
+            const leafTypes = ['leaf', 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves', 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'douglas_fir-leaves'];
             return leafTypes.includes(blockType);
         };
 
@@ -4507,7 +4508,7 @@ class NebulaVoxelApp {
 
         // 🌳 HELPER: Check if a block type is any kind of wood
         this.isWoodBlock = (blockType) => {
-            const woodTypes = ['wood', 'oak_wood', 'pine_wood', 'palm_wood', 'birch_wood'];
+            const woodTypes = ['wood', 'oak_wood', 'pine_wood', 'palm_wood', 'birch_wood', 'dead_wood', 'douglas_fir'];
             return woodTypes.includes(blockType);
         };
 
@@ -5787,8 +5788,17 @@ class NebulaVoxelApp {
                 //     blockData: blockData
                 // });
 
+                // 🎁 GIFT BOX HARVESTING: Christmas gift boxes drop random ToolBench items
+                if (blockType === 'gift_wrapped') {
+                    // Get random ToolBench item from ChristmasSystem
+                    const lootItem = this.christmasSystem.getRandomGiftLoot();
+                    this.inventory.addToInventory(lootItem, 1);
+
+                    console.log(`🎁 Opened gift box and received ${lootItem}!`);
+                    this.updateStatus(`🎁 Gift opened! Received ${lootItem}!`, 'discover');
+                }
                 // 🔪 MACHETE LEAF HARVESTING: Check if we're harvesting leaves with machete
-                if (this.isLeafBlock(blockType)) {
+                else if (this.isLeafBlock(blockType)) {
                     const hasMachete = this.hasTool('machete');
 
                     if (hasMachete) {
@@ -6495,6 +6505,11 @@ class NebulaVoxelApp {
             'birch_wood-leaves': { color: 0x90EE90, texture: 'birch_wood-leaves' }, // Birch leaves
             'dead_wood-leaves': { color: 0x4A4A4A, texture: 'dead_wood-leaves' }, // Dead leaves (gray-brown)
 
+            // 🎄 Christmas-themed blocks
+            douglas_fir: { color: 0x0F4D0F, texture: 'douglas_fir' },               // Dark green Douglas Fir wood
+            'douglas_fir-leaves': { color: 0x1B5E20, texture: 'douglas_fir-leaves' }, // Deep green needles
+            gift_wrapped: { color: 0xFF0000, texture: 'gift_wrapped' },             // Red gift box with bow
+
             workbench: { color: 0x8B7355, texture: 'workbench' } // Tan brown workbench
         };
 
@@ -7006,6 +7021,9 @@ class NebulaVoxelApp {
         // 💀 Initialize Angry Ghost System now that scene is ready
         this.angryGhostSystem = new AngryGhostSystem(this.scene, this.enhancedGraphics, this.battleSystem);
 
+        // 🎄 Initialize Christmas System now that scene is ready
+        this.christmasSystem = new ChristmasSystem(this);
+
         // 🎲 Initialize RPG System now that scene is ready
         this.rpgIntegration = new RPGIntegration(this);
         this.rpgIntegration.loadStats(); // Load existing stats if any
@@ -7410,17 +7428,43 @@ class NebulaVoxelApp {
                 // 🌲 NEW: Generate trees from TreeWorker data (immediate, no delay)
                 console.log(`🌲 Generating ${trees.length} trees from TreeWorker for chunk (${chunkX}, ${chunkZ})`);
                 for (const tree of trees) {
-                    const { x, y, z, treeType, biome, isAncient, isMega } = tree;
+                    const { x, y, z, treeType, biome, isAncient, isMega, isMegaFir, pumpkin } = tree;
 
                     // Get biome object from name
                     const biomeObj = this.biomeWorldGen.getBiomeAt(x, z, this.worldSeed);
 
-                    if (isAncient) {
+                    // 🎄 MEGA DOUGLAS FIR: Special Christmas tree (Dec 24-25 only)
+                    if (isMegaFir && this.christmasSystem) {
+                        // Check if it's Christmas time
+                        if (this.christmasSystem.isChristmasTime()) {
+                            this.christmasSystem.generateMegaDouuglasFir(x, y, z);
+                        } else {
+                            // Not Christmas - just place a regular Douglas Fir as a marker
+                            this.generateDouglasFir(x, y, z);
+                        }
+                    } else if (isAncient) {
                         // Generate ancient tree (regular or mega)
                         this.generateAncientTree(x, y, z, biomeObj, isMega);
+                    } else if (treeType === 'douglas_fir') {
+                        // Generate regular Douglas Fir (year-round)
+                        this.generateDouglasFir(x, y, z);
                     } else {
                         // Generate normal tree
                         this.generateTreeForBiome(x, y, z, biomeObj);
+                    }
+
+                    // 🎃 PLACE PUMPKIN near tree if TreeWorker generated one
+                    if (pumpkin) {
+                        const { x: pumpkinX, y: pumpkinY, z: pumpkinZ } = pumpkin;
+                        // Place pumpkin on ground (check if space is available)
+                        const groundBlock = this.getBlock(pumpkinX, pumpkinY - 1, pumpkinZ);
+                        const airBlock = this.getBlock(pumpkinX, pumpkinY, pumpkinZ);
+
+                        if (groundBlock && groundBlock.type !== 'air' && groundBlock.type !== 'water' &&
+                            (!airBlock || airBlock.type === 'air')) {
+                            this.addBlock(pumpkinX, pumpkinY, pumpkinZ, 'pumpkin', false);
+                            console.log(`🎃 Placed pumpkin near tree at (${pumpkinX}, ${pumpkinY}, ${pumpkinZ})`);
+                        }
                     }
                 }
             }
@@ -7828,6 +7872,58 @@ class NebulaVoxelApp {
             }
 
             console.log(`💀 Dead tree ${treeId} completed with ${height} trunk blocks and 3x3 leaf grid on ground - treasure inside!`);
+        };
+
+        // 🎄 DOUGLAS FIR TREE - Christmas-themed cone tree (year-round 1% spawn)
+        this.generateDouglasFir = (x, y, z) => {
+            // 🌳 Create unique tree registry
+            const treeId = this.createTreeRegistry('douglas_fir', x, y, z);
+
+            // 🗺️ Track tree position for minimap
+            this.treePositions.push({ x, z, type: 'douglas_fir', treeId });
+            console.log(`🎄 Generated Douglas Fir tree ID ${treeId} at (${x}, ${y}, ${z})`);
+
+            // 🎄 Regular Douglas Fir: 7x7 → 5x5 → 3x3 → 1 cone (20-25 blocks tall)
+            const layers = [
+                { size: 7, height: 3 },   // Wide base (7x7, 3 layers)
+                { size: 7, height: 3 },   // Maintain width (7x7, 3 layers)
+                { size: 7, height: 3 },   // Maintain width (7x7, 3 layers)
+                { size: 5, height: 3 },   // Middle tier (5x5, 3 layers)
+                { size: 5, height: 3 },   // Maintain middle (5x5, 3 layers)
+                { size: 3, height: 4 },   // Upper tier (3x3, 4 layers)
+                { size: 1, height: 3 }    // Trunk to point (1x1, 3 layers)
+            ];
+
+            let currentY = y;
+            const woodType = 'douglas_fir';
+            const leavesType = 'douglas_fir-leaves';
+
+            // Build cone from bottom to top
+            for (const layer of layers) {
+                const { size, height } = layer;
+                const radius = Math.floor(size / 2);
+
+                for (let h = 0; h < height; h++) {
+                    if (size === 1) {
+                        // Single trunk block
+                        this.addTreeBlock(treeId, x, currentY + h, z, woodType, false);
+                    } else {
+                        // Square layer with leaves/wood mix
+                        for (let dx = -radius; dx <= radius; dx++) {
+                            for (let dz = -radius; dz <= radius; dz++) {
+                                // Use wood for center column, leaves for outer blocks
+                                const isCenter = (dx === 0 && dz === 0);
+                                const blockType = isCenter ? woodType : leavesType;
+                                this.addTreeBlock(treeId, x + dx, currentY + h, z + dz, blockType, false);
+                            }
+                        }
+                    }
+                }
+
+                currentY += height;
+            }
+
+            console.log(`🎄 Douglas Fir tree ${treeId} completed (${currentY - y} blocks tall)`);
         };
 
         // 🌳 ANCIENT TREE SYSTEM - Rare majestic trees with thick trunks
@@ -9104,6 +9200,11 @@ class NebulaVoxelApp {
             // 🏟️ Update battle arena - 3D combat animations
             if (this.battleArena) {
                 this.battleArena.update(deltaTime);
+            }
+
+            // 🎄 Update Christmas system - Mega Fir proximity alerts and snow melt
+            if (this.christmasSystem) {
+                this.christmasSystem.update(deltaTime, this.player.position);
             }
 
             // Check for nearby workbench (even when paused)
@@ -11213,6 +11314,99 @@ class NebulaVoxelApp {
 
             // Start harvesting on mobile touch and hold
             this.startHarvesting(pos.x, pos.y, pos.z);
+        }
+    }
+
+    /**
+     * 🎄 DEBUG: Test regular Douglas Fir tree at target position
+     * Usage: window.voxelApp.testDouglas() or testDouglas()
+     */
+    testDouglas() {
+        // Use raycaster to get target block (same as block placement)
+        if (!this.raycaster || !this.camera) {
+            console.error('❌ Raycaster not initialized!');
+            return;
+        }
+
+        this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+        const intersects = this.raycaster.intersectObjects(
+            this.scene.children.filter(obj => obj.isMesh && obj !== this.targetHighlight)
+        );
+
+        if (intersects.length === 0) {
+            console.error('❌ No target block found! Look at a block first.');
+            return;
+        }
+
+        const hit = intersects[0];
+        const x = Math.floor(hit.object.position.x);
+        const y = Math.floor(hit.object.position.y);
+        const z = Math.floor(hit.object.position.z);
+
+        console.log(`🎄 Spawning Douglas Fir at target position (${x}, ${y + 1}, ${z})`);
+
+        // Generate tree one block above target
+        this.generateDouglasFir(x, y + 1, z);
+
+        console.log('✅ Douglas Fir spawned successfully!');
+    }
+
+    /**
+     * 🎄 DEBUG: Test Mega Christmas tree at target position (with player safety check)
+     * Usage: window.voxelApp.testChristmas() or testChristmas()
+     */
+    testChristmas() {
+        // Use raycaster to get target block (same as block placement)
+        if (!this.raycaster || !this.camera) {
+            console.error('❌ Raycaster not initialized!');
+            return;
+        }
+
+        this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+        const intersects = this.raycaster.intersectObjects(
+            this.scene.children.filter(obj => obj.isMesh && obj !== this.targetHighlight)
+        );
+
+        if (intersects.length === 0) {
+            console.error('❌ No target block found! Look at a block first.');
+            return;
+        }
+
+        const hit = intersects[0];
+        let x = Math.floor(hit.object.position.x);
+        let y = Math.floor(hit.object.position.y);
+        let z = Math.floor(hit.object.position.z);
+
+        // Safety check: If player is too close, move tree away
+        const playerX = Math.floor(this.player.position.x);
+        const playerZ = Math.floor(this.player.position.z);
+        const distance = Math.sqrt((x - playerX) ** 2 + (z - playerZ) ** 2);
+
+        if (distance < 15) {
+            // Move tree 20 blocks away from player in target direction
+            const dx = x - playerX;
+            const dz = z - playerZ;
+            const length = Math.sqrt(dx * dx + dz * dz);
+
+            if (length > 0) {
+                x = Math.floor(playerX + (dx / length) * 20);
+                z = Math.floor(playerZ + (dz / length) * 20);
+            } else {
+                // Player is exactly at target, move 20 blocks north
+                z += 20;
+            }
+
+            console.log(`⚠️ Player too close! Moving Mega Fir to safe distance (${x}, ${z})`);
+        }
+
+        console.log(`🎄✨ Spawning MEGA CHRISTMAS TREE at (${x}, ${y + 1}, ${z})`);
+
+        // Generate mega tree one block above surface
+        if (this.christmasSystem) {
+            this.christmasSystem.generateMegaDouuglasFir(x, y + 1, z);
+            console.log('✅ Mega Christmas Tree spawned successfully!');
+        } else {
+            console.error('❌ ChristmasSystem not initialized!');
         }
     }
 
