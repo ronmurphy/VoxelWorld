@@ -4,6 +4,173 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-10 - 🌾 Complete Farming System Implementation
+
+**Status: FULLY IMPLEMENTED ✅**
+
+### 🌾 Farming System - Stardew Valley-Inspired Agriculture
+
+**Overview:**
+Implemented a complete farming system with soil tilling, seed planting, multi-stage crop growth, and harvesting mechanics. Fully integrated with day/night cycle and inventory systems.
+
+**Core Features:**
+
+1. **Hoe Tool (Equipment Slot)**:
+   - Crafted at ToolBench: 2 wood + 1 stick = hoe
+   - Works from player bar (equipment slots) - "always on" like machete
+   - Left-click grass/dirt → instant till (no harvest delay)
+   - Converts grass/dirt → tilled_soil blocks
+   - Non-placeable tool (can't be placed as block)
+   - Temporary icon: stick.png (awaiting hoe.png asset)
+
+2. **Seeds & Seed Acquisition**:
+   - **Wheat Seeds** (10% drop from grass)
+   - **Carrot Seeds** (8% drop from grass)
+   - **Pumpkin Seeds** (100% drop from pumpkins)
+   - **Berry Seeds** (100% drop from shrubs)
+   - All seeds non-placeable (right-click only plants)
+   - Seeds show in listItems() debug command
+
+3. **Crop Growth System**:
+   - **Multi-Stage Growth**: 3 stages per crop (stage1 → stage2 → stage3)
+   - **Day-Based Progression**: Crops advance every X in-game days
+     - Wheat/Carrot: 10 days per stage (30 days total)
+     - Pumpkin: 15 days per stage (45 days total)
+     - Berry Bush: 12 days per stage (36 days total)
+   - **Growth Tracking**: CropGrowthManager monitors all planted crops
+   - **Watering Mechanic**: Ready (2x growth speed when implemented)
+
+4. **Planting & Harvesting**:
+   - Right-click tilled_soil with seeds → plant crop (removes 1 seed)
+   - Left-click mature crop (stage3) → harvest yield
+   - Harvest yields crop item + seeds for replanting
+   - Tilled soil reverts to dirt after 24 days if unused
+
+5. **Block Types** (14 new blocks):
+   - `tilled_soil` - Farmland block
+   - `wheat_stage1`, `wheat_stage2`, `wheat_stage3`
+   - `carrot_stage1`, `carrot_stage2`, `carrot_stage3`
+   - `pumpkin_stage1`, `pumpkin_stage2`, `pumpkin_stage3`
+   - `berry_bush_stage1`, `berry_bush_stage2`, `berry_bush_stage3`
+   - Texture: tilled_soil-all.png (same on all 6 faces)
+
+**New Files Created:**
+
+1. **`src/FarmingSystem.js`** (184 lines)
+   - Main farming controller
+   - `tillSoil()` - Hoe use handler
+   - `plantSeed()` - Seed planting logic
+   - `harvestCrop()` - Harvest with yield calculation
+   - `isSeedItem()` - Seed type validation
+
+2. **`src/FarmingBlockTypes.js`** (204 lines)
+   - Block definitions for all farming blocks
+   - Crop metadata (growth stages, yields, days)
+   - Helper functions: `getCropFromSeed()`, `getCropMetadata()`
+
+3. **`src/CropGrowthManager.js`** (234 lines)
+   - Automated growth system
+   - Day/night cycle integration
+   - Watering mechanics (2x growth speed)
+   - Tilled soil reversion timer
+   - Save/load crop data
+
+4. **`docs/HOE_TOOL_GUIDE.md`** - Player guide for hoe usage
+5. **`docs/HOE_EQUIPMENT_FIX.md`** - Technical fix documentation
+6. **`FARMING_IMPLEMENTATION.md`** - Complete implementation summary
+
+**Integration Changes:**
+
+- **VoxelWorld.js**:
+  - Line ~25: Added FarmingSystem, FarmingBlockTypes imports
+  - Line ~170: Initialized farmingSystem instance
+  - Line ~1106: Added `getCurrentDay()` helper method
+  - Line ~1111: Added `setBlock()` helper method
+  - Line ~1185-1265: Seed drop logic (grass, pumpkin, shrub)
+  - Line ~2275: Added farming item icons (hoe, seeds, crops)
+  - Line ~2290: Added hoe to enhanced graphics tool list
+  - Line ~6562: Merged farmingBlockTypes into blockTypes
+  - Line ~7251: Added currentDay tracking to day/night cycle
+  - Line ~8723: Day increment logic when time wraps
+  - Line ~9250: farmingSystem.update() in game loop
+  - Line ~9929: Left-click hoe tilling handler (equipment slot check)
+  - Line ~9965: Right-click seed planting handler
+  - Line ~10036: Added seeds/crops to non-placeable items list
+
+- **ToolBenchSystem.js**:
+  - Line ~144: Added hoe blueprint (2 wood + 1 stick)
+  - Category: farming, isTool: true, toolType: 'hoe'
+
+- **TreeWorker.js**:
+  - Line ~232: Re-enabled shrub generation (8% spawn rate)
+  - Berry seeds drop from shrubs
+
+- **HotbarSystem.js**:
+  - Line ~63: Added 'hoe' to tool identifiers for equipment slots
+
+- **EnhancedGraphics.js**:
+  - Line ~33: Added 'food' asset path (art/food)
+  - Line ~45: Added food to availableAssets
+  - Line ~67: Temporary alias: hoe → stick.png
+  - Line ~166-177: Food asset discovery system
+  - Line ~270-312: Food image loading (_loadFoodImages)
+  - Line ~372: Added tilled_soil to multiFaceBlocks array
+
+**Bug Fixes:**
+
+1. **getBlock() Return Type** ✅
+   - Fixed: getBlock() returns object `{type: "grass", mesh: {...}}` not string
+   - Solution: Extract `.type` property in all farming checks
+   - Affected: tillSoil(), plantSeed(), left-click handler
+
+2. **Inventory Method Names** ✅
+   - Fixed: FarmingSystem used wrong methods (inventorySystem.removeItem)
+   - Solution: Use VoxelWorld.addToInventory() and removeFromInventory()
+   - Affected: plantSeed() and harvestCrop()
+
+3. **Notification Function** ✅
+   - Fixed: showNotification() doesn't exist
+   - Solution: Changed all calls to updateStatus() with message types
+   - Added proper status types: 'craft', 'warning', 'harvest'
+
+4. **Double Seed Removal** ✅
+   - Fixed: Seeds removed twice (FarmingSystem + VoxelWorld handler)
+   - Solution: Removed duplicate quantity-- in VoxelWorld right-click
+
+5. **Hoe Equipment Slot** ✅
+   - Fixed: Hoe not recognized as equipment slot tool
+   - Solution: Added 'hoe' to HotbarSystem.isToolItem() identifiers
+
+6. **Seeds Placeable as Blocks** ✅
+   - Fixed: Seeds could be placed like stone blocks
+   - Solution: Added all seeds/crops to nonPlaceableItems list
+
+7. **Tilled Soil Texture Loading** ✅
+   - Fixed: tilled_soil-all.png not loading (not in multiFaceBlocks)
+   - Solution: Added 'tilled_soil' to multiFaceBlocks array
+
+**Debug Commands:**
+```javascript
+giveItem('hoe')              // Get hoe tool
+giveItem('wheat_seeds', 10)  // Get 10 wheat seeds
+giveItem('carrot_seeds', 10) // Get 10 carrot seeds
+listItems()                  // Shows farming category
+```
+
+**Controls:**
+- **Hoe (in player bar)** + Left-click grass/dirt = Till soil
+- **Seeds (in hotbar)** + Right-click tilled soil = Plant seeds
+- Left-click mature crop = Harvest
+
+**Future Enhancements:**
+- 3D crop models (instead of block stages)
+- Billboard sprite crops (Minecraft-style)
+- Water bucket for watering crops
+- More crop varieties
+- Seasonal crops
+
+---
+
 ## 2025-10-09 - Christmas System & Advanced Battle System
 
 **Status: FULLY IMPLEMENTED ✅**
