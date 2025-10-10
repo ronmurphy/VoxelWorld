@@ -8,11 +8,12 @@
 import * as THREE from 'three';
 
 export class CombatantSprite {
-    constructor(scene, entityData, entityId, isPlayer = false) {
+    constructor(scene, entityData, entityId, isPlayer = false, voxelWorld = null) {
         this.scene = scene;
         this.entityData = entityData;
         this.entityId = entityId;
         this.isPlayer = isPlayer;
+        this.voxelWorld = voxelWorld; // Reference to VoxelWorld for companion portrait updates
 
         // Sprite objects
         this.sprite = null;
@@ -185,6 +186,12 @@ export class CombatantSprite {
             if (oldTexture) {
                 oldTexture.dispose();
             }
+        }
+
+        // 🖼️ Update companion portrait HP if this is the player's companion
+        if (this.isPlayer && this.voxelWorld && this.voxelWorld.companionPortrait) {
+            this.voxelWorld.companionPortrait.updateHP(this.currentHP);
+            console.log(`🖼️ Updated companion portrait HP: ${this.currentHP}/${this.maxHP}`);
         }
     }
 

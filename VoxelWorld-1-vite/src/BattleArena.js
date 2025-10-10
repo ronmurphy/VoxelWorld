@@ -90,10 +90,14 @@ export class BattleArena {
         const forwardX = -Math.sin(playerRotation);
         const forwardZ = -Math.cos(playerRotation);
 
-        // Position arena 4 blocks ahead of player at feet level
+        // Calculate ground level (player.position.y is at eye level, adjust down to ground)
+        const groundOffset = 0.80; // Adjust slightly down to raise combatants a bit
+        const footY = playerPos.y - groundOffset;
+
+        // Position arena 4 blocks ahead of player at ground/foot level
         this.arenaCenter.set(
             playerPos.x + (forwardX * 4),
-            playerPos.y, // Player Y is feet level
+            footY, // Ground level (player's feet)
             playerPos.z + (forwardZ * 4)
         );
 
@@ -127,9 +131,9 @@ export class BattleArena {
         this.currentPattern = getRandomBattlePattern(this.arenaCenter, this.arenaRadius);
         console.log(`🎭 Battle pattern selected: ${this.currentPattern.constructor.name}`);
 
-        // Create combatant sprites
-        this.companionSprite = new CombatantSprite(this.scene, companionData, companionId, true);
-        this.enemySprite = new CombatantSprite(this.scene, enemyData, enemyId, false);
+        // Create combatant sprites (pass voxelWorld to companion for portrait updates)
+        this.companionSprite = new CombatantSprite(this.scene, companionData, companionId, true, this.voxelWorld);
+        this.enemySprite = new CombatantSprite(this.scene, enemyData, enemyId, false, null);
 
         // Position combatants on opposite sides of arena
         const companionPos = this.getCirclePosition(this.companionAngle);
@@ -153,7 +157,7 @@ export class BattleArena {
      * Create visual arena walls (8x8 barrier ring)
      */
     createArenaWalls() {
-        const wallHeight = 2.5;
+        const wallHeight = 0.5; // Small border just to get attention
         const wallThickness = 0.1;
         const wallColor = 0x8B4513; // Brown/bronze color
         const glowColor = 0xFFD700; // Gold glow
@@ -187,7 +191,7 @@ export class BattleArena {
 
             wall.position.set(
                 this.arenaCenter.x + wallData.x,
-                this.arenaCenter.y + wallHeight / 2,
+                this.arenaCenter.y + wallHeight / 2, // Just above ground at player's foot level
                 this.arenaCenter.z + wallData.z
             );
 

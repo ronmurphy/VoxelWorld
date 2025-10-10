@@ -198,7 +198,7 @@ export class ChunkLODManager {
                         // 🎨 FADE-IN ANIMATION: DISABLED (was causing issues)
                         // this.animateFadeIn(lodMeshGroup);
 
-                        console.log(`🎨 LOD chunk loaded at (${chunkX}, ${chunkZ}) with ${colorBlocks.length} blocks, meshes: ${lodMeshGroup.children.length}`);
+                        // console.log(`🎨 LOD chunk loaded at (${chunkX}, ${chunkZ}) with ${colorBlocks.length} blocks, meshes: ${lodMeshGroup.children.length}`);
                     }
                 }
             });
@@ -233,7 +233,7 @@ export class ChunkLODManager {
             if (lodMeshGroup) {
                 this.lodChunks.set(chunkKey, lodMeshGroup);
                 this.scene.add(lodMeshGroup);
-                console.log(`🎨 LOD chunk loaded at (${chunkX}, ${chunkZ}) with ${blocks.length} blocks`);
+                // console.log(`🎨 LOD chunk loaded at (${chunkX}, ${chunkZ}) with ${blocks.length} blocks`);
             }
         } catch (error) {
             console.error(`❌ Failed to load LOD chunk (${chunkX}, ${chunkZ}):`, error);

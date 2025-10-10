@@ -538,11 +538,18 @@ export class CompanionCodex {
         // Ensure data is loaded
         if (!this.allCompanions) {
             console.warn('⚠️ Companion data not loaded, loading now...');
-            await this.loadCompanionData();
+            const loadedData = await this.loadCompanionData();
+
+            if (!loadedData) {
+                console.error('❌ Failed to load companion data from entities.json');
+                return null;
+            }
 
             // Load equipment data from localStorage
             const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
             this.companionEquipment = playerData.companionEquipment || {};
+
+            console.log('✅ Companion data loaded successfully:', Object.keys(this.allCompanions));
         }
 
         return this.calculateStats(companionId);

@@ -82,9 +82,9 @@ export class BattleSystem {
         // 🎒 Get companion stats WITH equipment bonuses from CompanionCodex
         let companionStats = { ...companionBaseStats }; // Start with base stats
         let companionSpecialEffects = [];
-        
+
         if (this.voxelWorld.companionCodex) {
-            const statsWithEquipment = this.voxelWorld.companionCodex.getCompanionStats(companionId);
+            const statsWithEquipment = await this.voxelWorld.companionCodex.getCompanionStats(companionId);
             if (statsWithEquipment) {
                 // Merge equipment-enhanced stats, keeping name/description from base
                 companionStats = {
@@ -96,7 +96,7 @@ export class BattleSystem {
                 };
                 console.log(`⚔️ Equipment bonuses applied! HP: ${companionStats.hp}, ATK: ${companionStats.attack}, DEF: ${companionStats.defense}, SPD: ${companionStats.speed}`);
             }
-            
+
             // Get special combat effects
             companionSpecialEffects = this.voxelWorld.companionCodex.getSpecialCombatEffects(companionId);
             if (companionSpecialEffects.length > 0) {

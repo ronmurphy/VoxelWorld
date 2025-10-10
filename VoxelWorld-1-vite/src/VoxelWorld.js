@@ -7052,7 +7052,7 @@ class NebulaVoxelApp {
                 this.scene.fog.far = fogEnd;
             }
 
-            console.log(`🌫️ Fog updated: ${this.useHardFog ? 'HARD' : 'SOFT'} (start: ${fogStart.toFixed(1)}, end: ${fogEnd.toFixed(1)}, renderDist: ${this.renderDistance}, chunkSize: ${chunkSize}, visualDist: ${this.lodManager ? this.lodManager.visualDistance : 3})`);
+            // console.log(`🌫️ Fog updated: ${this.useHardFog ? 'HARD' : 'SOFT'} (start: ${fogStart.toFixed(1)}, end: ${fogEnd.toFixed(1)}, renderDist: ${this.renderDistance}, chunkSize: ${chunkSize}, visualDist: ${this.lodManager ? this.lodManager.visualDistance : 3})`);
         };
 
         // 🌫️ Toggle fog type (for scary areas)
