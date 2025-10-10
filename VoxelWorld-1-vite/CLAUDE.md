@@ -221,14 +221,17 @@ Console utilities (exposed via `window.voxelApp`):
 
 ---
 
-### 🌾 **CURRENT PROJECT: Farming & Agriculture System** (In Progress - 2025-10-09)
+### 🌾 **Farming & Agriculture System** ✅ (COMPLETED - 2025-10-10)
 
-**Status: Core Implementation Complete! ✅**
+**Status: FULLY IMPLEMENTED ✅**
+
+Complete farming system with tilling, planting, watering mechanics, particle effects, and crop growth. Players can now farm crops with 2x growth speed when watered!
 
 **Implemented Features:**
+
 1. **✅ Tilled Soil System**:
    - Hoe tool crafted from 2 wood + 1 stick (ToolBench)
-   - Right-click grass/dirt with hoe to till into farmland
+   - Left-click grass/dirt with hoe to till into farmland (auto-works from any playerbar slot)
    - Tilled soil reverts to dirt if not planted within 24 in-game days
 
 2. **✅ Seed System**:
@@ -241,41 +244,52 @@ Console utilities (exposed via `window.voxelApp`):
 
 3. **✅ Crop Growth Stages**:
    - 3 visual stages per crop: sprout → young → mature
-   - Growth rates:
+   - Growth rates (base):
      - Wheat/Carrot: 10 in-game days per stage (30 days total)
      - Pumpkin: 15 in-game days per stage (45 days total)
      - Berry Bush: 12 in-game days per stage (36 days total)
-   - Watered crops grow 2x faster
+   - **Watered crops grow 2x faster** (5 days per stage for wheat/carrot!)
    - Real-time growth tracking with CropGrowthManager
 
-4. **✅ Harvesting System**:
-   - Right-click fully grown crop to harvest
+4. **✅ Watering System**:
+   - Watering can crafted from 3 iron + 1 stick (ToolBench)
+   - Auto-works from any playerbar slot (no need to select)
+   - Right-click crops to water → **Beautiful particle animation with 15 falling water droplets**
+   - Watering lasts 1 in-game day, then expires
+   - Prevents double-watering: "💧 Crop is already watered!"
+   - Proper memory cleanup (all geometries/materials disposed after animation)
+
+5. **✅ Harvesting System**:
+   - Left-click fully grown crop to harvest
    - Returns crop item + seeds for replanting
    - Yield multiplier: Watered crops yield 2x items
 
 **Implementation Files:**
-- `src/FarmingSystem.js` - Main farming logic (tilling, planting, harvesting)
+- `src/FarmingSystem.js` - Main farming logic (tilling, planting, watering, harvesting)
 - `src/FarmingBlockTypes.js` - Block type definitions for farming
-- `src/CropGrowthManager.js` - Growth stage tracking, watering timers
-- `src/ToolBenchSystem.js` - Hoe recipe added
+- `src/CropGrowthManager.js` - Growth stage tracking, watering timers, `isWatered()` method
+- `src/AnimationSystem.js` - Watering particle effect with 15 droplets
+- `src/ToolBenchSystem.js` - Hoe and watering can recipes
 - `src/workers/TreeWorker.js` - Shrubs re-enabled for berry seeds
-- `src/VoxelWorld.js` - Integrated farming right-click handlers, seed drops, day tracking
+- `src/VoxelWorld.js` - Integrated farming handlers, auto-work detection
+- `src/EnhancedGraphics.js` - Watering can texture mappings
 
 **How to Use:**
 1. Harvest grass blocks to get wheat/carrot seeds
 2. Craft hoe at ToolBench (2 wood + 1 stick)
-3. Right-click grass/dirt with hoe to till soil
+3. Left-click grass/dirt with hoe to till soil
 4. Right-click tilled soil with seeds to plant
-5. Wait for crops to grow (check back each in-game day!)
-6. Left-click (harvest) mature crops to collect food + seeds
+5. Craft watering can (3 iron + 1 stick)
+6. Right-click crops to water → See beautiful water animation! 💧
+7. Wait for crops to grow (5 days per stage if watered, 10 days if not)
+8. Left-click mature crops to harvest (2x yield if watered!)
 
-**Next Steps (Phase 2 - Future):**
-- Water bucket item for manual watering
-- Scarecrows to protect crops
-- Fertilizer system (compost)
-- Crop quality tiers
-- Greenhouse structures
-- Irrigation/sprinkler systems
+**Debug Commands:**
+```javascript
+giveItem('hoe')              // Auto-unlocks UI + gives hoe
+giveItem('watering_can')     // Gives watering can
+giveItem('wheat_seeds')      // Gives wheat seeds for testing
+```
 
 ---
 

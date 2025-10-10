@@ -4,6 +4,165 @@ Detailed history of features, fixes, and improvements.
 
 ---
 
+## 2025-10-10 (Night) - 🌾 Farming System Complete: Watering Can & UI Testing Tools
+
+**Status: FULLY IMPLEMENTED ✅**
+
+### 💧 Watering Can Implementation
+
+**Overview:**
+Completed the farming system with watering can mechanics, particle effects, and auto-work functionality. Crops can now be watered to grow 2x faster with a beautiful visual animation.
+
+**Core Features:**
+
+1. **Watering Can Tool**:
+   - Crafted at ToolBench: 3 iron + 1 stick
+   - Auto-works from any slot in playerbar (like hoe)
+   - Right-click crops to water them
+   - Status notification: "💧 Crop watered! Growth speed doubled."
+   - Prevents double-watering: "💧 Crop is already watered!"
+
+2. **Water Particle Animation** (AnimationSystem.js):
+   - 15 water droplets spawn 2-2.5 blocks above crop
+   - Random spread pattern (1.5 block radius)
+   - Droplets fall with gravity (velocity: -2 to -3 blocks/sec)
+   - Fade out over 1.5 seconds
+   - **Proper cleanup**: All geometries, materials, and meshes disposed after animation
+   - No memory leaks confirmed
+
+3. **Crop Watering Mechanics** (CropGrowthManager.js):
+   - Watered crops grow 2x faster (5 days per stage instead of 10)
+   - Watering lasts 1 in-game day
+   - Added `isWatered(x, y, z)` method to check watering status
+   - Watering expires automatically after 1 day
+
+4. **Auto-Work Detection** (VoxelWorld.js):
+   - Uses `hasEquippedTool('watering_can')` to detect tool in playerbar
+   - Checks if clicked block is a crop using `farmingBlockTypes[blockType].isCrop`
+   - Works with both `watering_can` and `crafted_watering_can`
+   - Right-click detection happens BEFORE seed planting to prevent conflicts
+
+**Implementation Files:**
+
+- **AnimationSystem.js** (Lines 195-267):
+  - `animateWateringEffect(x, y, z, duration)` - Water particle system
+  - 15 droplets with SphereGeometry, blue material, falling animation
+  - Proper disposal in `onComplete` callback
+
+- **CropGrowthManager.js**:
+  - Lines 65-81: `isWatered(x, y, z)` - Check if crop is currently watered
+  - Lines 86-101: `waterCrop(x, y, z)` - Water a crop, set growth boost
+
+- **FarmingSystem.js** (Lines 229-258):
+  - `waterCrop(x, y, z)` - Main watering logic
+  - Checks crop validity, watering status, triggers animation
+  - Integration with AnimationSystem
+
+- **VoxelWorld.js**:
+  - Lines 10094-10116: Watering can auto-work detection (right-click handler)
+  - Line 6151: Added `watering_can` to validItems for `giveItem()`
+  - Debug logs for watering can detection and results
+
+- **ToolBenchSystem.js** (Lines 158-170):
+  - Watering can recipe: 3 iron + 1 stick
+  - Category: farming
+  - Description: "Water crops for 2x faster growth. Right-click farmland."
+
+- **EnhancedGraphics.js** (Lines 69-70):
+  - Texture mappings for `watering_can` and `crafted_watering_can`
+
+**Bug Fixes:**
+
+1. **`crafted_hoe` Not Working** ✅
+   - **Issue**: `giveItem('crafted_hoe')` didn't work for tilling
+   - **Cause**: `hasEquippedTool('hoe')` only checked for exact match 'hoe'
+   - **Fix**: Updated to check both base and crafted versions (VoxelWorld.js:129-135)
+   ```javascript
+   this.hasEquippedTool = (toolType) => {
+       const craftedName = `crafted_${toolType}`;
+       return activeTools.some(tool =>
+           tool.itemType === toolType || tool.itemType === craftedName
+       );
+   };
+   ```
+
+2. **Watering Can Not Auto-Working** ✅
+   - **Issue**: Watering can only worked when selected in hotbar
+   - **Cause**: Handler was inside `if (selectedBlock && selectedSlot.quantity > 0)` block
+   - **Fix**: Moved watering detection outside, added auto-work like hoe (VoxelWorld.js:10094-10116)
+
+3. **Missing `isWatered()` Method** ✅
+   - **Issue**: `TypeError: this.cropGrowthManager.isWatered is not a function`
+   - **Cause**: Method didn't exist in CropGrowthManager
+   - **Fix**: Added `isWatered()` method with expiration check (CropGrowthManager.js:65-81)
+
+**User Experience:**
+
+```
+1. Craft watering can at ToolBench (3 iron + 1 stick)
+2. Place in playerbar (any slot)
+3. Plant crops (wheat, carrot, pumpkin, berry)
+4. Right-click crop → 💧 Water particles fall, "Crop watered!" notification
+5. Crop grows 2x faster (5 days per stage instead of 10)
+6. Try watering again → "Crop is already watered!"
+7. After 1 in-game day → Watering expires, can water again
+```
+
+---
+
+### 🔓 UI Testing Tools & Debug Commands
+
+**Overview:**
+Added `unlockUI()` function that auto-unlocks hotbar, backpack, companion, and workbench when using `giveItem()`. No more need for `nuclearReset()` or finding the backpack during testing!
+
+**Core Features:**
+
+1. **`unlockUI()` Function** (VoxelWorld.js:6098-6124):
+   - Unlocks all UI elements: hotbar, backpack, companion portrait, workbench
+   - Calls same functions as natural backpack discovery:
+     - `generateBackpackLoot()` - Random starting items
+     - `showHotbarTutorial()` - Display hotbar
+     - `showToolButtons()` - Workbench/ToolBench buttons
+     - `companionPortrait.create()` - Companion UI
+     - `showJournalTutorial()` - Map tutorial
+   - Status notification: "🔓 Debug: UI unlocked! All systems ready."
+
+2. **Auto-Unlock in `giveItem()`** (VoxelWorld.js:6130-6133):
+   - Automatically checks if UI is unlocked before giving items
+   - If `!this.hasBackpack`, calls `unlockUI()` first
+   - Makes testing seamless - no manual setup needed
+
+3. **Global Commands** (VoxelWorld.js:6127):
+   - `window.unlockUI()` - Manually unlock UI anytime
+   - `giveItem('item_name')` - Give item + auto-unlock UI
+   - Logged to console on game start (VoxelWorld.js:6091)
+
+**Implementation Files:**
+
+- **VoxelWorld.js**:
+  - Lines 6098-6124: `unlockUI()` - Main unlock function
+  - Line 6127: Global command registration
+  - Lines 6130-6133: Auto-unlock check in `giveItem()`
+  - Line 6091: Console log for available utility
+
+- **CLAUDE.md** (Lines 308-311):
+  - Added UI Testing section to Debug Commands
+  - Examples: `unlockUI()`, `giveItem('hoe')`, `giveItem('crafted_watering_can')`
+
+**User Experience:**
+
+```
+BEFORE:
+giveItem('crafted_watering_can')
+❌ Can't see item - UI locked, need to find backpack or nuclearReset()
+
+AFTER:
+giveItem('crafted_watering_can')
+✅ UI auto-unlocks, item added to inventory, ready to use immediately!
+```
+
+---
+
 ## 2025-10-10 (Evening) - 🔥 Campfire Respawn System & Battle Fixes
 
 **Status: FULLY IMPLEMENTED ✅**
