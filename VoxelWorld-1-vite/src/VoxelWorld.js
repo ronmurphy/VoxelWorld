@@ -8098,18 +8098,28 @@ class NebulaVoxelApp {
                         default: pillarWoodType = 'oak_wood'; break; // Forest, Plains
                     }
 
+                    // Convert the top block (tree base)
                     this.removeBlock(worldX, groundY, worldZ, false);
                     this.addBlock(worldX, groundY, worldZ, pillarWoodType, false);
 
-                    // Also convert block below for wooden pillar look
-                    const deeperBlock = this.getBlock(worldX, groundY - 1, worldZ);
-                    if (deeperBlock && ['stone', 'iron', 'sand'].includes(deeperBlock.type)) {
-                        this.removeBlock(worldX, groundY - 1, worldZ, false);
-                        this.addBlock(worldX, groundY - 1, worldZ, pillarWoodType, false);
+                    // 🌲 EXTENDED PILLAR CONVERSION: Search downward and convert ALL stone/iron/sand blocks in the pillar
+                    // This ensures the entire visible pillar becomes wood (not just 2 blocks)
+                    let blocksConverted = 1; // Already converted top block
+                    for (let checkY = groundY - 1; checkY >= groundY - 10; checkY--) {
+                        const pillarBlock = this.getBlock(worldX, checkY, worldZ);
+
+                        // Stop if we hit air, water, dirt, grass, or bottom of world
+                        if (!pillarBlock || checkY < 1) break;
+                        if (!['stone', 'iron', 'sand'].includes(pillarBlock.type)) break;
+
+                        // Convert this stone/iron/sand block to wood
+                        this.removeBlock(worldX, checkY, worldZ, false);
+                        this.addBlock(worldX, checkY, worldZ, pillarWoodType, false);
+                        blocksConverted++;
                     }
 
                     if (Math.random() < 0.1) { // 10% logging
-                        console.log(`🏛️ Pillar Tree spawned at (${worldX}, ${groundY}, ${worldZ}) - ${pillarWoodType} pillar created!`);
+                        console.log(`🏛️ Pillar Tree spawned at (${worldX}, ${groundY}, ${worldZ}) - ${pillarWoodType} pillar (${blocksConverted} blocks converted)`);
                     }
                 } else {
                     // Normal terrain - replace ground with dirt for natural tree placement
@@ -8184,20 +8194,25 @@ class NebulaVoxelApp {
             }
 
             // Search downward from treeHeight to find first solid ground
+            let pillarBlocksConverted = 0;
+
             for (let checkY = treeHeight - 1; checkY >= 0; checkY--) {
                 const block = this.getBlock(worldX, checkY, worldZ);
 
                 if (!block || block.type === 'air') {
                     // Fill air gap with wood trunk (roots extending down)
                     this.addBlock(worldX, checkY, worldZ, woodType, false);
-                    console.log(`🌳 Extended trunk down to Y=${checkY} (filling air gap)`);
-                } else if (['grass', 'dirt', 'stone', 'sand', 'iron', 'snow'].includes(block.type)) {
-                    // Found solid ground - convert top layer to wood for root connection
+                } else if (['stone', 'sand', 'iron'].includes(block.type)) {
+                    // 🏛️ PILLAR BLOCK: Convert stone/sand/iron to wood trunk
+                    // Don't stop - keep converting downward to cover entire pillar!
                     this.removeBlock(worldX, checkY, worldZ, false);
                     this.addBlock(worldX, checkY, worldZ, woodType, false);
-                    console.log(`🏛️ Converted ground (${block.type}) to ${woodType} at Y=${checkY} (tree base)`);
+                    pillarBlocksConverted++;
+                    // Continue searching downward to convert entire pillar
+                } else if (['grass', 'dirt', 'snow'].includes(block.type)) {
+                    // Found natural ground (dirt/grass/snow) - this is the real base
                     groundFound = true;
-                    break; // Stop searching once we hit solid ground
+                    break; // Stop at natural ground
                 } else {
                     // Hit water or another block type - stop here
                     break;
