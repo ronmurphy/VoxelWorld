@@ -305,6 +305,11 @@ Console utilities (exposed via `window.voxelApp`):
 ## Debug Commands
 
 ```javascript
+// 🔓 UI Testing
+unlockUI()         // Unlock hotbar, backpack, companion, and workbench (no backpack search needed)
+giveItem('hoe')    // Give item to inventory (auto-unlocks UI if needed)
+giveItem('crafted_watering_can')  // Also works with crafted items
+
 // 🎄 Christmas System
 testDouglas()      // Spawn regular Douglas Fir at reticle target
 testChristmas()    // Spawn Mega Douglas Fir at reticle (with player safety check)

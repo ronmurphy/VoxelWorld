@@ -60,12 +60,33 @@ export class CropGrowthManager {
     }
 
     /**
+     * Check if a crop is currently watered
+     */
+    isWatered(x, y, z) {
+        const key = `${x},${y},${z}`;
+        const crop = this.crops.get(key);
+
+        if (!crop) {
+            return false;
+        }
+
+        // Check if watered status is still active (water lasts 1 day)
+        const currentDay = this.voxelWorld.getCurrentDay();
+        if (crop.watered && crop.lastWateredDay !== null && currentDay > crop.lastWateredDay) {
+            // Watered status expired
+            return false;
+        }
+
+        return crop.watered;
+    }
+
+    /**
      * Water a crop at the specified position
      */
     waterCrop(x, y, z) {
         const key = `${x},${y},${z}`;
         const crop = this.crops.get(key);
-        
+
         if (!crop) {
             console.warn('No crop found at position:', x, y, z);
             return false;

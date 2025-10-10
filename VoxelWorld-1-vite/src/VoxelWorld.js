@@ -129,7 +129,9 @@ class NebulaVoxelApp {
         this.hasEquippedTool = (toolType) => {
             if (!this.hotbarSystem) return false;
             const activeTools = this.hotbarSystem.getActiveTools();
-            return activeTools.some(tool => tool.itemType === toolType);
+            // Check for both base tool name and crafted_ version
+            const craftedName = `crafted_${toolType}`;
+            return activeTools.some(tool => tool.itemType === toolType || tool.itemType === craftedName);
         };
 
         // 🎯 Check if player has a tool (either selected in hotbar OR equipped)
@@ -6086,10 +6088,51 @@ class NebulaVoxelApp {
         console.log('💡 Utility available: clearAllData() - clears localStorage + IndexedDB and reloads');
         console.log('💡 Utility available: clearCaches() - 🧹 clears caches but KEEPS saved games');
         console.log('💡 Utility available: nuclearClear() - 🧨 WIPES EVERYTHING (RAM, disk, caches, workers)');
+        console.log('💡 Utility available: unlockUI() - 🔓 unlocks hotbar, backpack, companion, and workbench');
 
         // 🎁 DEBUG UTILITY: Give item to inventory
         // Can be called from browser console: giveItem("stone_hammer")
+        /**
+         * 🔓 Unlock UI elements (hotbar, backpack, companion, workbench)
+         * Called automatically by giveItem() for testing convenience
+         */
+        this.unlockUI = () => {
+            if (this.hasBackpack) {
+                console.log('🔓 UI already unlocked');
+                return;
+            }
+
+            console.log('🔓 Unlocking UI elements...');
+
+            this.hasBackpack = true; // Mark backpack as found
+            this.backpackPosition = null; // Remove from minimap
+            this.generateBackpackLoot(); // Add random starting items
+            this.showHotbarTutorial(); // Show hotbar and tutorial
+            this.showToolButtons(); // Show tool menu buttons
+
+            // Show journal tutorial for first-time players
+            if (this.showJournalTutorial) {
+                this.showJournalTutorial();
+            }
+
+            // 🖼️ Create companion portrait after backpack found
+            if (this.companionPortrait) {
+                this.companionPortrait.create();
+            }
+
+            console.log('✅ UI unlocked! Hotbar, backpack, companion, and workbench are now available.');
+            this.updateStatus('🔓 Debug: UI unlocked! All systems ready.', 'success');
+        };
+
+        // Make unlockUI() globally accessible for testing
+        window.unlockUI = () => this.unlockUI();
+
         window.giveItem = (itemName, quantity = 1) => {
+            // Auto-unlock UI if not already unlocked (for testing convenience)
+            if (!this.hasBackpack) {
+                this.unlockUI();
+            }
+
             // Valid items - comprehensive list of all discovery items, tools, and crafted items
             const validItems = [
                 // 🌍 Discovery/Exploring items (treasure items)
@@ -6097,20 +6140,20 @@ class NebulaVoxelApp {
                 'crystal', 'oreNugget', 'wheat', 'feather', 'bone',
                 'shell', 'fur', 'iceShard',
                 'rustySword', 'oldPickaxe', 'ancientAmulet',
-                
+
                 // 🔧 Base tools and materials
                 'stone', 'stick', 'iron', 'gold', 'coal',
                 'machete', 'stone_hammer', 'compass', 'compass_upgrade',
                 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
                 'magic_amulet', 'club', 'stone_spear', 'torch', 'wood_shield',
-                
+
                 // � Farming items
-                'hoe', 'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
+                'hoe', 'watering_can', 'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
                 'carrot', 'rice', 'corn_ear',
-                
+
                 // �🏗️ Workbench/ToolBench items
                 'workbench', 'backpack', 'tool_bench',
-                
+
                 // 🎨 Crafted items (with crafted_ prefix) - allow any starting with 'crafted_'
                 'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword',
                 'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
@@ -10048,21 +10091,35 @@ class NebulaVoxelApp {
                     const selectedSlot = this.getHotbarSlot(this.selectedSlot);
                     const selectedBlock = selectedSlot?.itemType;
 
+                    // 💧 WATERING CAN: Auto-work from playerbar (like hoe)
+                    const hasWateringCan = this.hasEquippedTool('watering_can');
+                    const blockData = this.getBlock(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
+                    const blockType = blockData?.type || blockData; // Handle both object and string return
+
+                    console.log('💧 Watering can check:', { hasWateringCan, blockType, blockData, pos: { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) } });
+
+                    // Check if block is a crop (any farming block that is a crop)
+                    const isCrop = blockType && this.farmingSystem?.getFarmingBlockTypes()[blockType]?.isCrop;
+
+                    if (hasWateringCan && isCrop) {
+                        console.log('💧 Attempting to water crop...');
+                        const success = this.farmingSystem.waterCrop(
+                            Math.floor(pos.x),
+                            Math.floor(pos.y),
+                            Math.floor(pos.z)
+                        );
+                        console.log('💧 Water result:', success);
+                        if (success) {
+                            this.updateStatus(`💧 Crop watered!`, 'craft');
+                        }
+                        return; // Don't continue to seed planting or block placement
+                    }
+
                     if (selectedBlock && selectedSlot.quantity > 0) {
-                        // 🌾 FARMING TOOLS: Hoe and watering can
+                        // 🌾 FARMING TOOLS: Hoe (selected slot only)
                         if (selectedBlock === 'crafted_hoe' || selectedBlock === 'hoe') {
                             // Till soil at clicked block position
                             const success = this.farmingSystem.tillSoil(
-                                Math.floor(pos.x),
-                                Math.floor(pos.y),
-                                Math.floor(pos.z)
-                            );
-                            return; // Don't continue to block placement
-                        }
-
-                        if (selectedBlock === 'crafted_watering_can' || selectedBlock === 'watering_can') {
-                            // Water crop at clicked block position
-                            const success = this.farmingSystem.waterCrop(
                                 Math.floor(pos.x),
                                 Math.floor(pos.y),
                                 Math.floor(pos.z)
