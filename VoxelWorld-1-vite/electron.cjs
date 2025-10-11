@@ -69,7 +69,22 @@ function createWindow() {
           label: 'About VoxelWorld',
           click: () => {
             mainWindow.webContents.executeJavaScript(`
-              (function() {
+              (async function() {
+                // Fetch version info
+                let versionText = 'v0.0.0';
+                let buildDate = 'October 2025';
+                try {
+                  const response = await fetch('version.json');
+                  const version = await response.json();
+                  versionText = \`v\${version.major}.\${version.minor}.\${version.revision}\`;
+                  if (version.buildDate) {
+                    const date = new Date(version.buildDate);
+                    buildDate = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                  }
+                } catch (e) {
+                  console.warn('Failed to load version:', e);
+                }
+
                 const modal = document.createElement('div');
                 modal.className = 'voxel-modal-overlay';
                 modal.style.zIndex = '10000';
@@ -84,8 +99,8 @@ function createWindow() {
                     <div class="modal-body">
                       <div class="info-box" style="background: #e7f3ff; border-color: #0066cc;">
                         <p style="text-align: center; font-size: 14px; margin-bottom: 20px;">
-                          <strong>Development Build v0.0.0</strong><br>
-                          <span style="font-size: 12px; opacity: 0.8;">October 2025</span>
+                          <strong>Development Build \${versionText}</strong><br>
+                          <span style="font-size: 12px; opacity: 0.8;">\${buildDate}</span>
                         </p>
 
                         <div style="margin: 20px 0;">

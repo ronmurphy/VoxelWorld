@@ -23,6 +23,7 @@ import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import ChristmasSystem from './ChristmasSystem.js';
 import { FarmingSystem } from './FarmingSystem.js';
+import { MusicSystem } from './MusicSystem.js';
 import { farmingBlockTypes } from './FarmingBlockTypes.js';
 import { CraftedTools } from './CraftedTools.js';
 import * as CANNON from 'cannon-es';
@@ -175,6 +176,15 @@ class NebulaVoxelApp {
         // � Initialize FarmingSystem
         this.farmingSystem = new FarmingSystem(this);
         console.log('🌾 FarmingSystem initialized');
+
+        // 🎵 Initialize MusicSystem
+        this.musicSystem = new MusicSystem();
+        console.log('🎵 MusicSystem initialized');
+
+        // Start background music after a short delay (let game load first)
+        setTimeout(() => {
+            this.musicSystem.play('music/forestDay.ogg');
+        }, 1000);
 
         // 🔧 Initialize CraftedTools handler
         this.craftedTools = new CraftedTools(this);
@@ -6046,6 +6056,12 @@ class NebulaVoxelApp {
                 this.worldItemPositions = [];
             }
 
+            // 11. Stop and dispose music
+            if (this.musicSystem) {
+                console.log('🧹 Stopping music...');
+                this.musicSystem.dispose();
+            }
+
             console.log('🧨💥 NUCLEAR CLEAR COMPLETE! Reloading page in 1 second...');
             setTimeout(() => {
                 location.reload(true); // Hard reload (bypass cache)
@@ -10047,6 +10063,30 @@ class NebulaVoxelApp {
                 }
                 e.preventDefault();
             }
+
+            // 🎵 Music controls (work regardless of controlsEnabled, but not during text input)
+            // + key (or =): Volume up
+            if (key === '+' || key === '=') {
+                if (this.musicSystem) {
+                    this.musicSystem.volumeUp();
+                }
+                e.preventDefault();
+            }
+            // - key: Volume down
+            if (key === '-') {
+                if (this.musicSystem) {
+                    this.musicSystem.volumeDown();
+                }
+                e.preventDefault();
+            }
+            // 0 key: Toggle mute
+            if (key === '0') {
+                if (this.musicSystem) {
+                    this.musicSystem.toggleMute();
+                }
+                e.preventDefault();
+            }
+
             // 🔍 I key for Block Inspector (show info about targeted block)
             if (key === 'i') {
                 // Use raycaster to find targeted block
