@@ -1,6 +1,6 @@
 /**
  * 🌾 FarmingSystem - Core Farming Mechanics
- * 
+ *
  * Handles:
  * - Tilling soil with hoe (grass/dirt → tilled_soil)
  * - Planting seeds on tilled soil
@@ -9,6 +9,7 @@
  * - Integration with inventory and block placement
  */
 
+import * as THREE from 'three';
 import { farmingBlockTypes, getCropFromSeed, getCropMetadata } from './FarmingBlockTypes.js';
 import { CropGrowthManager } from './CropGrowthManager.js';
 
@@ -131,10 +132,11 @@ export class FarmingSystem {
      * Harvest a mature crop
      */
     harvestCrop(x, y, z) {
-        const blockType = this.voxelWorld.getBlock(x, y, z);
-        const blockData = farmingBlockTypes[blockType];
-        
-        if (!blockData || !blockData.harvestable) {
+        const blockData = this.voxelWorld.getBlock(x, y, z);
+        const blockType = blockData?.type || blockData; // Handle both object and string
+        const cropBlockData = farmingBlockTypes[blockType];
+
+        if (!cropBlockData || !cropBlockData.harvestable) {
             console.log('Block not harvestable:', blockType);
             return false;
         }
@@ -150,6 +152,9 @@ export class FarmingSystem {
         // Remove the crop block (revert to tilled soil)
         this.voxelWorld.setBlock(x, y, z, 'tilled_soil');
         this.cropGrowthManager.registerTilledSoil(x, y, z);
+
+        // Remove 3D crop model
+        this.remove3DCropModel(x, y, z);
 
         // Add harvested items to inventory
         let message = '🌾 Harvested: ';
@@ -278,15 +283,18 @@ export class FarmingSystem {
         // Remove existing model if present (growth stage changed)
         this.remove3DCropModel(x, y, z);
 
-        const THREE = this.voxelWorld.THREE;
-
         // Create crop mesh based on type and stage
-        const cropMesh = this.createCropMesh(cropType, growthStage, THREE);
-        cropMesh.position.set(x + 0.5, y, z + 0.5);
+        const cropMesh = this.createCropMesh(cropType, growthStage);
+
+        // Position crop ON TOP of block (not inside it)
+        // Height increases with growth stage: 0.35, 0.50, 0.65
+        const height = 0.2 + (growthStage * 0.15);
+        cropMesh.position.set(x + 0.5, y + 1 + (height / 2), z + 0.5);
+
         this.voxelWorld.scene.add(cropMesh);
 
         // Create leaf indicators (1-3 leaves floating above crop)
-        const leafIndicators = this.createLeafIndicators(x, y, z, growthStage, THREE);
+        const leafIndicators = this.createLeafIndicators(x, y, z, cropType, growthStage);
 
         // Store for cleanup
         this.crop3DModels.set(key, { mesh: cropMesh, leafIndicators });
@@ -297,7 +305,7 @@ export class FarmingSystem {
     /**
      * 🌿 Create crop mesh based on type and growth stage
      */
-    createCropMesh(cropType, growthStage, THREE) {
+    createCropMesh(cropType, growthStage) {
         const cropColors = {
             wheat: [0x90EE90, 0xF0E68C, 0xDAA520],     // Light green → Khaki → Goldenrod
             carrot: [0x90EE90, 0xFF8C00, 0xFF6347],    // Light green → Dark orange → Tomato
@@ -314,8 +322,8 @@ export class FarmingSystem {
         const material = new THREE.MeshLambertMaterial({ color });
         const mesh = new THREE.Mesh(geometry, material);
 
-        // Position mesh so it sits on top of tilled soil
-        mesh.position.y = height / 2;
+        // Position mesh so it sits on top of the block (not inside it)
+        // No offset here - we'll position it in create3DCropModel instead
 
         return mesh;
     }
@@ -323,9 +331,12 @@ export class FarmingSystem {
     /**
      * 🍃 Create leaf indicators (1-3 leaves) floating above crop
      */
-    createLeafIndicators(x, y, z, growthStage, THREE) {
+    createLeafIndicators(x, y, z, _cropType, growthStage) {
         const indicators = [];
         const leafCount = growthStage; // 1 leaf = stage 1, 2 leaves = stage 2, 3 leaves = stage 3
+
+        // Calculate crop height to position leaves above it
+        const height = 0.2 + (growthStage * 0.15);
 
         for (let i = 0; i < leafCount; i++) {
             // Create simple leaf sprite using canvas
@@ -349,7 +360,7 @@ export class FarmingSystem {
             const radius = 0.3;
             sprite.position.set(
                 x + 0.5 + Math.cos(angle) * radius,
-                y + 1.2, // Float above crop
+                y + 1 + height + 0.3, // Float above crop (on top of block + crop height + small offset)
                 z + 0.5 + Math.sin(angle) * radius
             );
             sprite.scale.set(0.2, 0.2, 0.2);

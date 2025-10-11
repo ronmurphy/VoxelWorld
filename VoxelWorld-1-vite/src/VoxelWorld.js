@@ -5901,6 +5901,20 @@ class NebulaVoxelApp {
                 //     blockData: blockData
                 // });
 
+                // 🌾 CROP HARVESTING: Check if we're harvesting a mature crop (check FIRST!)
+                if (this.farmingSystem) {
+                    const cropBlockData = this.farmingSystem.getFarmingBlockTypes()[blockType];
+                    if (cropBlockData && cropBlockData.harvestable) {
+                        // Use FarmingSystem's harvest logic for proper yields
+                        const success = this.farmingSystem.harvestCrop(x, y, z);
+                        if (success) {
+                            // Don't call removeBlock - FarmingSystem already handles it
+                            this.stopHarvesting();
+                            return; // Exit early - FarmingSystem handled everything
+                        }
+                    }
+                }
+
                 // 🎁 GIFT BOX HARVESTING: Christmas gift boxes drop random ToolBench items
                 if (blockType === 'gift_wrapped') {
                     // Get random ToolBench item from ChristmasSystem
@@ -6289,10 +6303,62 @@ class NebulaVoxelApp {
             return '✅ Item list displayed above ⬆️';
         };
 
+        // 🌱 DEBUG UTILITY: Grow crop to next stage (like bonemeal!)
+        window.growCrop = () => {
+            // Use same raycaster method as "I" key (block inspector)
+            this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+            const intersects = this.raycaster.intersectObjects(this.scene.children.filter(obj => obj.isMesh && obj !== this.targetHighlight));
+
+            if (intersects.length === 0) {
+                console.log('❌ Not looking at any block (aim at crop and run growCrop())');
+                return;
+            }
+
+            const hit = intersects[0];
+            const pos = hit.object.position;
+            const x = pos.x;
+            const y = pos.y;
+            const z = pos.z;
+
+            const cropInfo = this.farmingSystem?.cropGrowthManager?.getCropInfo(x, y, z);
+            if (!cropInfo) {
+                console.log(`❌ No crop at (${x}, ${y}, ${z})`);
+                return;
+            }
+
+            if (cropInfo.stage >= 3) {
+                console.log('🌾 Crop is already fully grown!');
+                return;
+            }
+
+            // Force grow to next stage
+            cropInfo.stage++;
+
+            // Find the block type for this new stage
+            const stageBlocks = {
+                wheat: ['wheat_stage1', 'wheat_stage2', 'wheat_stage3'],
+                carrot: ['carrot_stage1', 'carrot_stage2', 'carrot_stage3'],
+                pumpkin: ['pumpkin_stage1', 'pumpkin_stage2', 'pumpkin_stage3'],
+                berry: ['berry_bush_stage1', 'berry_bush_stage2', 'berry_bush_stage3']
+            };
+
+            const newBlockType = stageBlocks[cropInfo.cropType][cropInfo.stage - 1];
+            this.setBlock(x, y, z, newBlockType);
+
+            // Update 3D model
+            if (this.farmingSystem) {
+                this.farmingSystem.create3DCropModel(x, y, z, cropInfo.cropType, cropInfo.stage);
+            }
+
+            this.updateStatus(`🌱 Crop grew to stage ${cropInfo.stage}/3!`, 'craft');
+            console.log(`🌱 Grew ${cropInfo.cropType} to stage ${cropInfo.stage} at (${x}, ${y}, ${z})`);
+        };
+
         console.log('�💡 Debug utilities available:');
         console.log('  giveItem("stone_hammer") - adds item to inventory');
         console.log('  giveBlock("stone", 64) - adds blocks to inventory');
         console.log('  listItems() - show all available items');
+        console.log('  growCrop() - grow crop at crosshair to next stage (aim at crop first)');
         console.log('  makeRuins("small") - generates test ruin near player (small/medium/large/colossal)');
         console.log('  clearSeed() - clears saved seed and generates new random world on refresh');
         console.log('  setSeed(12345) - sets a specific seed for the world');

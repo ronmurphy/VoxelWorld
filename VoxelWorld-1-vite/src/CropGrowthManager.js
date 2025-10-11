@@ -43,7 +43,7 @@ export class CropGrowthManager {
 
         const key = `${x},${y},${z}`;
         const currentDay = this.voxelWorld.getCurrentDay();
-        
+
         this.crops.set(key, {
             cropType: cropType,
             stage: 1,
@@ -54,6 +54,11 @@ export class CropGrowthManager {
 
         // Remove from tilled soil tracker since it's now planted
         this.tilledSoil.delete(key);
+
+        // 🌱 Create 3D crop model for stage 1
+        if (this.voxelWorld.farmingSystem) {
+            this.voxelWorld.farmingSystem.create3DCropModel(x, y, z, cropType, 1);
+        }
 
         console.log(`🌱 Planted ${cropType} at (${x},${y},${z}) on day ${currentDay}`);
         return true;
@@ -96,8 +101,35 @@ export class CropGrowthManager {
         crop.lastWateredDay = currentDay;
         crop.watered = true;
 
+        // Update soil color to darker brown (watered appearance)
+        this.updateSoilColor(x, y, z, true);
+
         console.log(`💧 Watered ${crop.cropType} at (${x},${y},${z})`);
         return true;
+    }
+
+    /**
+     * Update soil color based on watered state
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
+     * @param {number} z - Z coordinate
+     * @param {boolean} watered - True for wet (dark), false for dry (normal)
+     */
+    updateSoilColor(x, y, z, watered) {
+        const key = `${x},${y},${z}`;
+        const blockData = this.voxelWorld.world[key];
+
+        if (!blockData || !blockData.mesh) return;
+
+        // Color values
+        const dryColor = 0x6B4423;  // Normal tilled soil brown
+        const wetColor = 0x4A2F1A;  // Darker wet soil brown
+
+        const targetColor = watered ? wetColor : dryColor;
+
+        if (blockData.mesh.material && blockData.mesh.material.color) {
+            blockData.mesh.material.color.setHex(targetColor);
+        }
     }
 
     /**
@@ -146,10 +178,12 @@ export class CropGrowthManager {
 
             // Calculate days since planting
             const daysSincePlanting = currentDay - crop.plantedDay;
-            
+
             // Check if watered status expired (water lasts 1 day)
             if (crop.watered && crop.lastWateredDay !== null && currentDay > crop.lastWateredDay) {
                 crop.watered = false;
+                // Reset soil color to dry when water expires
+                this.updateSoilColor(x, y, z, false);
             }
 
             // Calculate effective growth rate
@@ -163,12 +197,17 @@ export class CropGrowthManager {
             if (targetStage > crop.stage && targetStage <= 3) {
                 crop.stage = targetStage;
                 const newBlockType = metadata.stages[targetStage - 1];
-                
+
                 // Update the block in the world
                 this.voxelWorld.setBlock(x, y, z, newBlockType);
-                
+
+                // 🌱 Create/update 3D crop model
+                if (this.voxelWorld.farmingSystem) {
+                    this.voxelWorld.farmingSystem.create3DCropModel(x, y, z, crop.cropType, targetStage);
+                }
+
                 console.log(`🌱 ${crop.cropType} grew to stage ${targetStage} at (${x},${y},${z})`);
-                
+
                 // Notify player if crop is ready to harvest
                 if (targetStage === 3) {
                     this.voxelWorld.showNotification(`🌾 ${crop.cropType.toUpperCase()} is ready to harvest!`);
@@ -242,6 +281,11 @@ export class CropGrowthManager {
         const key = `${x},${y},${z}`;
         this.crops.delete(key);
         this.tilledSoil.delete(key);
+
+        // 🗑️ Remove 3D crop model
+        if (this.voxelWorld.farmingSystem) {
+            this.voxelWorld.farmingSystem.remove3DCropModel(x, y, z);
+        }
     }
 
     /**
