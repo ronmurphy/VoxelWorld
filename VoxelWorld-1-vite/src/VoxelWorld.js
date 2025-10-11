@@ -9988,6 +9988,16 @@ class NebulaVoxelApp {
                 return;
             }
 
+            // ESC key: Close backpack if open (before controlsEnabled check so it works during text input)
+            if (key === 'escape' && this.hasBackpack && this.backpackInventoryElement) {
+                const isVisible = this.backpackInventoryElement.style.transform.includes('translateY(0px)');
+                if (isVisible) {
+                    this.toggleBackpackInventory();
+                    e.preventDefault();
+                    return; // Don't process other keys
+                }
+            }
+
             if (!this.controlsEnabled) return;
 
             // Movement keys
@@ -9995,7 +10005,7 @@ class NebulaVoxelApp {
                 this.keys[key] = true;
                 e.preventDefault();
             }
-            
+
             // Hotbar selection (1-5)
             if (key >= '1' && key <= '5') {
                 const slot = parseInt(key) - 1;
@@ -10006,15 +10016,6 @@ class NebulaVoxelApp {
                     const slotData = this.hotbarSlots[slot];
                     const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
                     console.log(`Selected hotbar slot ${slot + 1}: ${displayText}`);
-                    e.preventDefault();
-                }
-            }
-
-            // ESC key: Close backpack if open
-            if (key === 'escape' && this.hasBackpack && this.backpackInventoryElement) {
-                const isVisible = this.backpackInventoryElement.style.transform.includes('translateY(0px)');
-                if (isVisible) {
-                    this.toggleBackpackInventory();
                     e.preventDefault();
                 }
             }
