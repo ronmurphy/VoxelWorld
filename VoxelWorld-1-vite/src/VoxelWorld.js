@@ -3171,6 +3171,14 @@ class NebulaVoxelApp {
             this.controlsEnabled = false;
             console.log('🔒 Disabled input controls for Explorer\'s Journal');
 
+            // 🎨 Hide hotbar and companion portrait for clean journal view
+            if (this.hotbarElement) {
+                this.hotbarElement.style.display = 'none';
+            }
+            if (this.companionPortrait && this.companionPortrait.portraitElement) {
+                this.companionPortrait.portraitElement.style.display = 'none';
+            }
+
             this.worldMapModal.style.display = 'block';
             // Trigger animation
             setTimeout(() => {
@@ -3193,6 +3201,14 @@ class NebulaVoxelApp {
                 // Re-enable VoxelWorld input controls when journal closes
                 this.controlsEnabled = true;
                 console.log('✅ Re-enabled input controls after closing Explorer\'s Journal');
+
+                // 🎨 Show hotbar and companion portrait again
+                if (this.hotbarElement) {
+                    this.hotbarElement.style.display = 'flex';
+                }
+                if (this.companionPortrait && this.companionPortrait.portraitElement) {
+                    this.companionPortrait.portraitElement.style.display = 'block';
+                }
 
                 // Only re-request pointer lock if closing completely (not switching tabs)
                 if (reEngagePointerLock && this.controlsEnabled) {
@@ -5584,13 +5600,32 @@ class NebulaVoxelApp {
         // 🌍 Update biome indicator in status display
         this.updateBiomeIndicator = () => {
             const playerX = Math.floor(this.player.position.x);
+            const playerY = Math.floor(this.player.position.y);
             const playerZ = Math.floor(this.player.position.z);
-            const currentBiome = this.biomeWorldGen.getBiomeAt(playerX, playerZ, this.worldSeed);
+            let currentBiome = this.biomeWorldGen.getBiomeAt(playerX, playerZ, this.worldSeed);
+
+            // 🏔️ HEIGHT-AWARE BIOME DETECTION: Override biome based on elevation
+            // If player is significantly above biome's max height, it's probably a mountain
+            let heightBasedBiome = currentBiome.name;
+
+            // Check if player is on a tall mountain (above normal terrain)
+            if (playerY > 20) {
+                heightBasedBiome = "Mountain";
+            } else if (playerY > 15 && currentBiome.maxHeight < 12) {
+                // Player is moderately high, and base biome is low-elevation
+                heightBasedBiome = "Mountain";
+            }
+
+            // If height-based detection differs from terrain biome, create override
+            if (heightBasedBiome !== currentBiome.name) {
+                console.log(`🏔️ Height-based biome override: ${currentBiome.name} → ${heightBasedBiome} (y=${playerY})`);
+                currentBiome = this.biomeWorldGen.biomes[heightBasedBiome] || currentBiome;
+            }
 
             // Only update if biome changed to avoid spam
             if (this.lastDisplayedBiome !== currentBiome.name) {
                 this.lastDisplayedBiome = currentBiome.name;
-                console.log(`🌍 Biome changed to: ${currentBiome.name} at (${playerX}, ${playerZ})`);
+                console.log(`🌍 Biome changed to: ${currentBiome.name} at (${playerX}, ${playerY}, ${playerZ})`);
 
                 // Get biome icon and tree chance
                 const biomeInfo = this.getBiomeDisplayInfo(currentBiome);
@@ -6440,7 +6475,9 @@ class NebulaVoxelApp {
         console.log('  giveBlock("stone", 64) - adds blocks to inventory');
         console.log('  listItems() - show all available items');
         console.log('  growCrop() - grow crop at crosshair to next stage (aim at crop first)');
-        console.log('  makeRuins("small") - generates test ruin near player (small/medium/large/colossal)');
+        console.log('  makeRuins("small", "lshape") - generates test ruin near player');
+        console.log('    Sizes: small, medium, large, colossal');
+        console.log('    Shapes: square, rectangle, lshape, tshape, cross, ushape, circle');
         console.log('  clearSeed() - clears saved seed and generates new random world on refresh');
         console.log('  setSeed(12345) - sets a specific seed for the world');
         console.log('  Type showCommands() to see all available commands');
@@ -6502,21 +6539,22 @@ class NebulaVoxelApp {
         };
 
         // 🏛️ DEBUG UTILITY: Generate test ruin near player
-        // Can be called from browser console: makeRuins("medium")
-        window.makeRuins = (size = "small") => {
+        // Can be called from browser console: makeRuins("medium", "lshape")
+        window.makeRuins = (size = "small", shape = "square") => {
             if (!this.biomeWorldGen || !this.biomeWorldGen.structureGenerator) {
                 console.error('❌ Structure generator not available');
                 return;
             }
-            
+
             const playerX = Math.floor(this.player.position.x);
             const playerY = Math.floor(this.player.position.y);
             const playerZ = Math.floor(this.player.position.z);
-            
+
             const biome = this.biomeWorldGen.getBiomeAt(playerX, playerZ, this.worldSeed);
-            
+
             this.biomeWorldGen.structureGenerator.debugGenerateRuin(
                 size,
+                shape,
                 playerX,
                 playerY,
                 playerZ,
@@ -6524,8 +6562,9 @@ class NebulaVoxelApp {
                 (x, z) => this.biomeWorldGen.findGroundHeight(x, z),
                 biome.name
             );
-            
-            this.updateStatus(`🏛️ Generated ${size} ruin near you!`, 'success');
+
+            const shapeName = this.biomeWorldGen.structureGenerator.SHAPES[shape]?.name || shape;
+            this.updateStatus(`🏛️ Generated ${size} ${shapeName} near you!`, 'success');
         };
 
         // 🌱 DEBUG UTILITY: Clear saved seed
@@ -7741,6 +7780,23 @@ class NebulaVoxelApp {
 
             // Mark chunk as loaded
             this.loadedChunks.add(`${chunkX},${chunkZ}`);
+
+            // 🏛️ GENERATE RUINS: After worker chunk generation, generate structures
+            // This was missing - ruins only worked in fallback mode!
+            if (this.biomeWorldGen && this.biomeWorldGen.structureGenerator) {
+                // Get biome for this chunk to pass to structure generator
+                const centerX = chunkX * this.chunkSize + this.chunkSize / 2;
+                const centerZ = chunkZ * this.chunkSize + this.chunkSize / 2;
+                const chunkBiome = this.biomeWorldGen.getBiomeAt(centerX, centerZ, this.worldSeed);
+
+                this.biomeWorldGen.structureGenerator.generateStructuresForChunk(
+                    chunkX,
+                    chunkZ,
+                    this.addBlock.bind(this),
+                    (x, z) => this.biomeWorldGen.findGroundHeight(x, z),
+                    chunkBiome.name
+                );
+            }
 
             // 🌳 RESTORE TREES: Check if we have cached trees for this chunk
             const chunkKey = `${chunkX},${chunkZ}`;

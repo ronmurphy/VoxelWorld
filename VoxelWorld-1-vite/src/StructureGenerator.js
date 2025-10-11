@@ -7,7 +7,7 @@ export class StructureGenerator {
     constructor(seed = 12345, billboardItems = {}, voxelWorld = null) {
         this.seed = seed;
         this.voxelWorld = voxelWorld; // Reference to VoxelWorld for minimap tracking
-        this.STRUCTURE_FREQUENCY = 0.15; // 15% of chunks - more common for exploration (was 8%)
+        this.STRUCTURE_FREQUENCY = 0.05; // 5% of chunks - rare but findable (~1 per 20 chunks)
         this.MIN_STRUCTURE_DISTANCE = 80; // Minimum blocks between structures
 
         // 🚀 PERFORMANCE: Cache structure check results to prevent duplicate calculations
@@ -20,6 +20,17 @@ export class StructureGenerator {
             medium: { width: 9, height: 7, depth: 9, weight: 0.20 },     // 20% of ruins
             large: { width: 15, height: 10, depth: 15, weight: 0.08 },   // 8% of ruins
             colossal: { width: 25, height: 15, depth: 25, weight: 0.02 } // 2% of ruins (very rare!)
+        };
+
+        // 🏛️ Structure shape definitions - different architectural layouts
+        this.SHAPES = {
+            square: { weight: 0.30, name: 'Square Keep' },           // 30% - Classic square ruins
+            rectangle: { weight: 0.15, name: 'Rectangular Hall' },   // 15% - Elongated structures
+            lshape: { weight: 0.15, name: 'L-Shaped Wing' },         // 15% - L-shaped corner ruins
+            tshape: { weight: 0.10, name: 'T-Shaped Temple' },       // 10% - T-shaped structures
+            cross: { weight: 0.10, name: 'Cross Shrine' },           // 10% - Cross/plus shaped
+            ushape: { weight: 0.10, name: 'U-Shaped Courtyard' },    // 10% - Courtyard with opening
+            circle: { weight: 0.10, name: 'Circular Arena' }         // 10% - Arena/colosseum style
         };
 
         // Current available blocks (more can be added when textures available)
@@ -37,12 +48,13 @@ export class StructureGenerator {
             : ['skull', 'mushroom', 'flower', 'berry', 'leaf'];
         
         // Biome-specific blocks for ruins
+        // Order: [primary (60%), secondary (25%), tertiary (15%)]
         this.BIOME_BLOCKS = {
-            Desert: ['sandstone', 'sand', 'dirt'],  // 🏜️ Desert ruins use sandstone!
-            Mountain: ['stone', 'stone', 'dirt'],
-            Tundra: ['stone', 'dirt', 'snow'],
-            Forest: ['stone', 'dirt', 'oak_wood'],
-            Plains: ['stone', 'dirt', 'grass'],
+            Desert: ['sandstone', 'sandstone', 'sand'],  // 🏜️ Desert ruins: mostly sandstone, some sand
+            Mountain: ['stone', 'stone', 'stone'],       // ⛰️ Mountain ruins: all stone (weathered)
+            Tundra: ['stone', 'snow', 'dirt'],          // 🌨️ Tundra ruins: stone with snow patches
+            Forest: ['stone', 'oak_wood', 'dirt'],      // 🌲 Forest ruins: stone with wood accents
+            Plains: ['stone', 'dirt', 'grass'],         // 🌾 Plains ruins: stone with grass/dirt
             default: ['stone', 'dirt', 'grass']
         };
     }
@@ -60,10 +72,10 @@ export class StructureGenerator {
         const structureData = this.checkForStructure(chunkX, chunkZ);
 
         if (structureData) {
-            const { worldX, worldZ, size, buried } = structureData;
-            this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
+            const { worldX, worldZ, size, shape, buried } = structureData;
+            this.generateStructure(worldX, worldZ, size, shape, buried, addBlockFn, getHeightFn, biome);
         }
-        
+
         // 🚀 OPTIMIZED: Check nearby chunks for structures that might extend into this chunk
         // Reduced from ±2 to ±1 (25 checks → 9 checks)
         // Even colossal ruins (25 blocks) only need ±1 chunk overlap check
@@ -73,7 +85,7 @@ export class StructureGenerator {
 
                 const nearbyData = this.checkForStructure(chunkX + dx, chunkZ + dz);
                 if (nearbyData) {
-                    const { worldX, worldZ, size, buried } = nearbyData;
+                    const { worldX, worldZ, size, shape, buried } = nearbyData;
                     const sizeData = this.SIZES[size];
 
                     // Check if structure extends into current chunk
@@ -82,7 +94,7 @@ export class StructureGenerator {
 
                     if (Math.abs(worldX - currentChunkWorldX) < sizeData.width + 16 &&
                         Math.abs(worldZ - currentChunkWorldZ) < sizeData.depth + 16) {
-                        this.generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome);
+                        this.generateStructure(worldX, worldZ, size, shape, buried, addBlockFn, getHeightFn, biome);
                     }
                 }
             }
@@ -124,6 +136,19 @@ export class StructureGenerator {
             }
         }
 
+        // 🏛️ Determine structure shape based on noise value
+        const shapeNoise = this.seededNoise(chunkX * 6, chunkZ * 6);
+        let shape = 'square';
+        cumulative = 0;
+
+        for (const [shapeName, data] of Object.entries(this.SHAPES)) {
+            cumulative += data.weight;
+            if (shapeNoise < cumulative) {
+                shape = shapeName;
+                break;
+            }
+        }
+
         // Determine if structure should be buried (25% chance)
         const burialNoise = this.seededNoise(chunkX * 3, chunkZ * 3);
         const buried = burialNoise > 0.75;
@@ -136,6 +161,7 @@ export class StructureGenerator {
             worldX: chunkX * 16 + offsetX,
             worldZ: chunkZ * 16 + offsetZ,
             size,
+            shape,
             buried,
             groundY: null  // Will be set when structure is actually generated
         };
@@ -144,7 +170,8 @@ export class StructureGenerator {
         this.structureCache.set(cacheKey, structureData);
 
         // 🏛️ LOG: Ruin generation for debugging
-        console.log(`🏛️ Ruin spawned! Size: ${size}, Position: (${structureData.worldX}, ${structureData.worldZ}), Buried: ${buried}, Chunk: (${chunkX}, ${chunkZ})`);
+        const shapeName = this.SHAPES[shape]?.name || shape;
+        console.log(`🏛️ Ruin spawned! Type: ${shapeName}, Size: ${size}, Position: (${structureData.worldX}, ${structureData.worldZ}), Buried: ${buried}, Chunk: (${chunkX}, ${chunkZ})`);
 
         // 🗺️ Track ruin position for minimap
         if (this.voxelWorld && this.voxelWorld.ruinPositions) {
@@ -163,7 +190,7 @@ export class StructureGenerator {
      * Generate a structure at the specified world position
      * @param {number} playerY - Optional player Y position for debug mode
      */
-    generateStructure(worldX, worldZ, size, buried, addBlockFn, getHeightFn, biome, playerY = null) {
+    generateStructure(worldX, worldZ, size, shape = 'square', buried, addBlockFn, getHeightFn, biome, playerY = null) {
         const sizeData = this.SIZES[size];
         const { width, height, depth } = sizeData;
         
@@ -234,10 +261,11 @@ export class StructureGenerator {
                     
                     // Don't place blocks at or below bedrock
                     if (worldPosY <= 0) continue;
-                    
-                    const isWall = this.isWallBlock(x, y, z, width, height, depth);
-                    const isDoorway = this.isDoorway(x, y, z, width, height, depth);
-                    
+
+                    // 🏛️ SHAPE-BASED WALL DETECTION: Different logic for each shape
+                    const isWall = this.isWallBlock(x, y, z, width, height, depth, shape);
+                    const isDoorway = this.isDoorway(x, y, z, width, height, depth, shape);
+
                     // Place wall blocks, but skip doorways
                     if (isWall && !isDoorway) {
                         // Add some variation - occasionally use dirt/grass instead of stone
@@ -294,65 +322,206 @@ export class StructureGenerator {
     }
     
     /**
-     * Determine if a position is a wall block
+     * Determine if a position is a wall block (shape-aware)
      */
-    isWallBlock(x, y, z, width, height, depth) {
+    isWallBlock(x, y, z, width, height, depth, shape = 'square') {
         const halfWidth = Math.floor(width / 2);
         const halfDepth = Math.floor(depth / 2);
-        
-        // Floor
+
+        // Check if position is within the shape's footprint
+        const inShape = this.isInShape(x, z, width, depth, shape);
+        if (!inShape) return false;
+
+        // Floor - always solid within shape
         if (y === 0) return true;
-        
+
         // Ceiling (partial - ruins have holes)
         if (y === height - 1) {
             // Only 40% of ceiling remains
             return this.seededNoise(x * 7, z * 7) < 0.4;
         }
-        
-        // Walls
-        const isEdgeX = Math.abs(x) === halfWidth;
-        const isEdgeZ = Math.abs(z) === halfDepth;
-        
-        if (isEdgeX || isEdgeZ) {
+
+        // Walls - check if on edge of shape
+        const onEdge = this.isOnShapeEdge(x, z, width, depth, shape);
+
+        if (onEdge) {
             // Add some crumbling - 10% of wall blocks missing
             return this.seededNoise(x * 11, y * 13 + z * 17) > 0.1;
         }
-        
+
         return false;
     }
-    
+
     /**
-     * Check if position is a doorway (2x2 opening)
+     * Check if position is within the shape's footprint
      */
-    isDoorway(x, y, z, width, _height, depth) {
+    isInShape(x, z, width, depth, shape) {
         const halfWidth = Math.floor(width / 2);
         const halfDepth = Math.floor(depth / 2);
-        
-        // Only at ground level (y = 0, 1, 2 for 2-high + 1 above head)
-        if (y > 2) return false;
-        
-        // Front wall doorway (centered)
-        if (z === halfDepth && Math.abs(x) <= 1 && y <= 2) return true;
-        
-        // For larger structures, add side doorways
-        if (width >= 15) {
-            if (x === halfWidth && Math.abs(z) <= 1 && y <= 2) return true;
-            if (x === -halfWidth && Math.abs(z) <= 1 && y <= 2) return true;
+
+        switch (shape) {
+            case 'square':
+                return Math.abs(x) <= halfWidth && Math.abs(z) <= halfDepth;
+
+            case 'rectangle':
+                // Make it 1.5x longer in Z direction
+                return Math.abs(x) <= halfWidth && Math.abs(z) <= Math.floor(halfDepth * 1.5);
+
+            case 'lshape':
+                // L-shape: two rectangles forming an L
+                const inMainWing = Math.abs(x) <= halfWidth && z <= halfDepth && z >= -halfDepth / 2;
+                const inSideWing = x <= halfWidth && x >= halfWidth / 2 && Math.abs(z) <= halfDepth;
+                return inMainWing || inSideWing;
+
+            case 'tshape':
+                // T-shape: horizontal bar + vertical stem
+                const inTopBar = Math.abs(x) <= halfWidth && z >= halfDepth / 2 && z <= halfDepth;
+                const inStem = Math.abs(x) <= halfWidth / 3 && Math.abs(z) <= halfDepth;
+                return inTopBar || inStem;
+
+            case 'cross':
+                // Cross/plus shape: horizontal + vertical bars
+                const inHorizontal = Math.abs(x) <= halfWidth && Math.abs(z) <= halfDepth / 3;
+                const inVertical = Math.abs(x) <= halfWidth / 3 && Math.abs(z) <= halfDepth;
+                return inHorizontal || inVertical;
+
+            case 'ushape':
+                // U-shape: square with opening on one side
+                const inOuter = Math.abs(x) <= halfWidth && Math.abs(z) <= halfDepth;
+                const inHollow = Math.abs(x) <= halfWidth / 2 && z >= 0 && z <= halfDepth;
+                return inOuter && !inHollow;
+
+            case 'circle':
+                // Circular arena
+                const radius = Math.min(halfWidth, halfDepth);
+                const distance = Math.sqrt(x * x + z * z);
+                return distance <= radius;
+
+            default:
+                return Math.abs(x) <= halfWidth && Math.abs(z) <= halfDepth;
         }
-        
-        return false;
+    }
+
+    /**
+     * Check if position is on the edge of the shape
+     */
+    isOnShapeEdge(x, z, width, depth, shape) {
+        const halfWidth = Math.floor(width / 2);
+        const halfDepth = Math.floor(depth / 2);
+
+        switch (shape) {
+            case 'square':
+                const isEdgeX = Math.abs(x) === halfWidth;
+                const isEdgeZ = Math.abs(z) === halfDepth;
+                return isEdgeX || isEdgeZ;
+
+            case 'rectangle':
+                const rectDepth = Math.floor(halfDepth * 1.5);
+                return Math.abs(x) === halfWidth || Math.abs(z) === rectDepth;
+
+            case 'lshape':
+                // Check edges of both L sections
+                const onMainEdge = (Math.abs(x) === halfWidth && z >= -halfDepth / 2 && z <= halfDepth) ||
+                                   (z === -halfDepth / 2 || z === halfDepth) && Math.abs(x) <= halfWidth;
+                const onSideEdge = (x === halfWidth / 2 || x === halfWidth) && Math.abs(z) <= halfDepth ||
+                                   (Math.abs(z) === halfDepth && x >= halfWidth / 2 && x <= halfWidth);
+                return onMainEdge || onSideEdge;
+
+            case 'tshape':
+            case 'cross':
+            case 'ushape':
+                // For complex shapes, check if adjacent cell is outside shape
+                const dirs = [[1,0], [-1,0], [0,1], [0,-1]];
+                for (const [dx, dz] of dirs) {
+                    if (!this.isInShape(x + dx, z + dz, width, depth, shape)) {
+                        return true;
+                    }
+                }
+                return false;
+
+            case 'circle':
+                const radius = Math.min(halfWidth, halfDepth);
+                const distance = Math.sqrt(x * x + z * z);
+                const innerRadius = radius - 1;
+                return distance > innerRadius && distance <= radius;
+
+            default:
+                return Math.abs(x) === halfWidth || Math.abs(z) === halfDepth;
+        }
     }
     
     /**
-     * Get block type with some variation
+     * Check if position is a doorway (2x2 opening) - shape-aware
+     */
+    isDoorway(x, y, z, width, _height, depth, shape = 'square') {
+        const halfWidth = Math.floor(width / 2);
+        const halfDepth = Math.floor(depth / 2);
+
+        // Only at ground level (y = 0, 1, 2 for 2-high + 1 above head)
+        if (y > 2) return false;
+
+        switch (shape) {
+            case 'square':
+            case 'rectangle':
+                // Front wall doorway (centered)
+                if (z === Math.floor(halfDepth * (shape === 'rectangle' ? 1.5 : 1)) && Math.abs(x) <= 1) return true;
+                // Side doorways for larger structures
+                if (width >= 15) {
+                    if (x === halfWidth && Math.abs(z) <= 1) return true;
+                    if (x === -halfWidth && Math.abs(z) <= 1) return true;
+                }
+                return false;
+
+            case 'lshape':
+                // Doorway at each wing
+                if (z === halfDepth && Math.abs(x) <= 1) return true; // Main wing
+                if (x === halfWidth && Math.abs(z) <= 1) return true; // Side wing
+                return false;
+
+            case 'tshape':
+                // Doorway at stem bottom
+                if (z === -halfDepth && Math.abs(x) <= 1) return true;
+                return false;
+
+            case 'cross':
+                // Doorways at each arm of the cross
+                if (z === -halfDepth && Math.abs(x) <= 1) return true; // Bottom
+                if (z === halfDepth && Math.abs(x) <= 1) return true;  // Top
+                if (x === -halfWidth && Math.abs(z) <= 1) return true; // Left
+                if (x === halfWidth && Math.abs(z) <= 1) return true;  // Right
+                return false;
+
+            case 'ushape':
+                // Doorway at the opening of the U
+                if (z === halfDepth && Math.abs(x) <= 1) return true;
+                return false;
+
+            case 'circle':
+                // One doorway on south side
+                const radius = Math.min(halfWidth, halfDepth);
+                const distance = Math.sqrt(x * x + z * z);
+                return distance >= radius - 1 && distance <= radius && z > 0 && Math.abs(x) <= 1;
+
+            default:
+                return z === halfDepth && Math.abs(x) <= 1;
+        }
+    }
+    
+    /**
+     * Get block type with some variation (biome-aware)
      */
     getBlockType(x, y, z, palette) {
         const noise = this.seededNoise(x * 19, y * 23 + z * 29);
-        
-        // Mostly stone, some dirt/grass for weathered look
-        if (noise < 0.7) return 'stone';
-        if (noise < 0.9) return 'dirt';
-        return palette[Math.floor(Math.random() * palette.length)];
+
+        // Use primary material from palette (sandstone for desert, stone for others)
+        const primaryMaterial = palette[0]; // First item is primary (sandstone, stone, etc.)
+        const secondaryMaterial = palette.length > 1 ? palette[1] : 'dirt';
+        const tertiaryMaterial = palette.length > 2 ? palette[2] : 'dirt';
+
+        // 60% primary material, 25% secondary, 15% tertiary
+        if (noise < 0.60) return primaryMaterial;
+        if (noise < 0.85) return secondaryMaterial;
+        return tertiaryMaterial;
     }
     
     /**
@@ -387,8 +556,9 @@ export class StructureGenerator {
     
     /**
      * 🔧 DEBUG: Generate a ruin near player position for testing
-     * Usage: window.makeRuins("small") or window.makeRuins("medium"), etc.
+     * Usage: window.makeRuins("small", "lshape") or window.makeRuins("medium"), etc.
      * @param {string} size - "small", "medium", "large", or "colossal"
+     * @param {string} shape - "square", "rectangle", "lshape", "tshape", "cross", "ushape", "circle" (optional)
      * @param {number} playerX - Player X position
      * @param {number} playerY - Player Y position (used for accurate placement)
      * @param {number} playerZ - Player Z position
@@ -396,29 +566,36 @@ export class StructureGenerator {
      * @param {Function} getHeightFn - Function to get ground height
      * @param {string} biome - Biome name (optional)
      */
-    debugGenerateRuin(size, playerX, playerY, playerZ, addBlockFn, getHeightFn, biome = 'default') {
+    debugGenerateRuin(size, shape, playerX, playerY, playerZ, addBlockFn, getHeightFn, biome = 'default') {
         // Validate size
         if (!this.SIZES[size]) {
             console.error(`❌ Invalid size "${size}". Use: small, medium, large, or colossal`);
             return;
         }
-        
+
+        // Validate shape
+        if (!this.SHAPES[shape]) {
+            console.error(`❌ Invalid shape "${shape}". Use: square, rectangle, lshape, tshape, cross, ushape, circle`);
+            return;
+        }
+
         // Place structure 10-20 blocks in front of player (positive Z direction)
         const distance = 15;
         const offsetX = Math.floor((Math.random() - 0.5) * 10); // Random offset ±5 blocks
         const offsetZ = distance + Math.floor(Math.random() * 10); // 15-25 blocks away
-        
+
         const structureX = Math.floor(playerX + offsetX);
         const structureZ = Math.floor(playerZ + offsetZ);
-        
+
         // Don't bury debug structures - place them on surface at player's Y level
         const buried = false;
-        
-        console.log(`🏛️ Generating ${size} ruin at (${structureX}, ${playerY}, ${structureZ}) near player at (${playerX}, ${playerY}, ${playerZ})`);
-        
+
+        const shapeName = this.SHAPES[shape]?.name || shape;
+        console.log(`🏛️ Generating ${size} ${shapeName} at (${structureX}, ${playerY}, ${structureZ}) near player at (${playerX}, ${playerY}, ${playerZ})`);
+
         // Pass playerY to use player's current height instead of ground detection
-        this.generateStructure(structureX, structureZ, size, buried, addBlockFn, getHeightFn, biome, playerY);
-        
-        console.log(`✅ ${size} ruin generated! Look around position (${structureX}, ${structureZ})`);
+        this.generateStructure(structureX, structureZ, size, shape, buried, addBlockFn, getHeightFn, biome, playerY);
+
+        console.log(`✅ ${size} ${shapeName} generated! Look around position (${structureX}, ${structureZ})`);
     }
 }

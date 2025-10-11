@@ -175,6 +175,14 @@ export class CompanionCodex {
         if (this.voxelWorld) {
             this.voxelWorld.controlsEnabled = false;
             console.log('🔒 Disabled input controls for Companion Codex');
+
+            // 🎨 Hide hotbar and companion portrait for clean codex view
+            if (this.voxelWorld.hotbarElement) {
+                this.voxelWorld.hotbarElement.style.display = 'none';
+            }
+            if (this.voxelWorld.companionPortrait && this.voxelWorld.companionPortrait.portraitElement) {
+                this.voxelWorld.companionPortrait.portraitElement.style.display = 'none';
+            }
         }
 
         // Create codex overlay
@@ -988,6 +996,14 @@ export class CompanionCodex {
             if (this.voxelWorld) {
                 this.voxelWorld.controlsEnabled = true;
                 console.log('✅ Re-enabled input controls after closing Companion Codex');
+
+                // 🎨 Show hotbar and companion portrait again
+                if (this.voxelWorld.hotbarElement) {
+                    this.voxelWorld.hotbarElement.style.display = 'flex';
+                }
+                if (this.voxelWorld.companionPortrait && this.voxelWorld.companionPortrait.portraitElement) {
+                    this.voxelWorld.companionPortrait.portraitElement.style.display = 'block';
+                }
 
                 // Only re-request pointer lock if closing completely (not switching tabs)
                 if (reEngagePointerLock) {
