@@ -181,9 +181,13 @@ class NebulaVoxelApp {
         this.musicSystem = new MusicSystem();
         console.log('🎵 MusicSystem initialized');
 
-        // Start background music after a short delay (let game load first)
+        // Start background music after a short delay (let game load first) - only if autoplay enabled
         setTimeout(() => {
-            this.musicSystem.play('music/forestDay.ogg');
+            if (this.musicSystem.autoplayEnabled) {
+                this.musicSystem.play('music/forestDay.ogg');
+            } else {
+                console.log('🎵 Autoplay disabled - music not started');
+            }
         }, 1000);
 
         // 🔧 Initialize CraftedTools handler
@@ -10848,6 +10852,7 @@ class NebulaVoxelApp {
                         padding: 12px 16px;
                         background: rgba(80, 54, 27, 0.6);
                         border: none;
+                        border-right: 1px solid #654321;
                         color: #F5E6D3;
                         font-size: 14px;
                         font-family: 'Georgia', serif;
@@ -10855,6 +10860,18 @@ class NebulaVoxelApp {
                         transition: all 0.2s;
                         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
                     ">🎨 Graphics</button>
+                    <button class="menu-tab" data-tab="music" style="
+                        flex: 1;
+                        padding: 12px 16px;
+                        background: rgba(80, 54, 27, 0.6);
+                        border: none;
+                        color: #F5E6D3;
+                        font-size: 14px;
+                        font-family: 'Georgia', serif;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+                    ">🎵 Music</button>
                 </div>
 
                 <!-- Tab Content Container -->
@@ -11086,6 +11103,104 @@ class NebulaVoxelApp {
                             💡 Enhanced graphics loads custom textures for blocks and tools
                         </div>
                     </div>
+
+                    <!-- MUSIC TAB -->
+                    <div class="tab-content" data-tab="music" style="display: none;">
+                        <div style="color: #F5E6D3; font-size: 18px; margin-bottom: 16px; text-align: center; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">Audio Settings</div>
+
+                        <!-- Volume Control -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 12px; font-weight: bold;">🔊 Music Volume</div>
+                            <input type="range" id="modal-music-volume" min="0" max="100" value="${this.musicSystem.volume * 100}" style="
+                                width: 100%;
+                                height: 6px;
+                                background: linear-gradient(to right, #4a7a3a, #5a8a4a);
+                                border-radius: 3px;
+                                outline: none;
+                                -webkit-appearance: none;
+                            ">
+                            <div style="display: flex; justify-content: space-between; margin-top: 8px;">
+                                <span style="color: #FFE4B5; font-size: 11px;">0%</span>
+                                <span id="modal-volume-display" style="color: #FFE4B5; font-size: 12px; font-weight: bold;">${Math.round(this.musicSystem.volume * 100)}%</span>
+                                <span style="color: #FFE4B5; font-size: 11px;">100%</span>
+                            </div>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 8px; font-style: italic; text-align: center;">Use +/- keys or slider to adjust volume</div>
+                        </div>
+
+                        <!-- Mute Toggle -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 8px; font-weight: bold;">🔇 Mute Music</div>
+                            <button id="modal-music-mute-btn" style="
+                                width: 100%;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, ${this.musicSystem.isMuted ? '#9a4a4a' : '#5a8a4a'}, ${this.musicSystem.isMuted ? '#8a3a3a' : '#4a7a3a'});
+                                color: #F5E6D3;
+                                border: 2px solid ${this.musicSystem.isMuted ? '#7d2d2d' : '#3d5d2d'};
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">${this.musicSystem.isMuted ? '🔇 Music Muted' : '🔊 Music Playing'}</button>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Press 0 key to toggle mute</div>
+                        </div>
+
+                        <!-- Autoplay Toggle -->
+                        <div style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        ">
+                            <div style="color: #F5E6D3; font-size: 13px; margin-bottom: 8px; font-weight: bold;">▶️ Autoplay Music</div>
+                            <button id="modal-music-autoplay-btn" style="
+                                width: 100%;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, ${this.musicSystem.autoplayEnabled ? '#5a8a4a' : '#6a6a6a'}, ${this.musicSystem.autoplayEnabled ? '#4a7a3a' : '#5a5a5a'});
+                                color: #F5E6D3;
+                                border: 2px solid ${this.musicSystem.autoplayEnabled ? '#3d5d2d' : '#4a4a4a'};
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">${this.musicSystem.autoplayEnabled ? '✓ Autoplay ON' : '○ Autoplay OFF'}</button>
+                            <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Automatically start music on game load</div>
+                        </div>
+
+                        <!-- Music Info -->
+                        <div style="
+                            background: rgba(212, 175, 55, 0.15);
+                            border: 1px solid #D4AF37;
+                            border-radius: 6px;
+                            padding: 12px;
+                            color: #FFE4B5;
+                            font-size: 12px;
+                            font-style: italic;
+                            text-align: center;
+                        ">
+                            🎼 Music composed by Jason Heaberlin
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Footer -->
@@ -11126,6 +11241,7 @@ class NebulaVoxelApp {
             #modal-newgame-btn:hover, #modal-delete-btn:hover,
             #modal-render-distance-btn:hover, #modal-gpu-btn:hover,
             #modal-benchmark-btn:hover, #modal-enhanced-graphics-btn:hover,
+            #modal-music-mute-btn:hover, #modal-music-autoplay-btn:hover,
             #modal-close-btn:hover {
                 transform: translateY(-2px);
                 box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important;
@@ -11179,6 +11295,12 @@ class NebulaVoxelApp {
         const modalGPUBtn = modal.querySelector("#modal-gpu-btn");
         const modalCloseBtn = modal.querySelector("#modal-close-btn");
         const gpuDisplay = modal.querySelector("#gpu-display");
+
+        // Music controls
+        const modalMusicVolumeSlider = modal.querySelector("#modal-music-volume");
+        const modalVolumeDisplay = modal.querySelector("#modal-volume-display");
+        const modalMusicMuteBtn = modal.querySelector("#modal-music-mute-btn");
+        const modalMusicAutoplayBtn = modal.querySelector("#modal-music-autoplay-btn");
 
         const saveWorld = () => {
             this.saveWorld();
@@ -11330,6 +11452,48 @@ class NebulaVoxelApp {
             modal.style.display = 'none';
         };
 
+        // 🎵 Music control handlers
+        const updateVolumeSlider = () => {
+            if (modalMusicVolumeSlider) {
+                const volumePercent = Math.round(this.musicSystem.volume * 100);
+                modalVolumeDisplay.textContent = `${volumePercent}%`;
+            }
+        };
+
+        const handleVolumeSliderChange = (e) => {
+            const newVolume = parseInt(e.target.value) / 100;
+            this.musicSystem.volume = newVolume;
+            this.musicSystem.updateVolume();
+            this.musicSystem.saveVolume();
+            updateVolumeSlider();
+            console.log(`🎵 Volume: ${Math.round(newVolume * 100)}%`);
+        };
+
+        const toggleMusicMute = () => {
+            this.musicSystem.toggleMute();
+
+            // Update button appearance
+            const isMuted = this.musicSystem.isMuted;
+            modalMusicMuteBtn.style.background = isMuted ?
+                'linear-gradient(180deg, #9a4a4a, #8a3a3a)' :
+                'linear-gradient(180deg, #5a8a4a, #4a7a3a)';
+            modalMusicMuteBtn.style.borderColor = isMuted ? '#7d2d2d' : '#3d5d2d';
+            modalMusicMuteBtn.textContent = isMuted ? '🔇 Music Muted' : '🔊 Music Playing';
+        };
+
+        const toggleMusicAutoplay = () => {
+            const newState = this.musicSystem.toggleAutoplay();
+
+            // Update button appearance
+            modalMusicAutoplayBtn.style.background = newState ?
+                'linear-gradient(180deg, #5a8a4a, #4a7a3a)' :
+                'linear-gradient(180deg, #6a6a6a, #5a5a5a)';
+            modalMusicAutoplayBtn.style.borderColor = newState ? '#3d5d2d' : '#4a4a4a';
+            modalMusicAutoplayBtn.textContent = newState ? '✓ Autoplay ON' : '○ Autoplay OFF';
+
+            this.updateStatus(`🎵 Music autoplay ${newState ? 'enabled' : 'disabled'}`, 'info');
+        };
+
         if (modalSaveBtn) modalSaveBtn.onclick = saveWorld;
         if (modalLoadBtn) modalLoadBtn.onclick = loadWorld;
         if (modalDeleteBtn) modalDeleteBtn.onclick = deleteSave;
@@ -11339,6 +11503,11 @@ class NebulaVoxelApp {
         if (modalEnhancedGraphicsBtn) modalEnhancedGraphicsBtn.onclick = toggleEnhancedGraphics;
         if (modalGPUBtn) modalGPUBtn.onclick = cycleGPUPreference;
         if (modalCloseBtn) modalCloseBtn.onclick = () => modal.style.display = 'none';
+
+        // Music control event listeners
+        if (modalMusicVolumeSlider) modalMusicVolumeSlider.oninput = handleVolumeSliderChange;
+        if (modalMusicMuteBtn) modalMusicMuteBtn.onclick = toggleMusicMute;
+        if (modalMusicAutoplayBtn) modalMusicAutoplayBtn.onclick = toggleMusicAutoplay;
 
         // Update status bar reference
         this.statusBar = statusBar;

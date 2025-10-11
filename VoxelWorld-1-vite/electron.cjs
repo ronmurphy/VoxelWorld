@@ -117,7 +117,7 @@ function createWindow() {
 
                         <div style="margin: 20px 0;">
                           <h4 style="margin: 15px 0 8px 0; color: #333;">🧪 Testing Team</h4>
-                          <p style="margin: 5px 0; padding-left: 15px;">Miichelle Smith</p>
+                          <p style="margin: 5px 0; padding-left: 15px;">Michelle Smith</p>
                           <p style="margin: 5px 0; padding-left: 15px;">David Daniels</p>
                           <p style="margin: 5px 0; padding-left: 15px;">Chris Mahan</p>
                           <p style="margin: 5px 0; padding-left: 15px;">Connor Allen</p>

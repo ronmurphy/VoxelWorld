@@ -20,6 +20,9 @@ export class MusicSystem {
         this.volume = this.loadVolume();
         this.volumeStep = 0.1; // 10% increments
 
+        // Autoplay setting
+        this.autoplayEnabled = this.loadAutoplay();
+
         console.log('🎵 MusicSystem initialized');
     }
 
@@ -39,6 +42,34 @@ export class MusicSystem {
      */
     saveVolume() {
         localStorage.setItem('music_volume', this.volume.toString());
+    }
+
+    /**
+     * Load autoplay from localStorage
+     */
+    loadAutoplay() {
+        const saved = localStorage.getItem('music_autoplay');
+        if (saved !== null) {
+            return saved === 'true';
+        }
+        return true; // Default autoplay enabled
+    }
+
+    /**
+     * Save autoplay to localStorage
+     */
+    saveAutoplay() {
+        localStorage.setItem('music_autoplay', this.autoplayEnabled.toString());
+    }
+
+    /**
+     * Toggle autoplay
+     */
+    toggleAutoplay() {
+        this.autoplayEnabled = !this.autoplayEnabled;
+        this.saveAutoplay();
+        console.log(`🎵 Autoplay: ${this.autoplayEnabled ? 'ON' : 'OFF'}`);
+        return this.autoplayEnabled;
     }
 
     /**
