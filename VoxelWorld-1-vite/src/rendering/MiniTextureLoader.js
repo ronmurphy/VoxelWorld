@@ -49,15 +49,9 @@ export class MiniTextureLoader {
             return this.texturePool.get(blockType);
         }
 
-        let texture;
-
-        if (this.isElectron) {
-            // Electron: Load pre-generated file
-            texture = await this.loadFromFile(blockType);
-        } else {
-            // Browser: Load from IndexedDB cache (or generate)
-            texture = await this.cache.loadOrGenerate(blockType);
-        }
+        // Both Electron and Browser now use pre-generated files
+        // If file doesn't exist, return null (fallback to color-only)
+        const texture = await this.loadFromFile(blockType);
 
         // Pool the texture (if successfully loaded)
         if (texture) {
@@ -68,11 +62,12 @@ export class MiniTextureLoader {
     }
 
     /**
-     * Load pre-generated mini texture from file (Electron mode)
+     * Load pre-generated mini texture from file
+     * Works in both Electron and dev/browser mode
      */
     async loadFromFile(blockType) {
         return new Promise((resolve) => {
-            const path = `art/chunkMinis/${blockType}.png`;
+            const path = `/art/chunkMinis/${blockType}.png`;
 
             this.loader.load(
                 path,
@@ -82,13 +77,12 @@ export class MiniTextureLoader {
                     texture.minFilter = THREE.NearestMipMapLinearFilter;
                     texture.generateMipmaps = true;
 
-                    console.log(`✅ Loaded mini texture: ${blockType}`);
                     resolve(texture);
                 },
                 undefined,
                 (error) => {
-                    console.warn(`⚠️ Failed to load mini texture: ${blockType}`, error);
-                    resolve(null); // Fallback to color-only
+                    // Silent fail - mini texture doesn't exist, will fallback to color-only
+                    resolve(null);
                 }
             );
         });

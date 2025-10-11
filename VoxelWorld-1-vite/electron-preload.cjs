@@ -7,11 +7,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // List files in a directory (for asset discovery)
   listAssetFiles: async (category) => {
     try {
+      const path = require('path');
       const isDev = process.env.NODE_ENV === 'development';
-      // Build path manually without path.join
-      const basePath = isDev
-        ? `${__dirname}/assets/art/${category}`
-        : `${__dirname}/dist/art/${category}`;
+
+      let basePath;
+      if (isDev) {
+        // Development: assets are in project root
+        basePath = path.join(__dirname, 'assets', 'art', category);
+      } else {
+        // Production: Vite copies assets/ contents into dist/
+        // electron-builder then packages dist/ as the app root
+        basePath = path.join(__dirname, 'art', category);
+      }
 
       if (!fs.existsSync(basePath)) {
         console.warn(`Asset directory not found: ${basePath}`);

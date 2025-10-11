@@ -42,17 +42,9 @@
     },
     "files": [
       "dist/**/*",
-      "assets/**/*",
       "node_modules/**/*",
       "package.json",
       "electron.cjs"
-    ],
-    "extraResources": [
-      {
-        "from": "assets",
-        "to": "assets",
-        "filter": ["**/*"]
-      }
     ],
     "win": {
       "target": "nsis",
