@@ -151,8 +151,8 @@ export class ToolBenchSystem {
                 },
                 category: 'farming',
                 isTool: true,
-                isFarmingTool: true,
-                toolType: 'hoe'
+                isFarmingTool: true
+                // No toolType - will automatically become "crafted_hoe"
             },
 
             watering_can: {
@@ -165,8 +165,8 @@ export class ToolBenchSystem {
                 },
                 category: 'farming',
                 isTool: true,
-                isFarmingTool: true,
-                toolType: 'watering_can'
+                isFarmingTool: true
+                // No toolType - will automatically become "crafted_watering_can"
             },
 
             machete_upgrade: {

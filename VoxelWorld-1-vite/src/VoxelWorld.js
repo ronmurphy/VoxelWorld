@@ -24,6 +24,7 @@ import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import ChristmasSystem from './ChristmasSystem.js';
 import { FarmingSystem } from './FarmingSystem.js';
 import { farmingBlockTypes } from './FarmingBlockTypes.js';
+import { CraftedTools } from './CraftedTools.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -137,7 +138,7 @@ class NebulaVoxelApp {
         // 🎯 Check if player has a tool (either selected in hotbar OR equipped)
         this.hasTool = (toolType) => {
             // Check selected hotbar slot
-            const selectedSlot = this.getHotbarSlot(this.selectedSlot);
+            const selectedSlot = this.hotbarSystem.getSelectedSlot();
             if (selectedSlot && selectedSlot.itemType === toolType) return true;
             
             // Check equipment slots
@@ -174,6 +175,10 @@ class NebulaVoxelApp {
         // � Initialize FarmingSystem
         this.farmingSystem = new FarmingSystem(this);
         console.log('🌾 FarmingSystem initialized');
+
+        // 🔧 Initialize CraftedTools handler
+        this.craftedTools = new CraftedTools(this);
+        console.log('🔧 CraftedTools handler initialized');
 
         // �🎯 Player upgrades (modifiable through ToolBench)
         this.backpackStackSize = 50;  // Can upgrade to 75, 100
@@ -2399,7 +2404,7 @@ class NebulaVoxelApp {
             });
 
             // Check for first-time machete selection tutorial
-            const selectedItem = this.getHotbarSlot(this.selectedSlot);
+            const selectedItem = this.hotbarSystem.getSelectedSlot();
             if (selectedItem && selectedItem.itemType === 'machete') {
                 if (this.showMacheteTutorial) {
                     this.showMacheteTutorial();
@@ -6133,6 +6138,20 @@ class NebulaVoxelApp {
                 this.unlockUI();
             }
 
+            // 🔧 AUTO-ADD "crafted_" PREFIX for craftable tools
+            const craftableTools = [
+                'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
+                'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade',
+                'club', 'stone_spear', 'torch', 'wood_shield',
+                'hoe', 'watering_can', 'healing_potion', 'light_orb'
+            ];
+
+            // If user types a craftable tool name WITHOUT "crafted_" prefix, auto-add it
+            if (craftableTools.includes(itemName)) {
+                itemName = `crafted_${itemName}`;
+                console.log(`🔧 Auto-converted to: ${itemName}`);
+            }
+
             // Valid items - comprehensive list of all discovery items, tools, and crafted items
             const validItems = [
                 // 🌍 Discovery/Exploring items (treasure items)
@@ -9238,7 +9257,7 @@ class NebulaVoxelApp {
             }
 
             // 🧭 Draw compass target indicator
-            const compassSlot = this.getHotbarSlot(this.selectedSlot);
+            const compassSlot = this.hotbarSystem.getSelectedSlot();
             if (compassSlot && (compassSlot.itemType === 'compass' || compassSlot.itemType === 'compass_upgrade')) {
                 const targetType = compassSlot.metadata?.lockedTarget;
                 if (targetType) {
@@ -9873,15 +9892,9 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Q and E for hotbar navigation
-            if (key === 'q') {
-                this.selectedSlot = (this.selectedSlot - 1 + this.hotbarSlots.length) % this.hotbarSlots.length;
-                this.updateHotbarSelection();
-                const slotData = this.getHotbarSlot(this.selectedSlot);
-                const displayText = slotData?.itemType ? `${slotData.itemType} (${slotData.quantity})` : 'empty';
-                console.log(`Selected hotbar slot ${this.selectedSlot + 1}: ${displayText}`);
-                e.preventDefault();
-            }
+            // Q key: Unassigned (hotbar navigation now uses mouse wheel or number keys 1-8)
+            // E key: Opens workbench (handled below)
+
             // 🗺️ M key for world map
             if (key === 'm') {
                 this.toggleWorldMap();
@@ -10055,28 +10068,13 @@ class NebulaVoxelApp {
                 }
 
                 if (e.button === 0) { // Left click - harvesting (blocks or crafted objects)
-                    // 🌾 HOE TILLING: Check if player has hoe equipped in player bar
-                    const hasHoe = this.hasEquippedTool('hoe');
-                    const blockData = this.getBlock(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
-                    const blockType = blockData?.type || blockData; // Handle both object and string return
-                    
-                    console.log('🌾 Hoe check:', { hasHoe, blockType, blockData, pos: { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) } });
-                    
-                    if (hasHoe && (blockType === 'grass' || blockType === 'dirt')) {
-                        // Quick till with hoe - instant action, no harvesting timer
-                        console.log('🌾 Attempting to till soil...');
-                        const success = this.farmingSystem.handleHoeUse({
-                            x: Math.floor(pos.x),
-                            y: Math.floor(pos.y),
-                            z: Math.floor(pos.z)
-                        });
-                        console.log('🌾 Till result:', success);
-                        if (success) {
-                            this.updateStatus(`🌾 Soil tilled!`, 'craft');
-                        }
-                        return; // Don't continue to harvesting
+                    // 🔧 CRAFTED TOOLS: Check for special left-click tool actions
+                    const selectedSlot = this.hotbarSystem.getSelectedSlot();
+                    const toolHandled = this.craftedTools.handleLeftClick(selectedSlot, pos);
+                    if (toolHandled) {
+                        return; // Tool action handled, don't continue
                     }
-                    
+
                     // PHASE 6: Check if clicked object is a crafted object
                     if (hit.object.userData && hit.object.userData.isCraftedObject) {
                         console.log(`🎨 Harvesting crafted object: ${hit.object.userData.originalName}`);
@@ -10086,112 +10084,31 @@ class NebulaVoxelApp {
                         this.startHarvesting(pos.x, pos.y, pos.z);
                     }
                 } else if (e.button === 2) { // Right click - block placement only
+                    // Safety check: hit.face can be null when clicking on sky/void
+                    if (!hit.face) {
+                        return; // No face to place on, abort
+                    }
+
                     const normal = hit.face.normal;
                     const placePos = pos.clone().add(normal);
-                    const selectedSlot = this.getHotbarSlot(this.selectedSlot);
+
+                    // 🎯 Use HotbarSystem's selectedSlot (not VoxelWorld's old selectedSlot)
+                    const selectedSlot = this.hotbarSystem.getSelectedSlot();
                     const selectedBlock = selectedSlot?.itemType;
 
-                    // 💧 WATERING CAN: Auto-work from playerbar (like hoe)
-                    const hasWateringCan = this.hasEquippedTool('watering_can');
-                    const blockData = this.getBlock(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
-                    const blockType = blockData?.type || blockData; // Handle both object and string return
-
-                    console.log('💧 Watering can check:', { hasWateringCan, blockType, blockData, pos: { x: Math.floor(pos.x), y: Math.floor(pos.y), z: Math.floor(pos.z) } });
-
-                    // Check if block is a crop (any farming block that is a crop)
-                    const isCrop = blockType && this.farmingSystem?.getFarmingBlockTypes()[blockType]?.isCrop;
-
-                    if (hasWateringCan && isCrop) {
-                        console.log('💧 Attempting to water crop...');
-                        const success = this.farmingSystem.waterCrop(
-                            Math.floor(pos.x),
-                            Math.floor(pos.y),
-                            Math.floor(pos.z)
-                        );
-                        console.log('💧 Water result:', success);
-                        if (success) {
-                            this.updateStatus(`💧 Crop watered!`, 'craft');
-                        }
-                        return; // Don't continue to seed planting or block placement
+                    // 🔧 CRAFTED TOOLS: Check for special right-click tool actions (watering can, grappling hook)
+                    const toolHandled = this.craftedTools.handleRightClick(selectedSlot, pos, placePos);
+                    if (toolHandled) {
+                        return; // Tool action handled, don't continue
                     }
 
                     if (selectedBlock && selectedSlot.quantity > 0) {
-                        // 🌾 FARMING TOOLS: Hoe (selected slot only)
-                        if (selectedBlock === 'crafted_hoe' || selectedBlock === 'hoe') {
-                            // Till soil at clicked block position
-                            const success = this.farmingSystem.tillSoil(
-                                Math.floor(pos.x),
-                                Math.floor(pos.y),
-                                Math.floor(pos.z)
-                            );
-                            return; // Don't continue to block placement
-                        }
-
                         // 🌾 FARMING: Check for seeds (plantable items)
-                        if (this.farmingSystem.isSeedItem(selectedBlock)) {
-                            // Plant seeds at clicked block position
-                            const success = this.farmingSystem.handleSeedUse({
-                                x: Math.floor(pos.x),
-                                y: Math.floor(pos.y),
-                                z: Math.floor(pos.z)
-                            }, selectedBlock);
-
+                        if (this.craftedTools.isSeedItem(selectedBlock)) {
+                            const success = this.craftedTools.handleSeedPlanting(pos, selectedBlock);
                             if (success) {
-                                // Seed was planted and inventory already updated by farmingSystem
-                                // Just refresh the UI displays
-                                this.updateHotbarCounts();
-                                this.updateBackpackInventoryDisplay();
+                                return; // Don't continue to block placement
                             }
-                            return; // Don't continue to block placement
-                        }
-
-                        const metadata = this.inventoryMetadata?.[selectedBlock];
-                        const isGrapplingHook = metadata?.isGrapplingHook || 
-                                               selectedBlock === 'grapple_hook' || 
-                                               selectedBlock === 'grappling_hook' || 
-                                               selectedBlock === 'crafted_grappling_hook';
-                        
-                        if (isGrapplingHook) {
-                            // Calculate target position
-                            const targetX = Math.floor(placePos.x);
-                            const targetY = Math.floor(placePos.y) + 2;  // +2 blocks above target to avoid collision
-                            const targetZ = Math.floor(placePos.z);
-
-                            // Get current player position
-                            const startPos = {
-                                x: this.player.position.x,
-                                y: this.player.position.y,
-                                z: this.player.position.z
-                            };
-
-                            const endPos = {
-                                x: targetX,
-                                y: targetY,
-                                z: targetZ
-                            };
-
-                            console.log(`🕸️ Grappling hook! Animating from (${startPos.x.toFixed(1)}, ${startPos.y.toFixed(1)}, ${startPos.z.toFixed(1)}) to (${endPos.x}, ${endPos.y}, ${endPos.z})`);
-
-                            // ✨ TRAJECTORY ANIMATION: Smooth arc animation with bezier curve
-                            this.animationSystem.animateGrapplingHook(startPos, endPos, 0.8, () => {
-                                // Animation complete callback
-                                this.updateStatus(`🕸️ Grappled to (${endPos.x}, ${endPos.y}, ${endPos.z})!`, 'craft');
-                            });
-
-                            // NOTE: Instant teleport backup code moved to src/_CodeArchive.js
-
-                            // Consume one grappling hook charge
-                            selectedSlot.quantity--;
-
-                            // Clear slot if empty
-                            if (selectedSlot.quantity === 0) {
-                                selectedSlot.itemType = '';
-                            }
-
-                            this.updateHotbarCounts();
-                            this.updateBackpackInventoryDisplay();
-                            console.log(`🕸️ Grappling hook used, ${selectedSlot.quantity} charges remaining`);
-                            return; // Don't continue to block placement
                         }
 
                         // 🛡️ NON-PLACEABLE ITEMS: Tools, consumables, and special items cannot be placed as blocks
