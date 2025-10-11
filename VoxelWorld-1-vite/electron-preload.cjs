@@ -15,9 +15,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
         // Development: assets are in project root
         basePath = path.join(__dirname, 'assets', 'art', category);
       } else {
-        // Production: Vite copies assets/ contents into dist/
-        // electron-builder then packages dist/ as the app root
-        basePath = path.join(__dirname, 'art', category);
+        // Production: When running 'npm run electron' (not packaged),
+        // assets are in dist/art/. When packaged by electron-builder,
+        // they're in the app root at art/.
+        // Try dist/art/ first, fallback to art/
+        const distPath = path.join(__dirname, 'dist', 'art', category);
+        const rootPath = path.join(__dirname, 'art', category);
+
+        if (fs.existsSync(distPath)) {
+          basePath = distPath;
+        } else if (fs.existsSync(rootPath)) {
+          basePath = rootPath;
+        } else {
+          console.warn(`Asset directory not found in either location:`);
+          console.warn(`  - ${distPath}`);
+          console.warn(`  - ${rootPath}`);
+          return [];
+        }
       }
 
       if (!fs.existsSync(basePath)) {

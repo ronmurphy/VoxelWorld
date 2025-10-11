@@ -11,7 +11,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      webSecurity: false, // Allow loading local modules
+      webSecurity: false, // Allow loading local assets
       sandbox: false, // Disable sandbox to allow preload script access to Node.js
       preload: path.join(__dirname, 'electron-preload.cjs')
     },

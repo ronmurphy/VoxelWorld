@@ -162,6 +162,7 @@ export class EnhancedGraphics {
         console.log('🔍 Discovering assets...');
 
         const isElectron = typeof window !== 'undefined' && window.electronAPI;
+        console.log('🔍 Electron detection:', { isElectron, hasElectronAPI: !!window.electronAPI, hasListAssetFiles: !!(window.electronAPI?.listAssetFiles) });
 
         // Store file extension map for efficient loading
         this.fileExtensionMap = {
