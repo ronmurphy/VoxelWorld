@@ -220,7 +220,7 @@ export class GameIntroOverlay {
                     transition: all 0.3s ease;
                     text-align: center;
                 " onmouseover="this.style.transform='scale(1.05)'; this.style.borderColor='#D4AF37'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.4)';" onmouseout="this.style.transform='scale(1)'; this.style.borderColor='#8B7355'; this.style.boxShadow='none';">
-                    <img src="assets/art/entities/${monster.sprite_portrait}" alt="${monster.name}" style="
+                    <img src="art/entities/${monster.sprite_portrait}" alt="${monster.name}" style="
                         width: 120px;
                         height: 120px;
                         object-fit: cover;
@@ -256,7 +256,7 @@ export class GameIntroOverlay {
 
     async loadEntities() {
         try {
-            const response = await fetch('assets/art/entities/entities.json');
+            const response = await fetch('art/entities/entities.json');
             return await response.json();
         } catch (error) {
             console.error('Failed to load entities.json:', error);

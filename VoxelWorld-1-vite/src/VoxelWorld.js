@@ -6052,6 +6052,67 @@ class NebulaVoxelApp {
             }, 1000);
         };
 
+        // 🎮 PLAYER NEW GAME: Safe new game with confirmation modal
+        window.playerNewGameClean = () => {
+            // Create themed confirmation modal
+            const modal = document.createElement('div');
+            modal.className = 'voxel-modal-overlay';
+            modal.style.zIndex = '10000'; // Above everything
+
+            modal.innerHTML = `
+                <div class="voxel-modal character-creation-modal" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h2>🎮 Start New Game</h2>
+                        <p class="subtitle">This action cannot be undone</p>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="info-box" style="background: #fff3cd; border-color: #ffc107; color: #856404;">
+                            <p><strong>⚠️ Warning: All Progress Will Be Lost</strong></p>
+                            <p>Starting a new game will permanently delete:</p>
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                <li>Your current world and all placed blocks</li>
+                                <li>All inventory items and crafted tools</li>
+                                <li>Companion progress and equipment</li>
+                                <li>Campfire respawn points</li>
+                                <li>All discovered locations</li>
+                            </ul>
+                            <p style="margin-top: 15px;"><strong>📋 Development Build Note:</strong></p>
+                            <p style="margin-bottom: 0;">This is a development build. Advanced save file management (multiple saves, campfire-based saves) will be available in future updates.</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer" style="justify-content: space-between;">
+                        <button class="btn btn-secondary" id="new-game-cancel">Cancel</button>
+                        <button class="btn btn-primary" id="new-game-confirm" style="background: #dc3545;">Yes, Start New Game</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Handle cancel
+            modal.querySelector('#new-game-cancel').addEventListener('click', () => {
+                console.log('🎮 New game cancelled by player');
+                modal.remove();
+            });
+
+            // Handle confirm
+            modal.querySelector('#new-game-confirm').addEventListener('click', () => {
+                console.log('🎮 New game confirmed! Calling nuclearClear()...');
+                modal.remove();
+                window.nuclearClear(); // Reuse existing nuclear clear logic
+            });
+
+            // Close on overlay click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    console.log('🎮 New game cancelled (clicked outside)');
+                    modal.remove();
+                }
+            });
+        };
+
         // 🧹 CACHE CLEAR: Clear all caches but keep saved games
         window.clearCaches = () => {
             console.log('🧹 CLEARING CACHES (preserving saved games)...');
