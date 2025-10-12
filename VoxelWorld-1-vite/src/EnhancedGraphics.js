@@ -276,15 +276,16 @@ export class EnhancedGraphics {
             const candidates = {
                 blocks: [
                     'bedrock', 'dirt', 'grass', 'sand', 'snow', 'stone', 'pumpkin', 'iron', 'gold',
-                    'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir',
-                    'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'douglas_fir-leaves',
+                    'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir', 'christmas_tree',
+                    'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'douglas_fir-leaves', 'christmas_tree-leaves',
                     'gift_wrapped', 'gift_wrapped-all', 'tilled_soil'
                 ],
                 tools: [
                     'backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 
                     'compass', 'toolbench', 'tool_bench', 'grapple', 'sword', 'pickaxe',
                     'boots_speed', 'cryatal', 'club', 'stone_spear', 'torch', 'wood_shield',
-                    'coal', 'gold', 'iron', 'feather', 'fur',  // Materials added to tools folder
+                    // Materials and discovery items (all in /tools/ folder)
+                    'coal', 'gold', 'iron', 'feather', 'fur', 'skull', 'flower', 'leaf',
                     'hoe'  // Farming tool
                 ],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun'],

@@ -2361,8 +2361,21 @@ class NebulaVoxelApp {
             const defaultIcon = icons[itemType] || '❓';
 
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
-            // Try to get enhanced icon for tools
-            if (['machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 'tool_bench', 'grappling_hook', 'crafted_grappling_hook', 'hoe'].includes(itemType)) {
+            // Try to get enhanced icon for tools, discovery items, and food items
+            const toolsAndDiscoveryItems = [
+                // Crafting tools
+                'machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 
+                'tool_bench', 'grappling_hook', 'crafted_grappling_hook', 'hoe',
+                // Discovery items (in /tools/ folder)
+                'skull', 'mushroom', 'flower', 'berry', 'crystal', 'feather', 'bone', 'shell', 
+                'fur', 'iceShard', 'rustySword', 'oldPickaxe', 'ancientAmulet',
+                // Ores and materials (in /tools/ folder)
+                'coal', 'iron', 'gold', 'pumpkin', 'leaf',
+                // Food items (in /food/ folder - EnhancedGraphics loads these into toolImages)
+                'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds', 'rice', 'corn_ear'
+            ];
+            
+            if (toolsAndDiscoveryItems.includes(itemType)) {
                 if (context === 'status') {
                     return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
                 } else if (context === 'hotbar') {
@@ -2375,9 +2388,10 @@ class NebulaVoxelApp {
             // Try to get enhanced icon for materials that have block textures
             const materialsWithAssets = [
                 'bedrock', 'dirt', 'sand', 'snow', 'stone', 'grass', 'pumpkin',
-                'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood',
-                'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
-                'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
+                'oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood', 'douglas_fir', 'christmas_tree',
+                'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves', 'douglas_fir-leaves', 'christmas_tree-leaves',
+                'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves',
+                'tilled_soil', 'gift_wrapped'
             ];
 
             // Map dead_tree to dead_wood texture
