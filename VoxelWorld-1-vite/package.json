@@ -30,8 +30,10 @@
   },
   "dependencies": {
     "cannon-es": "^0.20.0",
-    "three": "^0.180.0",
-    "twemoji": "^14.0.2"
+    "emoji-datasource-apple": "^16.0.0",
+    "emoji-datasource-google": "^16.0.0",
+    "emoji-datasource-twitter": "^16.0.0",
+    "three": "^0.180.0"
   },
   "build": {
     "appId": "com.voxelworld.app",
@@ -45,7 +47,10 @@
       "dist/assets/*.woff",
       "dist/assets/*.woff2",
       "dist/assets/*.ttf",
-      "dist/assets/*.eot"
+      "dist/assets/*.eot",
+      "node_modules/emoji-datasource-google/**/*",
+      "node_modules/emoji-datasource-apple/**/*",
+      "node_modules/emoji-datasource-twitter/**/*"
     ],
     "files": [
       "dist/**/*",
