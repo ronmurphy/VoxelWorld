@@ -216,3 +216,18 @@ img.emoji {
   max-width: none !important;
   max-height: none !important;
 }
+
+/* Context-specific emoji sizing for hotbar and inventory */
+.hotbar-icon-container img.emoji {
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}
+
+.slot-content img.emoji {
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 !important;
+  vertical-align: middle !important;
+}

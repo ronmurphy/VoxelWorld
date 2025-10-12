@@ -26,6 +26,7 @@ import { FarmingSystem } from './FarmingSystem.js';
 import { MusicSystem } from './MusicSystem.js';
 import { farmingBlockTypes } from './FarmingBlockTypes.js';
 import { CraftedTools } from './CraftedTools.js';
+import { createEmojiChooser } from './EmojiChooser.js';
 import * as CANNON from 'cannon-es';
 
 class NebulaVoxelApp {
@@ -11145,6 +11146,15 @@ class NebulaVoxelApp {
                             <div style="color: #FFE4B5; font-size: 11px; margin-top: 6px; font-style: italic;">Custom textures and detailed graphics</div>
                         </div>
 
+                        <!-- Emoji Style Picker -->
+                        <div id="emoji-chooser-container" style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                        "></div>
+
                         <!-- Graphics Info -->
                         <div style="
                             background: rgba(212, 175, 55, 0.15);
@@ -11285,6 +11295,85 @@ class NebulaVoxelApp {
             </div>
         `;
         contentArea.appendChild(modal);
+
+        // 🎨 Inject Emoji Chooser into Graphics tab
+        const emojiChooserContainer = modal.querySelector('#emoji-chooser-container');
+        if (emojiChooserContainer) {
+            const emojiChooser = createEmojiChooser();
+            // Apply parchment theme styling to emoji chooser
+            emojiChooser.style.cssText = `
+                font-family: 'Georgia', serif;
+            `;
+            
+            // Update emoji chooser styles to match Explorer's Menu theme
+            const emojiStyle = document.createElement('style');
+            emojiStyle.textContent = `
+                #emoji-chooser-container .emoji-chooser h3 {
+                    color: #F5E6D3 !important;
+                    font-family: 'Georgia', serif !important;
+                    font-size: 13px !important;
+                    margin: 0 0 8px 0 !important;
+                    font-weight: bold !important;
+                }
+                #emoji-chooser-container .emoji-description {
+                    color: #FFE4B5 !important;
+                    font-family: 'Georgia', serif !important;
+                    font-size: 11px !important;
+                    font-style: italic !important;
+                    margin: 0 0 12px 0 !important;
+                }
+                #emoji-chooser-container .emoji-sets-grid {
+                    display: grid !important;
+                    grid-template-columns: repeat(2, 1fr) !important;
+                    gap: 8px !important;
+                    margin-bottom: 12px !important;
+                }
+                #emoji-chooser-container .emoji-set-option {
+                    background: rgba(80, 54, 27, 0.6) !important;
+                    border: 2px solid #654321 !important;
+                    border-radius: 6px !important;
+                    padding: 10px !important;
+                    cursor: pointer !important;
+                    transition: all 0.2s !important;
+                    text-align: center !important;
+                }
+                #emoji-chooser-container .emoji-set-option:hover {
+                    background: rgba(139, 90, 43, 0.8) !important;
+                    transform: translateY(-2px) !important;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.4) !important;
+                }
+                #emoji-chooser-container .emoji-set-option.active {
+                    background: rgba(90, 138, 74, 0.6) !important;
+                    border-color: #5a8a4a !important;
+                }
+                #emoji-chooser-container .emoji-set-icon {
+                    font-size: 1.5em !important;
+                    margin-bottom: 6px !important;
+                    display: block !important;
+                }
+                #emoji-chooser-container .emoji-set-name {
+                    color: #F5E6D3 !important;
+                    font-family: 'Georgia', serif !important;
+                    font-size: 11px !important;
+                    font-weight: normal !important;
+                }
+                #emoji-chooser-container .emoji-preview {
+                    background: rgba(0, 0, 0, 0.3) !important;
+                    border: 1px solid #654321 !important;
+                    border-radius: 6px !important;
+                    padding: 12px !important;
+                    text-align: center !important;
+                }
+                #emoji-chooser-container .emoji-preview p {
+                    margin: 0 !important;
+                    font-size: 1.5em !important;
+                    letter-spacing: 0.2em !important;
+                }
+            `;
+            document.head.appendChild(emojiStyle);
+            
+            emojiChooserContainer.appendChild(emojiChooser);
+        }
 
         // 🎨 Add hover effects CSS for menu buttons
         const menuStyle = document.createElement('style');

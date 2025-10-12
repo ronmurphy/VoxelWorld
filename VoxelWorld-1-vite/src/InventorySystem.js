@@ -369,13 +369,14 @@ export class InventorySystem {
 
                 // Create item icon
                 const itemIcon = document.createElement('div');
+                itemIcon.classList.add('hotbar-icon-container'); // Add context class for emoji sizing
                 if (iconContent.includes('<span') || iconContent.includes('<img')) {
                     itemIcon.innerHTML = iconContent;
                 } else {
                     itemIcon.textContent = iconContent;
                 }
                 itemIcon.style.cssText = `
-                    font-size: 16px;
+                    font-size: 36px;
                     text-align: center;
                     margin-bottom: 2px;
                 `;
