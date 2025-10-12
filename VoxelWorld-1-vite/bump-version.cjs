@@ -41,9 +41,16 @@ try {
     const assetsVersionPath = path.join(__dirname, 'assets', 'version.json');
     fs.writeFileSync(assetsVersionPath, JSON.stringify(version, null, 2) + '\n');
 
+    // Update package.json version for Electron Builder
+    const packagePath = path.join(__dirname, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    packageJson.version = `${version.major}.${version.minor}.${version.revision}`;
+    fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + '\n');
+
     console.log(`✅ Version file updated: ${version.major}.${version.minor}.${version.revision}`);
     console.log(`📅 Build date: ${version.buildDate}`);
     console.log(`📋 Copied to assets/version.json`);
+    console.log(`📦 Updated package.json version`);
 
 } catch (error) {
     console.error('❌ Failed to bump version:', error);

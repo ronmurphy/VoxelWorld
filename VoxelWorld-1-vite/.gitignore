@@ -28,11 +28,6 @@ dist-electron/
 build/
 release/
 
-# Capacitor
-android/
-ios/
-capacitor.config.json
-
 # OS generated files
 Thumbs.db
 ehthumbs.db

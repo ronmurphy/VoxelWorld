@@ -14,18 +14,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Step 2: Build for current platform
-echo "🖥️  Building desktop executable..."
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    npm run build-electron-linux
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    npm run build-electron-mac
-elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
-    npm run build-electron-win
-else
-    echo "❌ Unsupported OS: $OSTYPE"
-    exit 1
-fi
+# Step 2: Build for Linux and Windows
+echo "🖥️  Building desktop executables for Linux and Windows..."
+npm run build-wl
 
 if [ $? -ne 0 ]; then
     echo "❌ Desktop build failed!"

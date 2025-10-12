@@ -1,7 +1,7 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.7",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
@@ -16,6 +16,7 @@
     "build-electron-win": "node bump-version.cjs && npm run build && electron-builder --win",
     "build-electron-linux": "node bump-version.cjs && npm run build && electron-builder --linux",
     "build-electron-mac": "node bump-version.cjs && npm run build && electron-builder --mac",
+    "build-wl": "node bump-version.cjs && npm run build && electron-builder --win --linux",
     "build-all": "node bump-version.cjs && npm run build && electron-builder --win --linux --mac"
   },
   "devDependencies": {
@@ -27,16 +28,13 @@
     "wait-on": "^8.0.1"
   },
   "dependencies": {
-    "@capacitor/android": "^7.4.3",
-    "@capacitor/cli": "^7.4.3",
-    "@capacitor/core": "^7.4.3",
-    "@capacitor/ios": "^7.4.3",
     "cannon-es": "^0.20.0",
     "three": "^0.180.0"
   },
   "build": {
     "appId": "com.voxelworld.app",
     "productName": "VoxelWorld",
+    "artifactName": "${productName}-${version}.${ext}",
     "directories": {
       "output": "dist-electron"
     },
