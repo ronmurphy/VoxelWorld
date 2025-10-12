@@ -201,3 +201,18 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Emoji rendering - Universal support via Twemoji */
+img.emoji {
+  height: 1em;
+  width: 1em;
+  margin: 0 .05em 0 .1em;
+  vertical-align: -0.1em;
+  display: inline-block;
+}
+
+/* Ensure emoji render nicely in different contexts */
+.emoji {
+  max-width: none !important;
+  max-height: none !important;
+}

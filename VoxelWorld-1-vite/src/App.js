@@ -5,10 +5,14 @@ import { initVoxelWorld } from './VoxelWorld.js';
 import { SplashScreen } from './SplashScreen.js';
 import { GameIntroOverlay } from './ui/GameIntroOverlay.js';
 import { ChatOverlay } from './ui/Chat.js';
+import { initEmojiSupport } from './EmojiRenderer.js'; // Universal emoji support
 // import { initWorkbench } from './ShapeForgeWorkbench.js'; // To be created
 
 window.addEventListener('DOMContentLoaded', () => {
   console.log('DOM loaded, initializing app...');
+
+  // Initialize universal emoji support (works on Wine, Windows, Linux, macOS)
+  initEmojiSupport();
 
   const gameContainer = document.getElementById('gameContainer');
   const workbenchContainer = document.getElementById('workbenchContainer');
