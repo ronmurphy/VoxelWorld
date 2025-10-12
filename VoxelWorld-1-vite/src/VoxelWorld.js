@@ -1688,7 +1688,8 @@ class NebulaVoxelApp {
         this.cleanupChunkTracking = (playerChunkX, playerChunkZ, customRadius = null) => {
             // Remove tracking data for chunks beyond cleanup radius to prevent memory bloat
             const chunksToRemove = [];
-            const cleanupRadius = customRadius || this.chunkCleanupRadius;
+            // CRITICAL: Use ?? instead of || because customRadius can be 0 (which is falsy but valid!)
+            const cleanupRadius = customRadius ?? this.chunkCleanupRadius;
             
             // Check visitedChunks Set
             for (const chunkKey of this.visitedChunks) {
@@ -1701,6 +1702,11 @@ class NebulaVoxelApp {
                 if (distance > cleanupRadius) {
                     chunksToRemove.push(chunkKey);
                 }
+            }
+            
+            // 🔍 DEBUG: Log what we found (especially during emergency cleanup!)
+            if (customRadius !== null && customRadius <= 1) {
+                console.log(`🔍 Cleanup scan: ${this.visitedChunks.size} chunks total, ${chunksToRemove.length} chunks beyond ${cleanupRadius} chunk radius`);
             }
             
             // 🧹 PERFORMANCE: Actually unload chunk blocks and billboards
@@ -1764,6 +1770,9 @@ class NebulaVoxelApp {
             
             if (chunksToRemove.length > 0) {
                 console.log(`🧹 Unloaded ${chunksToRemove.length} distant chunks (blocks: ${blocksRemoved}, billboards: ${billboardsRemoved})`);
+            } else if (customRadius !== null && customRadius <= 1) {
+                // Log when emergency cleanup finds nothing to remove (suspicious!)
+                console.warn(`⚠️ Emergency cleanup found 0 chunks to remove! (radius ${cleanupRadius}, ${this.visitedChunks.size} chunks total)`);
             }
         };
 
@@ -6046,14 +6055,38 @@ class NebulaVoxelApp {
             // Stop any existing harvesting
             this.stopHarvesting();
 
+            // ⚡ STAMINA: Calculate stamina cost for harvesting
+            // Base formula: (harvestTime_seconds * 2) rounded up
+            const harvestTimeSeconds = harvestTime / 1000;
+            let staminaCost = Math.ceil(harvestTimeSeconds * 2);
+            
+            // 🌲 TREE BONUS: If harvesting a tree, multiply cost by trunk size!
+            // Check if this block is part of a registered tree
+            const treeId = this.getTreeIdFromBlock(x, y, z);
+            if (treeId) {
+                const treeMetadata = this.getTreeMetadata(treeId);
+                if (treeMetadata && treeMetadata.trunkBlocks) {
+                    const trunkCount = treeMetadata.trunkBlocks.length;
+                    const leafCount = treeMetadata.leafBlocks.length;
+                    staminaCost = staminaCost * trunkCount;
+                    console.log(`🌲 BIG TREE! ${treeMetadata.treeType} with ${trunkCount} trunk blocks → ${trunkCount}x multiplier = ${staminaCost} stamina cost`);
+                }
+            }
+            
+            // Check if player has enough stamina
+            if (this.staminaSystem && this.staminaSystem.currentStamina < staminaCost) {
+                this.updateStatus(`Too exhausted to harvest! (Need ${staminaCost} stamina, have ${Math.floor(this.staminaSystem.currentStamina)})`);
+                return;
+            }
+
             // Start new harvesting
             this.isHarvesting = true;
-            this.harvestingTarget = { x, y, z, blockType: blockData.type };
+            this.harvestingTarget = { x, y, z, blockType: blockData.type, staminaCost }; // Store cost for completion
             this.harvestingStartTime = Date.now();
             this.harvestingDuration = harvestTime;
 
-            console.log(`Starting to harvest ${blockData.type} (${harvestTime}ms)`);
-            this.updateStatus(`Harvesting ${blockData.type}... (${(harvestTime/1000).toFixed(1)}s)`);
+            console.log(`Starting to harvest ${blockData.type} (${harvestTime}ms, costs ${staminaCost} stamina)`);
+            this.updateStatus(`Harvesting ${blockData.type}... (${(harvestTime/1000).toFixed(1)}s, -${staminaCost} stamina)`);
         };
 
         // Stop harvesting
@@ -6074,7 +6107,15 @@ class NebulaVoxelApp {
 
             if (progress >= 1.0) {
                 // Harvesting complete!
-                const { x, y, z } = this.harvestingTarget;
+                const { x, y, z, blockType, staminaCost } = this.harvestingTarget;
+                
+                // ⚡ STAMINA: Drain stamina for harvesting action
+                if (this.staminaSystem && staminaCost) {
+                    this.staminaSystem.currentStamina = Math.max(0, this.staminaSystem.currentStamina - staminaCost);
+                    this.staminaSystem.updateStaminaDisplay();
+                    console.log(`⚡ Harvesting drained ${staminaCost} stamina (${Math.floor(this.staminaSystem.currentStamina)}/${this.staminaSystem.maxStamina} remaining)`);
+                }
+                
                 this.completeHarvesting(x, y, z);
             } else {
                 // Update progress display (silently - no console spam)
@@ -8996,10 +9037,20 @@ class NebulaVoxelApp {
 
             // 🚨 EMERGENCY CLEANUP: If block count exceeds 10,000, use aggressive cleanup
             const blockCount = Object.keys(this.world).length;
-            const cleanupRadius = blockCount > 10000 ? 3 : this.chunkCleanupRadius;
+            // renderDistance loads (2*dist+1)² chunks in a square
+            // Keep renderDistance chunks (what's visible) to prevent pop-in
+            // Only go ultra-aggressive (0) if we're REALLY desperate (>20k blocks)
+            let cleanupRadius;
+            if (blockCount > 20000) {
+                cleanupRadius = 0; // Ultra-aggressive: only current chunk
+            } else if (blockCount > 10000) {
+                cleanupRadius = this.renderDistance; // Aggressive: keep visible chunks
+            } else {
+                cleanupRadius = this.chunkCleanupRadius; // Normal: 8 chunks
+            }
             
             if (blockCount > 10000) {
-                console.warn(`🚨 Block count high (${blockCount}), using AGGRESSIVE cleanup (${cleanupRadius} chunks radius)`);
+                console.warn(`🚨 EMERGENCY: ${blockCount} blocks! Cleanup radius ${cleanupRadius} chunks`);
             }
 
             // Clean up distant chunk tracking data to prevent memory bloat

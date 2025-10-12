@@ -20,14 +20,14 @@ export class StaminaSystem {
         this.maxStamina = 100;
         this.currentStamina = 100;
 
-        // Drain rates (per second)
-        this.walkingDrain = 0.5;      // 200 seconds of walking (3.3 minutes)
-        this.runningDrain = 5.0;      // 20 seconds of sprinting
+        // Drain rates (per second) - INCREASED for more frequent rest
+        this.walkingDrain = 2.0;      // 50 seconds of walking (was 200s)
+        this.runningDrain = 8.0;      // 12.5 seconds of sprinting (was 20s)
         this.idleDrain = 0;            // No drain when standing still
 
-        // Regen rates (per second)
-        this.idleRegen = 5.0;          // 20 seconds to full from empty
-        this.slowWalkRegen = 2.0;      // 50 seconds to full while moving slow
+        // Regen rates (per second) - SLOWER recovery = longer cleanup time
+        this.idleRegen = 3.0;          // 33 seconds to full from empty (was 20s)
+        this.slowWalkRegen = 1.0;      // 100 seconds to full while moving slow (was 50s)
 
         // Speed multipliers
         this.normalSpeedMultiplier = 1.0;
@@ -232,17 +232,21 @@ export class StaminaSystem {
         
         // Only trigger if blocks are accumulating
         if (blockCount > 8000) {
-            console.log(`🧹⚡ STAMINA CLEANUP: Player resting, cleaning ${blockCount} blocks...`);
-            
-            // Force aggressive cleanup
             const playerChunkX = Math.floor(this.voxelWorld.player.position.x / this.voxelWorld.chunkSize);
             const playerChunkZ = Math.floor(this.voxelWorld.player.position.z / this.voxelWorld.chunkSize);
             
-            // Use VERY aggressive 3-chunk radius for cleanup (was 4)
-            this.voxelWorld.cleanupChunkTracking(playerChunkX, playerChunkZ, 3);
+            const totalChunks = this.voxelWorld.visitedChunks.size;
+            
+            console.log(`🧹⚡ STAMINA CLEANUP: ${totalChunks} chunks visited, ${blockCount} blocks`);
+            
+            // AGGRESSIVE: renderDistance - 1 (keeps visible chunks + buffer)
+            // ULTRA-AGGRESSIVE: 0 (keeps only the 8×8 chunk you're standing in)
+            const cleanupRadius = Math.max(0, this.voxelWorld.renderDistance - 1);
+            this.voxelWorld.cleanupChunkTracking(playerChunkX, playerChunkZ, cleanupRadius);
             
             const newBlockCount = Object.keys(this.voxelWorld.world).length;
-            console.log(`🧹✅ Cleanup complete: ${blockCount} → ${newBlockCount} blocks (${blockCount - newBlockCount} removed)`);
+            const newChunkCount = this.voxelWorld.visitedChunks.size;
+            console.log(`🧹✅ Cleanup: ${blockCount} → ${newBlockCount} blocks (-${blockCount - newBlockCount}), ${totalChunks} → ${newChunkCount} chunks (radius ${cleanupRadius})`);
         }
     }
 
