@@ -62,7 +62,7 @@ class NebulaVoxelApp {
             }
         }
 
-        this.chunkCleanupRadius = 12; // Keep tracking data for chunks within this radius
+        this.chunkCleanupRadius = 8; // 🎯 PERFORMANCE: Reduced from 12 to 8 for faster cleanup
         
         // World item spawning system
         this.visitedChunks = new Set(); // Track chunks that have been visited
@@ -90,6 +90,7 @@ class NebulaVoxelApp {
         this.worldMapModal = null; // Full-screen world map modal
         this.ghostBillboards = new Map(); // 👻 Track Halloween ghost billboards by chunk key
         this.debugHalloween = false; // 🎃 Debug flag to force Halloween mode
+        this.activeBillboards = []; // 🎯 PERFORMANCE: Track only billboards that need animation
 
         // 🌳 TREE ID SYSTEM: Advanced tree tracking with unique identifiers
         this.nextTreeId = 1; // Incremental unique tree ID generator
@@ -913,6 +914,9 @@ class NebulaVoxelApp {
                 config: config // Store animation config
             };
 
+            // 🎯 PERFORMANCE: Add to activeBillboards array for efficient animation
+            this.activeBillboards.push(sprite);
+
             return sprite;
         };
 
@@ -966,41 +970,48 @@ class NebulaVoxelApp {
 
         // Animate floating billboards
         this.animateBillboards = (currentTime) => {
-            // Animate block billboards (backpack, shrub, world items)
-            for (const key in this.world) {
-                const worldItem = this.world[key];
-                if (worldItem.billboard && worldItem.billboard.userData.type === 'billboard') {
-                    const billboard = worldItem.billboard;
-                    const userData = billboard.userData;
-                    const config = userData.config;
+            // 🎯 PERFORMANCE: Only animate billboards in activeBillboards array
+            // This avoids iterating through the entire this.world object
+            this.activeBillboards.forEach(billboard => {
+                if (!billboard || !billboard.userData) return;
+                
+                const userData = billboard.userData;
+                const config = userData.config;
 
-                    // Floating animation - if enabled
-                    if (config.float) {
-                        userData.animationTime += config.floatSpeed * 0.016; // Assume ~60fps (16ms)
-                        const offset = Math.sin(userData.animationTime) * config.floatAmount;
-                        billboard.position.y = userData.initialY + offset;
-                    }
-
-                    // Rotation animation - if enabled
-                    if (config.rotate) {
-                        billboard.material.rotation += 0.005; // Slow rotation
-                    }
+                // Floating animation - if enabled
+                if (config.float) {
+                    userData.animationTime += config.floatSpeed * 0.016; // Assume ~60fps (16ms)
+                    const offset = Math.sin(userData.animationTime) * config.floatAmount;
+                    billboard.position.y = userData.initialY + offset;
                 }
-            }
 
-            // 👻 Animate Halloween ghost billboards
+                // Rotation animation - if enabled
+                if (config.rotate) {
+                    billboard.material.rotation += 0.005; // Slow rotation
+                }
+            });
+
+            // 👻 Animate Halloween ghost billboards (distance culled)
+            const playerPos = this.player.position;
             this.ghostBillboards.forEach((ghostData) => {
                 const billboard = ghostData.billboard;
-                if (billboard && billboard.userData.type === 'ghost') {
-                    const userData = billboard.userData;
-                    const config = userData.config;
+                if (!billboard || !billboard.userData) return;
+                
+                // 🎯 PERFORMANCE: Skip animation for distant ghosts (>100 blocks)
+                const dist = Math.sqrt(
+                    Math.pow(billboard.position.x - playerPos.x, 2) +
+                    Math.pow(billboard.position.z - playerPos.z, 2)
+                );
+                if (dist > 100) return;
+                
+                const userData = billboard.userData;
+                const config = userData.config;
 
-                    // Floating animation
-                    if (config.float) {
-                        userData.animationTime += config.floatSpeed * 0.016;
-                        const offset = Math.sin(userData.animationTime) * config.floatAmount;
-                        billboard.position.y = userData.initialY + offset;
-                    }
+                // Floating animation
+                if (config.float) {
+                    userData.animationTime += config.floatSpeed * 0.016;
+                    const offset = Math.sin(userData.animationTime) * config.floatAmount;
+                    billboard.position.y = userData.initialY + offset;
                 }
             });
         };
@@ -1309,6 +1320,12 @@ class NebulaVoxelApp {
                 if (blockData.billboard) {
                     this.scene.remove(blockData.billboard);
 
+                    // 🎯 PERFORMANCE: Remove from activeBillboards array
+                    const billboardIndex = this.activeBillboards.indexOf(blockData.billboard);
+                    if (billboardIndex !== -1) {
+                        this.activeBillboards.splice(billboardIndex, 1);
+                    }
+
                     // 🗑️ MEMORY LEAK FIX: Dispose billboard geometry and material
                     if (blockData.billboard.geometry) {
                         blockData.billboard.geometry.dispose();
@@ -1440,6 +1457,17 @@ class NebulaVoxelApp {
             // Initialize explosion effects array if it doesn't exist
             if (!this.explosionEffects) {
                 this.explosionEffects = [];
+            }
+
+            // 🎯 PERFORMANCE: Limit maximum simultaneous explosions to prevent memory leak
+            if (this.explosionEffects.length >= 50) {
+                // Force cleanup oldest explosion
+                const oldest = this.explosionEffects.shift();
+                oldest.particles.forEach(sprite => {
+                    this.scene.remove(sprite);
+                    if (sprite.material) sprite.material.dispose();
+                });
+                console.log('💥 Forced cleanup of oldest explosion (limit: 50)');
             }
 
             this.explosionEffects.push(explosionData);
@@ -1649,9 +1677,10 @@ class NebulaVoxelApp {
         };
 
         // World item spawning system for random discoveries
-        this.cleanupChunkTracking = (playerChunkX, playerChunkZ) => {
+        this.cleanupChunkTracking = (playerChunkX, playerChunkZ, customRadius = null) => {
             // Remove tracking data for chunks beyond cleanup radius to prevent memory bloat
             const chunksToRemove = [];
+            const cleanupRadius = customRadius || this.chunkCleanupRadius;
             
             // Check visitedChunks Set
             for (const chunkKey of this.visitedChunks) {
@@ -1661,19 +1690,122 @@ class NebulaVoxelApp {
                     Math.abs(chunkZ - playerChunkZ)
                 );
                 
-                if (distance > this.chunkCleanupRadius) {
+                if (distance > cleanupRadius) {
                     chunksToRemove.push(chunkKey);
                 }
             }
             
-            // Remove distant chunks from both data structures
+            // 🧹 PERFORMANCE: Actually unload chunk blocks and billboards
+            let blocksRemoved = 0;
+            let billboardsRemoved = 0;
+            
             chunksToRemove.forEach(chunkKey => {
+                const [chunkX, chunkZ] = chunkKey.split(',').map(Number);
+                
+                // Iterate through all blocks in this chunk
+                // Use -10 to 128 to cover underground and mountain peaks
+                for (let x = chunkX * this.chunkSize; x < (chunkX + 1) * this.chunkSize; x++) {
+                    for (let z = chunkZ * this.chunkSize; z < (chunkZ + 1) * this.chunkSize; z++) {
+                        for (let y = -10; y <= 128; y++) {
+                            const blockKey = `${x},${y},${z}`;
+                            const blockData = this.world[blockKey];
+                            
+                            if (blockData) {
+                                // Remove mesh from scene
+                                if (blockData.mesh) {
+                                    this.scene.remove(blockData.mesh);
+                                    if (blockData.mesh.geometry) {
+                                        blockData.mesh.geometry.dispose();
+                                    }
+                                    // Material is shared, don't dispose
+                                }
+                                
+                                // Remove billboard from scene and tracking
+                                if (blockData.billboard) {
+                                    this.scene.remove(blockData.billboard);
+                                    
+                                    // Remove from activeBillboards array
+                                    const billboardIndex = this.activeBillboards.indexOf(blockData.billboard);
+                                    if (billboardIndex !== -1) {
+                                        this.activeBillboards.splice(billboardIndex, 1);
+                                        billboardsRemoved++;
+                                    }
+                                    
+                                    // Dispose billboard resources
+                                    if (blockData.billboard.material) {
+                                        if (blockData.billboard.material.map) {
+                                            blockData.billboard.material.map.dispose();
+                                        }
+                                        blockData.billboard.material.dispose();
+                                    }
+                                }
+                                
+                                // Remove from world
+                                delete this.world[blockKey];
+                                blocksRemoved++;
+                            }
+                        }
+                    }
+                }
+                
+                // Remove chunk tracking
                 this.visitedChunks.delete(chunkKey);
                 this.chunkSpawnTimes.delete(chunkKey);
+                this.loadedChunks.delete(chunkKey); // 🔑 CRITICAL: Allow chunk to regenerate if player returns
             });
             
             if (chunksToRemove.length > 0) {
-                console.log(`Cleaned up tracking data for ${chunksToRemove.length} distant chunks`);
+                console.log(`🧹 Unloaded ${chunksToRemove.length} distant chunks (blocks: ${blocksRemoved}, billboards: ${billboardsRemoved})`);
+            }
+        };
+
+        // 🧹 PERFORMANCE: Cleanup distant position arrays to prevent unbounded growth
+        this.cleanupDistantPositions = (playerX, playerZ, maxDistance = 200) => {
+            const cleanupRadius = maxDistance;
+            
+            // Track what we cleaned
+            const before = {
+                water: this.waterPositions.length,
+                pumpkins: this.pumpkinPositions.length,
+                items: this.worldItemPositions.length,
+                trees: this.treePositions.length
+            };
+            
+            // Clean water positions (keep only nearby)
+            this.waterPositions = this.waterPositions.filter(pos => 
+                Math.abs(pos.x - playerX) < cleanupRadius && 
+                Math.abs(pos.z - playerZ) < cleanupRadius
+            );
+            
+            // Clean pumpkin positions
+            this.pumpkinPositions = this.pumpkinPositions.filter(pos => 
+                Math.abs(pos.x - playerX) < cleanupRadius && 
+                Math.abs(pos.z - playerZ) < cleanupRadius
+            );
+            
+            // Clean world item positions (collectibles)
+            this.worldItemPositions = this.worldItemPositions.filter(pos => 
+                Math.abs(pos.x - playerX) < cleanupRadius && 
+                Math.abs(pos.z - playerZ) < cleanupRadius
+            );
+            
+            // Clean tree positions
+            this.treePositions = this.treePositions.filter(pos => 
+                Math.abs(pos.x - playerX) < cleanupRadius && 
+                Math.abs(pos.z - playerZ) < cleanupRadius
+            );
+            
+            // Log if significant cleanup happened
+            const cleaned = {
+                water: before.water - this.waterPositions.length,
+                pumpkins: before.pumpkins - this.pumpkinPositions.length,
+                items: before.items - this.worldItemPositions.length,
+                trees: before.trees - this.treePositions.length
+            };
+            
+            const totalCleaned = cleaned.water + cleaned.pumpkins + cleaned.items + cleaned.trees;
+            if (totalCleaned > 50) {
+                console.log(`🧹 Position cleanup: removed ${totalCleaned} distant positions (water: ${cleaned.water}, pumpkins: ${cleaned.pumpkins}, items: ${cleaned.items}, trees: ${cleaned.trees})`);
             }
         };
 
@@ -8854,8 +8986,19 @@ class NebulaVoxelApp {
             const playerChunkX = Math.floor(this.player.position.x / this.chunkSize);
             const playerChunkZ = Math.floor(this.player.position.z / this.chunkSize);
 
+            // 🚨 EMERGENCY CLEANUP: If block count exceeds 10,000, use aggressive cleanup
+            const blockCount = Object.keys(this.world).length;
+            const cleanupRadius = blockCount > 10000 ? 5 : this.chunkCleanupRadius;
+            
+            if (blockCount > 10000) {
+                console.warn(`🚨 Block count high (${blockCount}), using aggressive cleanup (${cleanupRadius} chunks)`);
+            }
+
             // Clean up distant chunk tracking data to prevent memory bloat
-            this.cleanupChunkTracking(playerChunkX, playerChunkZ);
+            this.cleanupChunkTracking(playerChunkX, playerChunkZ, cleanupRadius);
+            
+            // 🧹 PERFORMANCE: Clean up distant position arrays
+            this.cleanupDistantPositions(this.player.position.x, this.player.position.z, cleanupRadius * this.chunkSize);
 
             // Load chunks around player
             for (let dx = -this.renderDistance; dx <= this.renderDistance; dx++) {
@@ -8873,7 +9016,10 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Unload distant chunks
+            // 🧹 PERFORMANCE: Unload distant chunks (disabled old system, using cleanupChunkTracking instead)
+            // Old system: unloads at renderDistance + 1 (too aggressive, causes reload thrashing)
+            // New system: unloads at chunkCleanupRadius (12 chunks, much better)
+            /*
             Array.from(this.loadedChunks).forEach(chunkKey => {
                 const [chunkX, chunkZ] = chunkKey.split(',').map(Number);
                 const distance = Math.max(
@@ -8885,6 +9031,7 @@ class NebulaVoxelApp {
                     unloadChunk(chunkX, chunkZ);
                 }
             });
+            */
 
             // Clean up worker cache every 60 frames (~1 second)
             if (this.workerInitialized && this.frameCount % 60 === 0) {
@@ -9556,12 +9703,34 @@ class NebulaVoxelApp {
         // Improved movement with gravity and chunk loading
         let lastChunkUpdate = 0;
         let lastTime = 0;
+        let lastPerfLog = 0; // 🎯 PERFORMANCE: Track performance logging
         const animate = (currentTime = 0) => {
             this.animationId = requestAnimationFrame(animate);
             
             // Calculate delta time for FPS-independent movement
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
+
+            // 📊 PERFORMANCE: Log array sizes every 10 seconds
+            if (currentTime - lastPerfLog > 10000) {
+                const distanceFromSpawn = Math.sqrt(
+                    this.player.position.x ** 2 + 
+                    this.player.position.z ** 2
+                ).toFixed(0);
+                
+                console.log('📊 Performance Stats:', {
+                    distanceFromSpawn: `${distanceFromSpawn} blocks`,
+                    waterPositions: this.waterPositions.length,
+                    pumpkinPositions: this.pumpkinPositions.length,
+                    worldItemPositions: this.worldItemPositions.length,
+                    treePositions: this.treePositions.length,
+                    activeBillboards: this.activeBillboards.length,
+                    explosionEffects: this.explosionEffects?.length || 0,
+                    ghostBillboards: this.ghostBillboards.size,
+                    worldBlocks: Object.keys(this.world).length
+                });
+                lastPerfLog = currentTime;
+            }
 
             // ✨ Update Animation System
             if (this.animationSystem) {
@@ -9655,6 +9824,13 @@ class NebulaVoxelApp {
             // 🔍 Update LOD debug overlay (ring positions and stats)
             if (this.lodDebugOverlay) {
                 this.lodDebugOverlay.update();
+            }
+
+            // 🧹 PERFORMANCE: Update chunks every 30 frames (~0.5 seconds)
+            // Must run BEFORE pause check so cleanup happens even when paused
+            if (++lastChunkUpdate > 30) {
+                updateChunks();
+                lastChunkUpdate = 0;
             }
 
             // Always continue animation loop, but skip input processing if paused
@@ -9956,11 +10132,8 @@ class NebulaVoxelApp {
                 }
             }
 
-            // Update chunks every 30 frames (about 0.5 seconds)
-            if (++lastChunkUpdate > 30) {
-                updateChunks();
-                lastChunkUpdate = 0;
-            }
+            // 🧹 Chunk updates moved to BEFORE pause check (line ~9820)
+            // This ensures cleanup runs even when paused/movement disabled
 
             // Update camera with quaternion-based rotation (more stable)
             this.camera.position.set(this.player.position.x, this.player.position.y, this.player.position.z);
