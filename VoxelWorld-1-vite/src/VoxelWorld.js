@@ -10,6 +10,8 @@ import { BackpackSystem } from './BackpackSystem.js';
 import { EnhancedGraphics } from './EnhancedGraphics.js';
 import { AnimationSystem } from './AnimationSystem.js';
 import { PlayerItemsSystem } from './PlayerItemsSystem.js';
+import { StaminaSystem } from './StaminaSystem.js';
+import { PlayerHP } from './PlayerHP.js';
 import { BlockResourcePool } from './BlockResourcePool.js';
 import { ModificationTracker } from './serialization/ModificationTracker.js';
 import { GhostSystem } from './GhostSystem.js';
@@ -241,6 +243,12 @@ class NebulaVoxelApp {
 
         // 🔦 Initialize Player Items System (torch, machete, etc.)
         this.playerItemsSystem = new PlayerItemsSystem(this);
+
+        // ⚡ Initialize Stamina System (movement + performance optimization)
+        this.staminaSystem = new StaminaSystem(this);
+
+        // ❤️ Initialize Player HP System (visible from start)
+        this.playerHP = new PlayerHP(this);
 
         // 🎨 Set up Enhanced Graphics ready callback
         this.enhancedGraphics.onReady = () => {
@@ -8988,10 +8996,10 @@ class NebulaVoxelApp {
 
             // 🚨 EMERGENCY CLEANUP: If block count exceeds 10,000, use aggressive cleanup
             const blockCount = Object.keys(this.world).length;
-            const cleanupRadius = blockCount > 10000 ? 5 : this.chunkCleanupRadius;
+            const cleanupRadius = blockCount > 10000 ? 3 : this.chunkCleanupRadius;
             
             if (blockCount > 10000) {
-                console.warn(`🚨 Block count high (${blockCount}), using aggressive cleanup (${cleanupRadius} chunks)`);
+                console.warn(`🚨 Block count high (${blockCount}), using AGGRESSIVE cleanup (${cleanupRadius} chunks radius)`);
             }
 
             // Clean up distant chunk tracking data to prevent memory bloat
@@ -9848,7 +9856,7 @@ class NebulaVoxelApp {
             }
 
             // Base speed modified by movementSpeed upgrade (1.0 default, 1.5 with speed boots)
-            const speed = 4.0 * this.movementSpeed; // Units per second
+            const baseSpeed = 4.0 * this.movementSpeed; // Units per second
             const jumpSpeed = 9.0; // Jump velocity - increased for 2-block obstacles, was 8.0
             const gravity = 20.0; // Gravity acceleration
             
@@ -9856,10 +9864,16 @@ class NebulaVoxelApp {
             const dir = new THREE.Vector3();
 
             // Keyboard input (desktop)
-            if (this.keys["w"]) dir.z -= 1;
-            if (this.keys["s"]) dir.z += 1;
-            if (this.keys["a"]) dir.x -= 1;
-            if (this.keys["d"]) dir.x += 1;
+            const wPressed = this.keys["w"];
+            const sPressed = this.keys["s"];
+            const aPressed = this.keys["a"];
+            const dPressed = this.keys["d"];
+            const shiftPressed = this.keys["shift"] || this.keys["Shift"]; // Sprint key
+            
+            if (wPressed) dir.z -= 1;
+            if (sPressed) dir.z += 1;
+            if (aPressed) dir.x -= 1;
+            if (dPressed) dir.x += 1;
             if (this.keys[" "]) this.player.velocity = this.player.velocity || jumpSpeed; // Spacebar to jump
 
             // Mobile joystick input
@@ -9875,6 +9889,32 @@ class NebulaVoxelApp {
             
             // Apply rotation to movement direction
             dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.player.rotation.y);
+
+            // ⚡ STAMINA SYSTEM: Update stamina and get speed multiplier
+            const isMoving = dir.length() > 0.01;
+            const isRunning = shiftPressed && isMoving;
+            
+            // Check if speed boots are equipped (hotbar slot)
+            const currentSlot = this.hotbarSlots[this.selectedSlot];
+            const hasSpeedBoots = currentSlot && (
+                currentSlot.itemType === 'speed_boots' || 
+                currentSlot.itemType === 'crafted_speed_boots'
+            );
+            this.staminaSystem.setSpeedBoots(hasSpeedBoots);
+            
+            // Get terrain type from block under player
+            const playerBlockY = Math.floor(this.player.position.y - 1);
+            const playerBlockX = Math.floor(this.player.position.x);
+            const playerBlockZ = Math.floor(this.player.position.z);
+            const blockUnderPlayer = this.world[`${playerBlockX},${playerBlockY},${playerBlockZ}`];
+            const terrain = this.staminaSystem.getTerrainType(blockUnderPlayer);
+            
+            // Update stamina (this handles drain, regen, and performance cleanup!)
+            this.staminaSystem.update(deltaTime, isMoving, isRunning, terrain);
+            
+            // Get speed multiplier from stamina system
+            const staminaSpeedMultiplier = this.staminaSystem.getSpeedMultiplier();
+            const speed = baseSpeed * staminaSpeedMultiplier;
 
             // ========== RAYCAST UTILITY FUNCTIONS (Phase 2) ==========
             // Simple block existence check for raycast system
@@ -10264,8 +10304,8 @@ class NebulaVoxelApp {
 
             if (!this.controlsEnabled) return;
 
-            // Movement keys
-            if (['w', 'a', 's', 'd', ' '].includes(key)) {
+            // Movement keys (including Shift for sprinting)
+            if (['w', 'a', 's', 'd', ' ', 'shift'].includes(key)) {
                 this.keys[key] = true;
                 e.preventDefault();
             }
@@ -10411,7 +10451,7 @@ class NebulaVoxelApp {
             if (!this.controlsEnabled) return;
             
             const key = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd', ' '].includes(key)) {
+            if (['w', 'a', 's', 'd', ' ', 'shift'].includes(key)) {
                 this.keys[key] = false;
                 e.preventDefault();
             }

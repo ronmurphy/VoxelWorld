@@ -817,13 +817,9 @@ export class BattleArena {
             this.voxelWorld.companionPortrait.updateHP(this.companionSprite.currentHP);
         }
 
-        // Hide player HP hearts only if fully healed
-        if (this.voxelWorld.playerHP) {
-            if (this.voxelWorld.playerHP.currentHP >= this.voxelWorld.playerHP.maxHP) {
-                this.voxelWorld.playerHP.hide();
-            }
-            // If damaged, keep hearts visible as reminder
-        }
+        // Keep player HP hearts visible at all times (don't hide them)
+        // Player can always see their health status
+        // (Hearts are shown from game start now)
 
         // Clear pattern
         this.currentPattern = null;
