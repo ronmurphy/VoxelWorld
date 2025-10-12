@@ -1,7 +1,7 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.9",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
@@ -20,6 +20,7 @@
     "build-all": "node bump-version.cjs && npm run build && electron-builder --win --linux --mac"
   },
   "devDependencies": {
+    "@mdi/font": "^7.4.47",
     "canvas": "^3.2.0",
     "concurrently": "^9.1.2",
     "electron": "^38.1.2",
@@ -38,6 +39,13 @@
     "directories": {
       "output": "dist-electron"
     },
+    "asarUnpack": [
+      "dist/fonts/**/*",
+      "dist/assets/*.woff",
+      "dist/assets/*.woff2",
+      "dist/assets/*.ttf",
+      "dist/assets/*.eot"
+    ],
     "files": [
       "dist/**/*",
       "node_modules/**/*",

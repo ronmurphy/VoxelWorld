@@ -1,5 +1,6 @@
 // App.js - Entry point for unified VoxelWorld + ShapeForge app (Vite version)
 import './style.css';
+import '@mdi/font/css/materialdesignicons.min.css'; // Material Design Icons (local)
 import { initVoxelWorld } from './VoxelWorld.js';
 import { SplashScreen } from './SplashScreen.js';
 import { GameIntroOverlay } from './ui/GameIntroOverlay.js';
