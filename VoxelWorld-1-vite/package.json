@@ -1,7 +1,7 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.1.7",
+  "version": "0.2.5",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
@@ -46,8 +46,18 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.ico"
     },
@@ -56,12 +66,21 @@
       "icon": "build/icon.icns"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "build/icon.png"
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Game"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-${version}-install.exe"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
     }
   }
 }
