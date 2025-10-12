@@ -239,9 +239,9 @@ export class StaminaSystem {
             
             console.log(`🧹⚡ STAMINA CLEANUP: ${totalChunks} chunks visited, ${blockCount} blocks`);
             
-            // AGGRESSIVE: renderDistance - 1 (keeps visible chunks + buffer)
-            // ULTRA-AGGRESSIVE: 0 (keeps only the 8×8 chunk you're standing in)
-            const cleanupRadius = Math.max(0, this.voxelWorld.renderDistance - 1);
+            // SMART CLEANUP: Keep visible chunks to prevent pop-in
+            // Use renderDistance (keeps what you see) NOT renderDistance-1
+            const cleanupRadius = this.voxelWorld.renderDistance;
             this.voxelWorld.cleanupChunkTracking(playerChunkX, playerChunkZ, cleanupRadius);
             
             const newBlockCount = Object.keys(this.voxelWorld.world).length;
