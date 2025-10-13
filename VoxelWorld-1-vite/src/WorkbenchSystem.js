@@ -8,7 +8,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
  * - Material-based sizing (more materials = larger shapes)
  * - 3D grid workspace for positioning multiple shapes
  * - Shape merging and composition
- * - Recipe book with pre-defined blueprints
+ * - Plan book with pre-defined blueprints
  * - Export to placeable voxel world objects
  */
 export class WorkbenchSystem {
@@ -40,7 +40,7 @@ export class WorkbenchSystem {
 
         // UI references for updating
         this.materialsListElement = null;
-        this.recipesListElement = null;
+        this.plansListElement = null;
 
         // Shape library
         this.shapeLibrary = {
@@ -53,8 +53,8 @@ export class WorkbenchSystem {
             hollow_cube: { name: 'Hollow Cube', buildFunction: this.createHollowCube.bind(this) }
         };
 
-        // Recipe book - basic shapes and complex structures
-        this.recipeBook = {
+        // Plan book - basic shapes and complex structures
+        this.planBook = {
             // Basic Shapes
             cube: {
                 name: '🔷 Cube',
@@ -111,6 +111,17 @@ export class WorkbenchSystem {
                 description: 'Unlocks tool crafting interface (Press T)',
                 isBasicShape: true,
                 isToolBench: true,  // Special flag for tool bench
+                category: 'special',
+                shapes: [
+                    { type: 'cube', position: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }
+                ]
+            },
+            kitchen_bench: {
+                name: '🍳 Kitchen Bench',
+                materials: { wood: 4, iron: 1, coal: 1 },
+                description: 'Unlocks food cooking interface (Press K). Fire-powered! (Any 4 wood blocks)',
+                isBasicShape: true,
+                isKitchenBench: true,  // Special flag for kitchen bench
                 category: 'special',
                 shapes: [
                     { type: 'cube', position: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }
@@ -258,7 +269,7 @@ export class WorkbenchSystem {
             height: 100%;
             background: rgba(0, 0, 0, 0.8);
             display: none;
-            z-index: 1000;
+            z-index: 50000;
             overflow: auto;
         `;
 
@@ -328,8 +339,8 @@ export class WorkbenchSystem {
         // Center panel - 3D preview
         const centerPanel = this.createPreviewPanel();
 
-        // Right panel - Recipe book and controls
-        const rightPanel = this.createRecipePanel();
+        // Right panel - Plan book and controls
+        const rightPanel = this.createPlanPanel();
 
         content.appendChild(leftPanel);
         content.appendChild(centerPanel);
@@ -405,7 +416,7 @@ export class WorkbenchSystem {
             background: rgba(255, 255, 255, 0.05);
             border-radius: 5px;
         `;
-        infoText.textContent = 'Select materials here, then choose shapes from the Recipe Book on the right. More materials = larger shapes!';
+        infoText.textContent = 'Select materials here, then choose shapes from the Plan Book on the right. More materials = larger shapes!';
 
         panel.appendChild(materialsHeader);
         panel.appendChild(materialsList);
@@ -802,9 +813,9 @@ export class WorkbenchSystem {
     }
 
     /**
-     * Create recipe book panel
+     * Create plan book panel
      */
-    createRecipePanel() {
+    createPlanPanel() {
         const panel = document.createElement('div');
         panel.style.cssText = `
             background: rgba(0, 0, 0, 0.3);
@@ -823,7 +834,7 @@ export class WorkbenchSystem {
         `;
 
         const header = document.createElement('h3');
-        header.textContent = '📖 Recipe Book';
+        header.textContent = '📖 Plan Book';
         header.style.cssText = `
             color: #FFD700;
             margin: 0;
@@ -845,21 +856,21 @@ export class WorkbenchSystem {
         headerContainer.appendChild(header);
         headerContainer.appendChild(resetButton);
 
-        const recipesList = document.createElement('div');
-        recipesList.style.cssText = `
+        const plansList = document.createElement('div');
+        plansList.style.cssText = `
             display: grid;
             grid-template-columns: 1fr;
             gap: 10px;
         `;
 
         // Store reference for filtering
-        this.recipesListElement = recipesList;
+        this.plansListElement = plansList;
 
-        // Add all recipes initially
-        this.updateRecipeDisplay();
+        // Add all plans initially
+        this.updatePlanDisplay();
 
         panel.appendChild(headerContainer);
-        panel.appendChild(recipesList);
+        panel.appendChild(plansList);
 
         return panel;
     }
@@ -1144,8 +1155,8 @@ export class WorkbenchSystem {
         return item;
     }
 
-    createRecipeItem(key, recipe) {
-        // Implementation for recipe book UI
+    createPlanItem(key, plan) {
+        // Implementation for plan book UI
         const item = document.createElement('div');
         item.style.cssText = `
             padding: 10px;
@@ -1155,18 +1166,18 @@ export class WorkbenchSystem {
             border: 2px solid transparent;
         `;
 
-        const materialsText = Object.entries(recipe.materials)
+        const materialsText = Object.entries(plan.materials)
             .map(([mat, count]) => `${count} ${mat}`)
             .join(', ');
 
         item.innerHTML = `
-            <div style="color: #FFD700; font-weight: bold; margin-bottom: 5px;">${recipe.name}</div>
-            <div style="color: #ccc; font-size: 12px; margin-bottom: 5px;">${recipe.description}</div>
+            <div style="color: #FFD700; font-weight: bold; margin-bottom: 5px;">${plan.name}</div>
+            <div style="color: #ccc; font-size: 12px; margin-bottom: 5px;">${plan.description}</div>
             <div style="color: #87CEEB; font-size: 11px;">Requires: ${materialsText}</div>
         `;
 
         item.addEventListener('click', () => {
-            this.loadRecipe(key, recipe);
+            this.loadPlan(key, plan);
         });
 
         return item;
@@ -1178,29 +1189,29 @@ export class WorkbenchSystem {
         this.updatePreview();
     }
 
-    loadRecipe(key, recipe) {
+    loadPlan(key, plan) {
         console.log('🍳 ===== LOAD RECIPE CALLED =====');
-        console.log('🍳 Recipe key:', key);
-        console.log('🍳 Recipe name:', recipe.name);
-        console.log('🍳 Recipe shapes array:', recipe.shapes);
-        console.log('🍳 Recipe materials:', recipe.materials);
+        console.log('🍳 Plan key:', key);
+        console.log('🍳 Plan name:', plan.name);
+        console.log('🍳 Plan shapes array:', plan.shapes);
+        console.log('🍳 Plan materials:', plan.materials);
 
-        // Store the current recipe for effect access
-        this.currentRecipe = recipe;
-        this.currentRecipeKey = key;
+        // Store the current plan for effect access
+        this.currentPlan = plan;
+        this.currentPlanKey = key;
 
-        // Get the shape from the recipe (use first shape for preview)
-        if (recipe.shapes && recipe.shapes.length > 0) {
-            this.selectedShape = recipe.shapes[0].type;
+        // Get the shape from the plan (use first shape for preview)
+        if (plan.shapes && plan.shapes.length > 0) {
+            this.selectedShape = plan.shapes[0].type;
             console.log('🍳 Set selectedShape to:', this.selectedShape);
             
-            // 🔥 NEW: Auto-populate sliders with recipe dimensions
-            const recipeSize = recipe.shapes[0].size;
-            if (recipeSize) {
-                // Set dimensions from recipe
-                this.shapeLength = recipeSize.x || 1;
-                this.shapeWidth = recipeSize.z || 1;
-                this.shapeHeight = recipeSize.y || 1;
+            // 🔥 NEW: Auto-populate sliders with plan dimensions
+            const planSize = plan.shapes[0].size;
+            if (planSize) {
+                // Set dimensions from plan
+                this.shapeLength = planSize.x || 1;
+                this.shapeWidth = planSize.z || 1;
+                this.shapeHeight = planSize.y || 1;
 
                 // 🪵 LOCK WIDTH/LENGTH for cylinders (sticks) - only height adjustable
                 const isCylinder = this.selectedShape === 'cylinder';
@@ -1223,10 +1234,10 @@ export class WorkbenchSystem {
                 if (this.widthValue) this.widthValue.textContent = this.shapeWidth.toFixed(1);
                 if (this.heightValue) this.heightValue.textContent = this.shapeHeight.toFixed(1);
 
-                console.log(`📏 Auto-set dimensions to ${this.shapeLength}×${this.shapeWidth}×${this.shapeHeight} from recipe${isCylinder ? ' (width/length locked)' : ''}`);
+                console.log(`📏 Auto-set dimensions to ${this.shapeLength}×${this.shapeWidth}×${this.shapeHeight} from plan${isCylinder ? ' (width/length locked)' : ''}`);
             }
         } else {
-            console.log('❌ No shapes found in recipe!');
+            console.log('❌ No shapes found in plan!');
             this.selectedShape = null;
         }
 
@@ -1263,7 +1274,7 @@ export class WorkbenchSystem {
             if (!this.selectedMaterial) {
                 this.craftButton.textContent = '❌ Select Material';
             } else if (!this.selectedShape) {
-                this.craftButton.textContent = '❌ Select Recipe';
+                this.craftButton.textContent = '❌ Select Plan';
             } else {
                 this.craftButton.textContent = '❌ Need More Materials';
             }
@@ -1350,24 +1361,24 @@ export class WorkbenchSystem {
     }
 
     /**
-     * Check if player material matches recipe requirement
+     * Check if player material matches plan requirement
      * Handles "any wood type" matching (wood -> oak_wood, pine_wood, etc.)
      * Handles "any leaves type" matching (leaves -> oak_wood-leaves, pine_wood-leaves, etc.)
      */
-    materialMatches(recipeMaterial, playerMaterial) {
+    materialMatches(planMaterial, playerMaterial) {
         // Direct match
-        if (recipeMaterial === playerMaterial) {
+        if (planMaterial === playerMaterial) {
             return true;
         }
 
-        // "wood" in recipe matches any specific wood type
-        if (recipeMaterial === 'wood') {
+        // "wood" in plan matches any specific wood type
+        if (planMaterial === 'wood') {
             const woodTypes = ['oak_wood', 'pine_wood', 'birch_wood', 'palm_wood', 'dead_wood'];
             return woodTypes.includes(playerMaterial);
         }
 
-        // "leaves" in recipe matches any specific leaf type
-        if (recipeMaterial === 'leaves') {
+        // "leaves" in plan matches any specific leaf type
+        if (planMaterial === 'leaves') {
             const leafTypes = [
                 'oak_wood-leaves', 'pine_wood-leaves', 'birch_wood-leaves', 'palm_wood-leaves', 'dead_wood-leaves',
                 'forest_leaves', 'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'
@@ -1379,10 +1390,10 @@ export class WorkbenchSystem {
     }
 
     /**
-     * Count total available materials that match a recipe requirement
+     * Count total available materials that match a plan requirement
      * Handles "wood" matching any wood type (oak_wood, pine_wood, etc.)
      */
-    countAvailableMaterial(recipeMaterial) {
+    countAvailableMaterial(planMaterial) {
         let totalCount = 0;
 
         // Get all slots (hotbar + backpack)
@@ -1391,9 +1402,9 @@ export class WorkbenchSystem {
             ...this.voxelWorld.inventory.backpackSlots
         ];
 
-        // Count materials that match the recipe requirement
+        // Count materials that match the plan requirement
         for (const slot of allSlots) {
-            if (slot && slot.itemType && this.materialMatches(recipeMaterial, slot.itemType)) {
+            if (slot && slot.itemType && this.materialMatches(planMaterial, slot.itemType)) {
                 totalCount += slot.quantity || 0;
             }
         }
@@ -1402,10 +1413,10 @@ export class WorkbenchSystem {
     }
 
     /**
-     * Remove specified quantity of materials that match a recipe requirement
-     * Handles removing from any wood type when recipe needs "wood"
+     * Remove specified quantity of materials that match a plan requirement
+     * Handles removing from any wood type when plan needs "wood"
      */
-    removeMatchingMaterials(recipeMaterial, quantity) {
+    removeMatchingMaterials(planMaterial, quantity) {
         let remaining = quantity;
 
         // Get all slots (hotbar + backpack)
@@ -1418,7 +1429,7 @@ export class WorkbenchSystem {
         for (const slot of allSlots) {
             if (remaining <= 0) break;
             
-            if (slot && slot.itemType && this.materialMatches(recipeMaterial, slot.itemType)) {
+            if (slot && slot.itemType && this.materialMatches(planMaterial, slot.itemType)) {
                 const toRemove = Math.min(remaining, slot.quantity);
                 slot.quantity -= toRemove;
                 remaining -= toRemove;
@@ -1431,7 +1442,7 @@ export class WorkbenchSystem {
             }
         }
 
-        console.log(`🗑️ Removed ${quantity} ${recipeMaterial} (${remaining} remaining debt)`);
+        console.log(`🗑️ Removed ${quantity} ${planMaterial} (${remaining} remaining debt)`);
     }
 
 
@@ -1464,7 +1475,7 @@ export class WorkbenchSystem {
         console.log('🧱 Final selectedMaterial:', this.selectedMaterial);
 
         this.updateMaterialVisuals();
-        this.updateRecipeDisplay();
+        this.updatePlanDisplay();
         this.updateMaterialCostDisplay(); // Update emoji and cost
         this.updatePreview(); // Trigger 3D preview update
     }
@@ -1476,7 +1487,7 @@ export class WorkbenchSystem {
         this.selectedMaterials.clear();
         this.selectedMaterial = null; // Clear single selection for preview
         this.updateMaterialVisuals();
-        this.updateRecipeDisplay();
+        this.updatePlanDisplay();
         this.updatePreview(); // Update 3D preview
     }
 
@@ -1506,27 +1517,27 @@ export class WorkbenchSystem {
     }
 
     /**
-     * Update recipe display based on selected materials
+     * Update plan display based on selected materials
      */
-    updateRecipeDisplay() {
-        if (!this.recipesListElement) return;
+    updatePlanDisplay() {
+        if (!this.plansListElement) return;
 
-        // Clear current recipes
-        this.recipesListElement.innerHTML = '';
+        // Clear current plans
+        this.plansListElement.innerHTML = '';
 
-        // Filter recipes based on selected materials
-        const filteredRecipes = this.getFilteredRecipes();
+        // Filter plans based on selected materials
+        const filteredPlans = this.getFilteredPlans();
 
-        // Add filtered recipes
-        Object.entries(filteredRecipes).forEach(([key, recipe]) => {
-            const recipeItem = this.createRecipeItem(key, recipe);
-            this.recipesListElement.appendChild(recipeItem);
+        // Add filtered plans
+        Object.entries(filteredPlans).forEach(([key, plan]) => {
+            const planItem = this.createPlanItem(key, plan);
+            this.plansListElement.appendChild(planItem);
         });
 
-        // Show message if no recipes match
-        if (Object.keys(filteredRecipes).length === 0 && this.selectedMaterials.size > 0) {
-            const noRecipesMsg = document.createElement('div');
-            noRecipesMsg.style.cssText = `
+        // Show message if no plans match
+        if (Object.keys(filteredPlans).length === 0 && this.selectedMaterials.size > 0) {
+            const noPlansMsg = document.createElement('div');
+            noPlansMsg.style.cssText = `
                 color: #ccc;
                 font-style: italic;
                 text-align: center;
@@ -1534,32 +1545,32 @@ export class WorkbenchSystem {
                 background: rgba(255, 255, 255, 0.05);
                 border-radius: 5px;
             `;
-            noRecipesMsg.textContent = 'No recipes can be made with selected materials. Try selecting different materials or click "Show All".';
-            this.recipesListElement.appendChild(noRecipesMsg);
+            noPlansMsg.textContent = 'No plans can be made with selected materials. Try selecting different materials or click "Show All".';
+            this.plansListElement.appendChild(noPlansMsg);
         }
     }
 
     /**
-     * Get recipes that can be made with selected materials
+     * Get plans that can be made with selected materials
      */
-    getFilteredRecipes() {
-        // If no materials selected, show all recipes
+    getFilteredPlans() {
+        // If no materials selected, show all plans
         if (this.selectedMaterials.size === 0) {
-            return this.recipeBook;
+            return this.planBook;
         }
 
         const filtered = {};
-        Object.entries(this.recipeBook).forEach(([key, recipe]) => {
-            // Check if recipe can be made with selected materials
-            const recipeMaterials = Object.keys(recipe.materials);
-            const canMake = recipeMaterials.some(recipeMat =>
+        Object.entries(this.planBook).forEach(([key, plan]) => {
+            // Check if plan can be made with selected materials
+            const planMaterials = Object.keys(plan.materials);
+            const canMake = planMaterials.some(planMat =>
                 Array.from(this.selectedMaterials).some(playerMat =>
-                    this.materialMatches(recipeMat, playerMat)
+                    this.materialMatches(planMat, playerMat)
                 )
             );
 
             if (canMake) {
-                filtered[key] = recipe;
+                filtered[key] = plan;
             }
         });
 
@@ -1591,7 +1602,7 @@ export class WorkbenchSystem {
 
         if (!this.selectedShape) {
             console.log('❌ Missing: No shape selected');
-            console.log('🔍 Tip: Click on a recipe/shape from the right panel');
+            console.log('🔍 Tip: Click on a plan/shape from the right panel');
             return;
         }
 
@@ -1911,7 +1922,7 @@ export class WorkbenchSystem {
 
         if (!this.selectedMaterial || !this.selectedShape) {
             console.log('❌ Cannot craft: No material or shape selected');
-            this.voxelWorld.updateStatus('⚠️ Select a material and recipe first!', 'error');
+            this.voxelWorld.updateStatus('⚠️ Select a material and plan first!', 'error');
             return;
         }
 
@@ -1929,12 +1940,12 @@ export class WorkbenchSystem {
         console.log(`📦 Available: ${availableQuantity}, Required: ${requiredQuantity}`);
 
         // 🔧 TOOL BENCH: UI unlock (no inventory item)
-        if (this.currentRecipe?.isToolBench) {
+        if (this.currentPlan?.isToolBench) {
             console.log('🔧 Crafting tool bench (UI unlock)');
 
-            // Check materials for tool bench recipe (with wood type matching)
-            const recipeMaterials = this.currentRecipe.materials;
-            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+            // Check materials for tool bench plan (with wood type matching)
+            const planMaterials = this.currentPlan.materials;
+            for (const [mat, qty] of Object.entries(planMaterials)) {
                 const available = this.countAvailableMaterial(mat);  // Uses materialMatches() logic
                 if (available < qty) {
                     this.voxelWorld.updateStatus(`⚠️ Not enough ${mat}! Need ${qty}, have ${available}`, 'error');
@@ -1943,7 +1954,7 @@ export class WorkbenchSystem {
             }
 
             // Consume materials (using materialMatches to remove from any wood type)
-            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+            for (const [mat, qty] of Object.entries(planMaterials)) {
                 this.removeMatchingMaterials(mat, qty);
             }
 
@@ -1971,13 +1982,56 @@ export class WorkbenchSystem {
             return;
         }
 
-        // 🪵 SIMPLE ITEM: Direct inventory item (like sticks)
-        if (this.currentRecipe?.isItem) {
-            console.log('🪵 Crafting simple item:', this.currentRecipe.itemId);
+        // 🍳 KITCHEN BENCH: UI unlock (no inventory item)
+        if (this.currentPlan?.isKitchenBench) {
+            console.log('🍳 Crafting kitchen bench (UI unlock)');
 
-            // Check materials for item recipe (with material matching)
-            const recipeMaterials = this.currentRecipe.materials;
-            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+            // Check materials for kitchen bench plan (with wood type matching)
+            const planMaterials = this.currentPlan.materials;
+            for (const [mat, qty] of Object.entries(planMaterials)) {
+                const available = this.countAvailableMaterial(mat);  // Uses materialMatches() logic
+                if (available < qty) {
+                    this.voxelWorld.updateStatus(`⚠️ Not enough ${mat}! Need ${qty}, have ${available}`, 'error');
+                    return;
+                }
+            }
+
+            // Consume materials (using materialMatches to remove from any wood type)
+            for (const [mat, qty] of Object.entries(planMaterials)) {
+                this.removeMatchingMaterials(mat, qty);
+            }
+
+            // Unlock kitchen bench UI
+            this.voxelWorld.hasKitchenBench = true;
+
+            // Show kitchen bench button with updated icon
+            if (this.voxelWorld.kitchenBenchButton) {
+                this.voxelWorld.kitchenBenchButton.style.display = 'block';
+                
+                // Update icon to use PNG (with emoji fallback)
+                this.voxelWorld.updateToolButtonIcon(this.voxelWorld.kitchenBenchButton, 'kitchen_bench', '🍳');
+                
+                console.log('🍳 Kitchen bench button enabled with updated icon');
+            }
+
+            // Update UI
+            this.voxelWorld.updateHotbarCounts();
+            this.voxelWorld.updateBackpackInventoryDisplay();
+            this.updateMaterialCostDisplay();
+
+            // Success notification
+            this.voxelWorld.updateStatus(`🍳 Kitchen Bench unlocked! Press K to cook.`, 'discovery');
+            console.log(`🍳 Kitchen Bench successfully unlocked!`);
+            return;
+        }
+
+        // 🪵 SIMPLE ITEM: Direct inventory item (like sticks)
+        if (this.currentPlan?.isItem) {
+            console.log('🪵 Crafting simple item:', this.currentPlan.itemId);
+
+            // Check materials for item plan (with material matching)
+            const planMaterials = this.currentPlan.materials;
+            for (const [mat, qty] of Object.entries(planMaterials)) {
                 const available = this.countAvailableMaterial(mat);  // Uses materialMatches() logic
                 if (available < qty) {
                     this.voxelWorld.updateStatus(`⚠️ Not enough ${mat}! Need ${qty}, have ${available}`, 'error');
@@ -1986,13 +2040,13 @@ export class WorkbenchSystem {
             }
 
             // Consume materials (using materialMatches to remove matching materials)
-            for (const [mat, qty] of Object.entries(recipeMaterials)) {
+            for (const [mat, qty] of Object.entries(planMaterials)) {
                 this.removeMatchingMaterials(mat, qty);
             }
 
             // Add crafted item(s) to inventory
-            const quantity = this.currentRecipe.quantity || 1;
-            this.voxelWorld.addToInventory(this.currentRecipe.itemId, quantity);
+            const quantity = this.currentPlan.quantity || 1;
+            this.voxelWorld.addToInventory(this.currentPlan.itemId, quantity);
 
             // Update UI
             this.voxelWorld.updateHotbarCounts();
@@ -2000,8 +2054,8 @@ export class WorkbenchSystem {
             this.updateMaterialCostDisplay();
 
             // Success notification
-            this.voxelWorld.updateStatus(`${this.currentRecipe.name} crafted!`, 'success');
-            console.log(`✅ Crafted ${quantity}x ${this.currentRecipe.itemId}`);
+            this.voxelWorld.updateStatus(`${this.currentPlan.name} crafted!`, 'success');
+            console.log(`✅ Crafted ${quantity}x ${this.currentPlan.itemId}`);
             return;
         }
 
@@ -2021,7 +2075,7 @@ export class WorkbenchSystem {
             height: height,
             requiredQuantity: requiredQuantity,
             timestamp: Date.now(),
-            effects: this.currentRecipe?.effects || []  // Include effects from recipe
+            effects: this.currentPlan?.effects || []  // Include effects from plan
         };
 
         // Show naming modal instead of immediately crafting

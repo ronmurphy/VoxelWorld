@@ -197,7 +197,7 @@ export class CompanionCodex {
             background: linear-gradient(135deg, rgba(101, 67, 33, 0.98), rgba(139, 90, 43, 0.98));
             border: 10px ridge #654321;
             border-radius: 20px;
-            z-index: 1000;
+            z-index: 50000;
             display: flex;
             flex-direction: column;
             box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(101, 67, 33, 0.4);

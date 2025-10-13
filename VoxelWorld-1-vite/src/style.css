@@ -231,3 +231,331 @@ img.emoji {
   margin: 0 !important;
   vertical-align: middle !important;
 }
+
+/* ========================================
+   🍳 KITCHEN BENCH STYLES
+   ======================================== */
+
+.kitchen-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50000;
+  animation: fadeIn 0.2s ease;
+}
+
+.kitchen-container {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  max-width: 90vw;
+  max-height: 85vh;
+  width: 1200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kitchen-header {
+  background: linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #444;
+}
+
+.kitchen-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.8em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kitchen-header .close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  font-size: 24px;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.kitchen-header .close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.kitchen-content {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.kitchen-panel {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kitchen-panel h3 {
+  margin: 0 0 15px 0;
+  color: #fff;
+  font-size: 1.2em;
+  border-bottom: 2px solid #444;
+  padding-bottom: 10px;
+}
+
+.ingredients-panel {
+  flex: 1;
+  min-width: 250px;
+}
+
+.preview-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  min-width: 300px;
+}
+
+.foods-panel {
+  flex: 1;
+  min-width: 300px;
+}
+
+.ingredients-list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ingredient-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ingredient-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateX(5px);
+}
+
+.ingredient-item.selected {
+  background: rgba(76, 175, 80, 0.3);
+  border-color: #4CAF50;
+}
+
+.ingredient-emoji {
+  font-size: 2em;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ingredient-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.ingredient-name {
+  color: #fff;
+  font-weight: 500;
+}
+
+.ingredient-quantity {
+  color: #888;
+  font-size: 0.9em;
+}
+
+.selected-ingredients {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 150px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cook-info {
+  color: #aaa;
+  font-size: 0.95em;
+  text-align: center;
+}
+
+.cook-btn {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  font-size: 1.2em;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.cook-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 5px 20px rgba(76, 175, 80, 0.5);
+}
+
+.cook-btn:disabled {
+  background: #555;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.clear-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clear-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.foods-list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.food-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.food-card.discovered {
+  border-color: rgba(76, 175, 80, 0.5);
+}
+
+.food-card.discovered:hover {
+  background: rgba(76, 175, 80, 0.1);
+  border-color: #4CAF50;
+  transform: translateX(5px);
+}
+
+.food-card.undiscovered {
+  opacity: 0.5;
+}
+
+.food-emoji {
+  font-size: 2.5em;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.food-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.food-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.1em;
+}
+
+.food-ingredients {
+  color: #888;
+  font-size: 0.85em;
+}
+
+.food-description {
+  color: #aaa;
+  font-size: 0.9em;
+  margin-top: 4px;
+}
+
+.buff-notification {
+  animation: slideInRight 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes failShake {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  25% { transform: translate(-50%, -50%) rotate(-5deg); }
+  75% { transform: translate(-50%, -50%) rotate(5deg); }
+}
+
+@keyframes discoveryPop {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}

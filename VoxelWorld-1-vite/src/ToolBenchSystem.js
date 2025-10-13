@@ -371,7 +371,7 @@ export class ToolBenchSystem {
             border: 3px solid #FFD700;
             border-radius: 15px;
             box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
-            z-index: 10000;
+            z-index: 50000;
             display: flex;
             flex-direction: column;
             font-family: 'Courier New', monospace;

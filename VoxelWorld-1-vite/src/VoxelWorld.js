@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
 import { ToolBenchSystem } from './ToolBenchSystem.js';
+import { KitchenBenchSystem } from './KitchenBenchSystem.js';
+import { CompanionHuntSystem } from './CompanionHuntSystem.js';
 import { BiomeWorldGen } from './BiomeWorldGen.js';
 import { WorkerManager } from './worldgen/WorkerManager.js';
 import { InventorySystem } from './InventorySystem.js';
@@ -177,7 +179,13 @@ class NebulaVoxelApp {
         this.toolBenchSystem = new ToolBenchSystem(this);
         this.hasToolBench = false;  // Unlocked when tool_bench is crafted
 
-        // � Initialize FarmingSystem
+        // 🍳 Initialize KitchenBenchSystem
+        this.kitchenBenchSystem = new KitchenBenchSystem(this);
+        this.companionHuntSystem = new CompanionHuntSystem(this);
+        this.hasKitchenBench = false;  // Unlocked when kitchen_bench is crafted
+        console.log('🍳 KitchenBenchSystem initialized');
+
+        // 🌾 Initialize FarmingSystem
         this.farmingSystem = new FarmingSystem(this);
         console.log('🌾 FarmingSystem initialized');
 
@@ -2020,22 +2028,32 @@ class NebulaVoxelApp {
 
         this.harvestWorldItem = (target) => {
             // Handle both sprites and collision boxes
-            let itemType, emoji, sprite;
+            let itemType, emoji, sprite, discoveryId, isCompanionDiscovery;
             
             if (target.userData.sprite) {
                 // Clicked on collision box - get data from associated sprite
                 sprite = target.userData.sprite;
                 itemType = target.userData.itemType;
                 emoji = target.userData.emoji;
+                discoveryId = target.userData.discoveryId;
+                isCompanionDiscovery = target.userData.isCompanionDiscovery;
             } else {
                 // Clicked directly on sprite
                 sprite = target;
                 itemType = target.userData.itemType;
                 emoji = target.userData.emoji;
+                discoveryId = target.userData.discoveryId;
+                isCompanionDiscovery = target.userData.isCompanionDiscovery;
             }
             
             // Add to inventory
             this.inventory.addToInventory(itemType, 1);
+
+            // 🐕 Notify companion hunt system if this was a discovery item
+            if (isCompanionDiscovery && discoveryId && this.companionHuntSystem) {
+                this.companionHuntSystem.onItemCollected(discoveryId);
+                console.log(`🐕 Companion discovery collected: ${discoveryId}`);
+            }
 
             // Remove from scene and world
             this.scene.remove(sprite);
@@ -2470,6 +2488,7 @@ class NebulaVoxelApp {
                 compass: '🧭',        // Navigation compass
                 compass_upgrade: '🧭', // Crystal compass (reassignable)
                 tool_bench: '🔧',     // Tool bench for advanced crafting
+                kitchen_bench: '🍳',  // Kitchen bench for cooking
 
                 // Tree types for compass tracking
                 oak_tree: '🌳',
@@ -2502,9 +2521,47 @@ class NebulaVoxelApp {
                 carrot_seeds: '🥕',  // Carrot seeds
                 pumpkin_seeds: '🎃', // Pumpkin seeds
                 berry_seeds: '🫐',   // Berry seeds
+                
+                // 🥬 HARVESTED INGREDIENTS
+                wheat: '🌾',         // Harvested wheat
                 carrot: '🥕',        // Harvested carrot
+                potato: '🥔',        // Harvested potato
+                pumpkin: '🎃',       // Harvested pumpkin
+                berry: '🫐',         // Harvested berry
+                mushroom: '🍄',      // Harvested mushroom
                 rice: '🍚',          // Rice grain
-                corn_ear: '🌽'       // Corn on the cob
+                corn_ear: '🌽',      // Corn on the cob
+                
+                // 🍖 COMPANION HUNT INGREDIENTS (rare)
+                fish: '🐟',          // From fishing expeditions
+                egg: '🥚',           // From gathering nests
+                honey: '🍯',         // From finding beehives
+                apple: '🍎',         // From foraging
+
+                // 🍳 COOKED FOODS
+                bread: '🍞',
+                roasted_wheat: '🍞',
+                baked_potato: '🥔',
+                roasted_corn: '🌽',
+                grilled_fish: '🍣',
+                carrot_stew: '🍲',
+                berry_bread: '🫓',
+                mushroom_soup: '🥣',
+                fish_rice: '🍱',
+                veggie_medley: '🥗',
+                honey_bread: '🥖',
+                pumpkin_pie: '🥧',
+                super_stew: '🍜',
+                berry_honey_snack: '🍪',
+                energy_bar: '🍫',
+                rice_bowl: '🍚',
+                corn_chips: '🌽',
+                grain_mix: '🌾',
+                berry_snack: '🫐',
+                potato_chips: '🥔',
+                mushroom_bites: '🍄',
+                cooked_egg: '🍳',
+                cookie: '🍪'
             };
 
             const defaultIcon = icons[itemType] || '❓';
@@ -2514,14 +2571,25 @@ class NebulaVoxelApp {
             const toolsAndDiscoveryItems = [
                 // Crafting tools
                 'machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 
-                'tool_bench', 'grappling_hook', 'crafted_grappling_hook', 'hoe',
+                'tool_bench', 'kitchen_bench', 'grappling_hook', 'crafted_grappling_hook', 'hoe',
                 // Discovery items (in /tools/ folder)
                 'skull', 'mushroom', 'flower', 'berry', 'crystal', 'feather', 'bone', 'shell', 
                 'fur', 'iceShard', 'rustySword', 'oldPickaxe', 'ancientAmulet',
                 // Ores and materials (in /tools/ folder)
                 'coal', 'iron', 'gold', 'pumpkin', 'leaf',
                 // Food items (in /food/ folder - EnhancedGraphics loads these into toolImages)
-                'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds', 'rice', 'corn_ear'
+                // Seeds
+                'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
+                // Harvested ingredients
+                'wheat', 'carrot', 'potato', 'pumpkin', 'berry', 'mushroom', 'rice', 'corn_ear',
+                // Companion Hunt ingredients (rare)
+                'fish', 'egg', 'honey', 'apple',
+                // Cooked foods (Brad's amazing Lora art!)
+                'bread', 'roasted_wheat', 'baked_potato', 'roasted_corn', 'grilled_fish',
+                'carrot_stew', 'berry_bread', 'mushroom_soup', 'fish_rice', 'veggie_medley',
+                'honey_bread', 'pumpkin_pie', 'super_stew', 'berry_honey_snack', 'energy_bar',
+                'rice_bowl', 'corn_chips', 'grain_mix', 'berry_snack', 'potato_chips', 
+                'mushroom_bites', 'cooked_egg', 'cookie'
             ];
             
             if (toolsAndDiscoveryItems.includes(itemType)) {
@@ -2755,7 +2823,7 @@ class NebulaVoxelApp {
                 background: linear-gradient(135deg, rgba(101, 67, 33, 0.98), rgba(139, 90, 43, 0.98));
                 border: 8px solid #654321;
                 border-radius: 20px;
-                z-index: 1000;
+                z-index: 50000;
                 display: none;
                 box-shadow: 0 0 40px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(101, 67, 33, 0.4);
                 backdrop-filter: blur(2px);
@@ -2986,8 +3054,8 @@ class NebulaVoxelApp {
             this.worldMapModal.appendChild(header);
             this.worldMapModal.appendChild(bookContainer);
 
-            // Add to DOM
-            this.container.appendChild(this.worldMapModal);
+            // Add to DOM (must be document.body for proper z-index stacking)
+            document.body.appendChild(this.worldMapModal);
 
             // Add click handler for pin placement on world map
             worldMapCanvas.addEventListener('click', (e) => this.handleMapClick(e));
@@ -3311,6 +3379,124 @@ class NebulaVoxelApp {
             // This function kept for compatibility but doesn't write to localStorage
         };
 
+        /**
+         * 🎨 Hide all non-modal UI elements
+         * Called when opening modals (backpack, journal, codex, etc.)
+         * Provides clean view without obstruction
+         */
+        this.hideUI = () => {
+            // Hotbar
+            if (this.hotbarElement) {
+                this.hotbarElement.dataset.wasVisible = this.hotbarElement.style.display !== 'none';
+                this.hotbarElement.style.display = 'none';
+            }
+
+            // Companion portrait
+            if (this.companionPortrait?.portraitElement) {
+                this.companionPortrait.portraitElement.dataset.wasVisible = 
+                    this.companionPortrait.portraitElement.style.display !== 'none';
+                this.companionPortrait.portraitElement.style.display = 'none';
+            }
+
+            // Mini hunt indicator (if companion is hunting)
+            const miniHuntIndicator = document.getElementById('mini-hunt-indicator');
+            if (miniHuntIndicator) {
+                miniHuntIndicator.dataset.wasVisible = miniHuntIndicator.style.display !== 'none';
+                miniHuntIndicator.style.display = 'none';
+            }
+
+            // Minimap
+            if (this.miniMap) {
+                this.miniMap.dataset.wasVisible = this.miniMap.style.display !== 'none';
+                this.miniMap.style.display = 'none';
+            }
+
+            // Status text (at top of screen)
+            if (this.statusElement) {
+                this.statusElement.dataset.wasVisible = this.statusElement.style.display !== 'none';
+                this.statusElement.style.display = 'none';
+            }
+
+            // Stamina bar
+            const staminaContainer = document.getElementById('player-stamina');
+            if (staminaContainer) {
+                staminaContainer.dataset.wasVisible = staminaContainer.style.display !== 'none';
+                staminaContainer.style.display = 'none';
+            }
+
+            // Hearts (health display)
+            const heartsContainer = document.getElementById('hearts-container');
+            if (heartsContainer) {
+                heartsContainer.dataset.wasVisible = heartsContainer.style.display !== 'none';
+                heartsContainer.style.display = 'none';
+            }
+
+            // Tool buttons (E, T, K, B buttons)
+            const toolButtons = document.querySelectorAll('.tool-button');
+            toolButtons.forEach(btn => {
+                btn.dataset.wasVisible = btn.style.display !== 'none';
+                btn.style.display = 'none';
+            });
+
+            console.log('🎨 UI elements hidden for modal view');
+        };
+
+        /**
+         * 🎨 Show all non-modal UI elements
+         * Called when closing modals (restores previous visibility)
+         * Does NOT show UI when switching between "bookmarked" modals (journal ↔ codex)
+         */
+        this.showUI = () => {
+            // Hotbar
+            if (this.hotbarElement && this.hotbarElement.dataset.wasVisible === 'true') {
+                this.hotbarElement.style.display = 'flex';
+            }
+
+            // Companion portrait
+            if (this.companionPortrait?.portraitElement && 
+                this.companionPortrait.portraitElement.dataset.wasVisible === 'true') {
+                this.companionPortrait.portraitElement.style.display = 'block';
+            }
+
+            // Mini hunt indicator
+            const miniHuntIndicator = document.getElementById('mini-hunt-indicator');
+            if (miniHuntIndicator && miniHuntIndicator.dataset.wasVisible === 'true') {
+                miniHuntIndicator.style.display = 'flex';
+            }
+
+            // Minimap
+            if (this.miniMap && this.miniMap.dataset.wasVisible === 'true') {
+                this.miniMap.style.display = 'block';
+            }
+
+            // Status text
+            if (this.statusElement && this.statusElement.dataset.wasVisible === 'true') {
+                this.statusElement.style.display = 'block';
+            }
+
+            // Stamina bar
+            const staminaContainer = document.getElementById('player-stamina');
+            if (staminaContainer && staminaContainer.dataset.wasVisible === 'true') {
+                staminaContainer.style.display = 'block';
+            }
+
+            // Hearts container
+            const heartsContainer = document.getElementById('hearts-container');
+            if (heartsContainer && heartsContainer.dataset.wasVisible === 'true') {
+                heartsContainer.style.display = 'flex';
+            }
+
+            // Tool buttons
+            const toolButtons = document.querySelectorAll('.tool-button');
+            toolButtons.forEach(btn => {
+                if (btn.dataset.wasVisible === 'true') {
+                    btn.style.display = btn.classList.contains('flex') ? 'flex' : 'block';
+                }
+            });
+
+            console.log('🎨 UI elements restored after modal close');
+        };
+
         // 🗺️ Toggle world map modal
         this.toggleWorldMap = () => {
             if (!this.worldMapModal) {
@@ -3335,14 +3521,6 @@ class NebulaVoxelApp {
             this.controlsEnabled = false;
             console.log('🔒 Disabled input controls for Explorer\'s Journal');
 
-            // 🎨 Hide hotbar and companion portrait for clean journal view
-            if (this.hotbarElement) {
-                this.hotbarElement.style.display = 'none';
-            }
-            if (this.companionPortrait && this.companionPortrait.portraitElement) {
-                this.companionPortrait.portraitElement.style.display = 'none';
-            }
-
             this.worldMapModal.style.display = 'block';
             // Trigger animation
             setTimeout(() => {
@@ -3365,14 +3543,6 @@ class NebulaVoxelApp {
                 // Re-enable VoxelWorld input controls when journal closes
                 this.controlsEnabled = true;
                 console.log('✅ Re-enabled input controls after closing Explorer\'s Journal');
-
-                // 🎨 Show hotbar and companion portrait again
-                if (this.hotbarElement) {
-                    this.hotbarElement.style.display = 'flex';
-                }
-                if (this.companionPortrait && this.companionPortrait.portraitElement) {
-                    this.companionPortrait.portraitElement.style.display = 'block';
-                }
 
                 // Only re-request pointer lock if closing completely (not switching tabs)
                 if (reEngagePointerLock && this.controlsEnabled) {
@@ -5884,6 +6054,36 @@ class NebulaVoxelApp {
                 this.currentNearbyWorkbench = null;
                 this.hideWorkbenchPrompt();
             }
+
+            // 🍳 KITCHEN BENCH PROXIMITY DETECTION
+            let nearbyKitchenBench = null;
+            for (let x = Math.floor(playerPos.x - 2); x <= Math.floor(playerPos.x + 2); x++) {
+                for (let y = Math.floor(playerPos.y - 2); y <= Math.floor(playerPos.y + 2); y++) {
+                    for (let z = Math.floor(playerPos.z - 2); z <= Math.floor(playerPos.z + 2); z++) {
+                        const key = `${x},${y},${z}`;
+                        const block = this.world[key];
+                        if (block && block.type === 'kitchen_bench') {
+                            const blockPos = new THREE.Vector3(x, y, z);
+                            const distance = new THREE.Vector3().copy(playerPos).distanceTo(blockPos);
+                            if (distance <= 2.0) {
+                                nearbyKitchenBench = { x, y, z, distance };
+                                break;
+                            }
+                        }
+                    }
+                    if (nearbyKitchenBench) break;
+                }
+                if (nearbyKitchenBench) break;
+            }
+
+            // Show/hide kitchen bench interaction prompt
+            if (nearbyKitchenBench && !this.currentNearbyKitchenBench) {
+                this.currentNearbyKitchenBench = nearbyKitchenBench;
+                this.showKitchenBenchPrompt(nearbyKitchenBench);
+            } else if (!nearbyKitchenBench && this.currentNearbyKitchenBench) {
+                this.currentNearbyKitchenBench = null;
+                this.hideKitchenBenchPrompt();
+            }
         };
 
         // Show workbench interaction prompt
@@ -5950,6 +6150,60 @@ class NebulaVoxelApp {
             if (this.workbenchPrompt) {
                 this.workbenchPrompt.remove();
                 this.workbenchPrompt = null;
+            }
+        };
+
+        // 🍳 Show kitchen bench interaction prompt
+        this.showKitchenBenchPrompt = (kitchenBench) => {
+            if (this.kitchenBenchPrompt) {
+                this.hideKitchenBenchPrompt();
+            }
+
+            this.kitchenBenchPrompt = document.createElement('div');
+            this.kitchenBenchPrompt.style.cssText = `
+                position: fixed;
+                bottom: 120px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: bold;
+                text-align: center;
+                z-index: 3500;
+                border: 2px solid #FF9800;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                backdrop-filter: blur(4px);
+                animation: slideUp 0.3s ease-out;
+            `;
+
+            // Check if mobile
+            if (this.isMobile) {
+                this.kitchenBenchPrompt.innerHTML = `
+                    <div>🍳 Kitchen Bench</div>
+                    <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Tap to cook food</div>
+                `;
+                this.kitchenBenchPrompt.addEventListener('click', () => {
+                    this.kitchenBenchSystem.open();
+                });
+                this.kitchenBenchPrompt.style.cursor = 'pointer';
+            } else {
+                this.kitchenBenchPrompt.innerHTML = `
+                    <div>🍳 Kitchen Bench</div>
+                    <div style="font-size: 14px; margin-top: 5px; opacity: 0.9;">Press <span style="background: #FF9800; padding: 2px 8px; border-radius: 4px; margin: 0 2px;">F</span> to cook</div>
+                `;
+            }
+
+            document.body.appendChild(this.kitchenBenchPrompt);
+        };
+
+        // Hide kitchen bench interaction prompt
+        this.hideKitchenBenchPrompt = () => {
+            if (this.kitchenBenchPrompt) {
+                this.kitchenBenchPrompt.remove();
+                this.kitchenBenchPrompt = null;
             }
         };
 
@@ -7304,6 +7558,29 @@ class NebulaVoxelApp {
                 ctx.moveTo(20, 40);
                 ctx.lineTo(44, 20);
                 ctx.stroke();
+                // Corner reinforcements
+            } else if (blockType.texture === 'kitchen_bench') {
+                // Kitchen bench texture - wood with cooking surface
+                ctx.globalAlpha = 0.4;
+                // Wood grain
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 8; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 8 + i * 6);
+                    ctx.lineTo(64, 8 + i * 6);
+                    ctx.stroke();
+                }
+                // Stove burner circles
+                ctx.strokeStyle = '#444444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(20, 32, 8, 0, Math.PI * 2);
+                ctx.arc(44, 32, 8, 0, Math.PI * 2);
+                ctx.stroke();
+                // Pot/pan on burner
+                ctx.fillStyle = '#666666';
+                ctx.fillRect(16, 20, 10, 6);
                 // Corner reinforcements
                 ctx.fillStyle = '#444444';
                 ctx.fillRect(4, 4, 6, 6);
@@ -9741,6 +10018,70 @@ class NebulaVoxelApp {
                 }
             }
 
+            // 🐕 Draw companion hunt discoveries (purple dots)
+            if (this.companionHuntSystem && this.companionHuntSystem.discoveries) {
+                this.companionHuntSystem.discoveries.forEach(discovery => {
+                    const relX = discovery.position.x - this.player.position.x;
+                    const relZ = discovery.position.z - this.player.position.z;
+
+                    const discMapX = size/2 + relX / scale;
+                    const discMapZ = size/2 + relZ / scale;
+
+                    if (discMapX >= 0 && discMapX < size && discMapZ >= 0 && discMapZ < size) {
+                        ctx.fillStyle = '#a855f7'; // Purple
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.arc(discMapX, discMapZ, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                });
+            }
+
+            // 🐕 Draw companion position (cyan dot) if hunting
+            const companionPos = this.companionHuntSystem?.getCompanionMapPosition();
+            if (companionPos) {
+                const relX = companionPos.x - this.player.position.x;
+                const relZ = companionPos.z - this.player.position.z;
+
+                const compMapX = size/2 + relX / scale;
+                const compMapZ = size/2 + relZ / scale;
+
+                if (compMapX >= 0 && compMapX < size && compMapZ >= 0 && compMapZ < size) {
+                    // Draw companion with pulsing effect
+                    const pulseRadius = 4 + Math.sin(Date.now() / 200) * 1;
+                    
+                    ctx.fillStyle = '#06b6d4'; // Cyan
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(compMapX, compMapZ, pulseRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Add direction arrow if returning
+                    if (companionPos.isReturning) {
+                        const angle = Math.atan2(
+                            this.player.position.x - companionPos.x,
+                            this.player.position.z - companionPos.z
+                        );
+                        
+                        ctx.fillStyle = '#06b6d4';
+                        ctx.save();
+                        ctx.translate(compMapX, compMapZ);
+                        ctx.rotate(angle);
+                        ctx.beginPath();
+                        ctx.moveTo(6, 0);
+                        ctx.lineTo(-3, -4);
+                        ctx.lineTo(-3, 4);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+            }
+
             // Draw player position (white dot)
             ctx.fillStyle = '#ffffff'; // Changed to white so backpack red stands out
             ctx.beginPath();
@@ -9763,12 +10104,21 @@ class NebulaVoxelApp {
         let lastChunkUpdate = 0;
         let lastTime = 0;
         let lastPerfLog = 0; // 🎯 PERFORMANCE: Track performance logging
+        
+        // ⏰ Game time tracking (for companion hunt and other time-based systems)
+        if (this.gameTime === undefined) {
+            this.gameTime = 0;
+        }
+        
         const animate = (currentTime = 0) => {
             this.animationId = requestAnimationFrame(animate);
             
             // Calculate delta time for FPS-independent movement
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
+
+            // Update game time (accumulate deltaTime for in-game time tracking)
+            this.gameTime += deltaTime;
 
             // 📊 PERFORMANCE: Log array sizes every 10 seconds
             if (currentTime - lastPerfLog > 10000) {
@@ -9962,6 +10312,11 @@ class NebulaVoxelApp {
             
             // Update stamina (this handles drain, regen, and performance cleanup!)
             this.staminaSystem.update(deltaTime, isMoving, isRunning, terrain);
+            
+            // Update companion hunt system (movement, discoveries, return logic)
+            if (this.companionHuntSystem && this.gameTime !== undefined) {
+                this.companionHuntSystem.update(this.gameTime);
+            }
             
             // Get speed multiplier from stamina system
             const staminaSpeedMultiplier = this.staminaSystem.getSpeedMultiplier();
@@ -10343,6 +10698,19 @@ class NebulaVoxelApp {
                 return;
             }
 
+            // ESC key: Close kitchen bench if open
+            if (key === 'escape' && this.kitchenBenchSystem && this.kitchenBenchSystem.isOpen) {
+                this.kitchenBenchSystem.close();
+                // Re-engage pointer lock after closing kitchen bench
+                setTimeout(() => {
+                    if (this.renderer && this.renderer.domElement) {
+                        this.renderer.domElement.requestPointerLock();
+                    }
+                }, 100);
+                e.preventDefault();
+                return;
+            }
+
             // ESC key: Close backpack if open (before controlsEnabled check so it works during text input)
             if (key === 'escape' && this.hasBackpack && this.backpackInventoryElement) {
                 const isVisible = this.backpackInventoryElement.style.transform.includes('translateY(0px)');
@@ -10485,6 +10853,12 @@ class NebulaVoxelApp {
                 }
             }
 
+            // F key: Open kitchen bench (if near one)
+            if (key === 'f' && this.currentNearbyKitchenBench) {
+                this.kitchenBenchSystem.open();
+                e.preventDefault();
+            }
+
             // B key: Toggle backpack inventory
             if (key === 'b' && this.hasBackpack) {
                 this.toggleBackpackInventory();
@@ -10494,6 +10868,12 @@ class NebulaVoxelApp {
             // T key: Open tool bench
             if (key === 't' && this.hasToolBench) {
                 this.toolBenchSystem.open();
+                e.preventDefault();
+            }
+
+            // K key: Open kitchen bench
+            if (key === 'k' && this.hasKitchenBench) {
+                this.kitchenBenchSystem.open();
                 e.preventDefault();
             }
         };
@@ -10629,13 +11009,40 @@ class NebulaVoxelApp {
                             'compass', 'compass_upgrade',
                             // 🌾 FARMING: Seeds and crops are not placeable
                             'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
-                            'carrot', 'rice', 'corn_ear'
+                            'wheat', 'carrot', 'potato', 'pumpkin', 'berry', 'mushroom', 'rice', 'corn_ear',
+                            // 🍖 COMPANION HUNT: Rare ingredients
+                            'fish', 'egg', 'honey', 'apple',
+                            // 🍳 FOOD: Cooked foods are consumable
+                            'bread', 'roasted_wheat', 'baked_potato', 'roasted_corn', 'grilled_fish',
+                            'carrot_stew', 'berry_bread', 'mushroom_soup', 'fish_rice',
+                            'veggie_medley', 'honey_bread', 'pumpkin_pie', 'super_stew',
+                            'berry_honey_snack', 'energy_bar', 'rice_bowl', 'corn_chips',
+                            'grain_mix', 'berry_snack', 'potato_chips', 'mushroom_bites',
+                            'cooked_egg', 'cookie'
                         ];
 
                         if (nonPlaceableItems.includes(selectedBlock)) {
                             // 🧭 COMPASS SPECIAL HANDLING: Right-click opens target selection
                             if (selectedBlock === 'compass' || selectedBlock === 'compass_upgrade') {
                                 this.openCompassTargetSelector(selectedBlock, selectedSlot);
+                                return;
+                            }
+
+                            // 🍳 FOOD CONSUMPTION: Right-click to eat food and apply buffs
+                            const foodKeys = Object.keys(this.kitchenBenchSystem.foodDatabase);
+                            if (foodKeys.includes(selectedBlock)) {
+                                console.log(`🍽️ Eating ${selectedBlock}...`);
+                                
+                                // Apply food buff
+                                this.kitchenBenchSystem.applyFoodBuff(selectedBlock);
+                                
+                                // Consume one food item
+                                selectedSlot.quantity--;
+                                if (selectedSlot.quantity === 0) {
+                                    selectedSlot.itemType = '';
+                                }
+                                
+                                this.hotbar.updateHotbarDisplay();
                                 return;
                             }
 
@@ -10927,6 +11334,60 @@ class NebulaVoxelApp {
             }
         });
         this.toolMenu.appendChild(this.toolBenchButton);
+
+        // 🍳 Kitchen Bench button (initially hidden, unlocked when crafted)
+        this.kitchenBenchButton = document.createElement('div');
+        this.kitchenBenchButton.style.cssText = `
+            font-size: 28px;
+            cursor: pointer;
+            text-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
+            transition: all 0.3s ease;
+            display: none;
+            text-align: center;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            position: relative;
+        `;
+        // Add hotkey label first (before setting icon)
+        const kitchenBenchLabel = document.createElement('div');
+        kitchenBenchLabel.textContent = 'K';
+        kitchenBenchLabel.style.cssText = `
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            font-size: 8px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            pointer-events: none;
+            font-family: monospace;
+        `;
+        this.kitchenBenchButton.appendChild(kitchenBenchLabel);
+        this.kitchenBenchHotkeyLabel = kitchenBenchLabel; // Store reference for day/night updates
+
+        // Use enhanced graphics icon or emoji fallback (set after label so label stays on top)
+        const kitchenBenchIcon = this.getItemIcon('kitchen_bench', 'hotbar');
+        // Use innerHTML for img tags, textContent for emojis
+        if (kitchenBenchIcon.includes('<img')) {
+            // For img tags, prepend before the label
+            this.kitchenBenchButton.insertAdjacentHTML('afterbegin', kitchenBenchIcon);
+        } else {
+            this.kitchenBenchButton.textContent = kitchenBenchIcon;
+            // Re-append label since textContent cleared it
+            this.kitchenBenchButton.appendChild(kitchenBenchLabel);
+        }
+        this.kitchenBenchButton.title = 'Open kitchen bench cooking (K key)';
+
+        this.kitchenBenchButton.addEventListener('click', () => {
+            // Open kitchen bench if unlocked
+            if (this.hasKitchenBench) {
+                this.kitchenBenchSystem.open();
+            } else {
+                this.updateStatus('⚠️ Craft a kitchen bench first to unlock cooking!', 'warning');
+            }
+        });
+        this.toolMenu.appendChild(this.kitchenBenchButton);
 
         // Coordinate display (above minimap)
         // 📖 Explorer's Info Panel - Unified coordinates, map, and biome display
@@ -11866,6 +12327,12 @@ class NebulaVoxelApp {
             if (this.workbenchTool) {
                 this.updateToolButtonIcon(this.workbenchTool, 'workbench', '🔨');
             }
+            if (this.toolBenchButton) {
+                this.updateToolButtonIcon(this.toolBenchButton, 'tool_bench', '🔧');
+            }
+            if (this.kitchenBenchButton) {
+                this.updateToolButtonIcon(this.kitchenBenchButton, 'kitchen_bench', '🍳');
+            }
 
             // Refresh existing billboards in the world
             this.refreshAllBillboards();
@@ -12491,6 +12958,12 @@ export async function initVoxelWorld(container, splashScreen = null) {
             }
             if (app.workbenchTool) {
                 app.updateToolButtonIcon(app.workbenchTool, 'workbench', '🔨');
+            }
+            if (app.toolBenchButton && app.hasToolBench) {
+                app.updateToolButtonIcon(app.toolBenchButton, 'tool_bench', '🔧');
+            }
+            if (app.kitchenBenchButton && app.hasKitchenBench) {
+                app.updateToolButtonIcon(app.kitchenBenchButton, 'kitchen_bench', '🍳');
             }
             console.log('🔄 Tool button icons refreshed after Enhanced Graphics initialization');
         }

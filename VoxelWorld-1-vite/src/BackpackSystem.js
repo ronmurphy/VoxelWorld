@@ -29,7 +29,7 @@ export class BackpackSystem {
             border: 3px solid #8B4513;
             border-radius: 0 0 16px 16px;
             padding: 20px;
-            z-index: 3000;
+            z-index: 50000;
             transition: transform 0.3s ease-out;
             backdrop-filter: blur(8px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
@@ -196,8 +196,8 @@ export class BackpackSystem {
         });
         this.backpackInventoryElement.appendChild(closeBtn);
 
-        // Add to container
-        this.voxelWorld.container.appendChild(this.backpackInventoryElement);
+        // Add to DOM (must be document.body for proper z-index stacking)
+        document.body.appendChild(this.backpackInventoryElement);
         
         // Initialize drag & drop (to be added next)
         this.setupBackpackDragAndDrop();
