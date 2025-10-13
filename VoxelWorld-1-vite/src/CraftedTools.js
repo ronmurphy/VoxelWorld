@@ -53,6 +53,12 @@ export class CraftedTools {
     handleRightClick(selectedSlot, pos, placePos) {
         const selectedBlock = selectedSlot?.itemType;
 
+        // 🗡️ STONE SPEAR: Charging handled in mousedown/mouseup, skip here
+        const isSpear = selectedBlock === 'stone_spear' || selectedBlock === 'crafted_stone_spear';
+        if (isSpear) {
+            return true; // Prevent block placement
+        }
+
         // 🕸️ GRAPPLING HOOK: Check FIRST (before watering can) - consumes on use
         const metadata = this.voxelWorld.inventoryMetadata?.[selectedBlock];
         const isGrapplingHook = metadata?.isGrapplingHook ||

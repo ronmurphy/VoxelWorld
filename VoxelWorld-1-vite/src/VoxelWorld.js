@@ -30,6 +30,7 @@ import { FarmingSystem } from './FarmingSystem.js';
 import { MusicSystem } from './MusicSystem.js';
 import { farmingBlockTypes } from './FarmingBlockTypes.js';
 import { CraftedTools } from './CraftedTools.js';
+import { SpearSystem } from './SpearSystem.js';
 import { createEmojiChooser } from './EmojiChooser.js';
 import * as CANNON from 'cannon-es';
 
@@ -210,7 +211,11 @@ class NebulaVoxelApp {
         this.craftedTools = new CraftedTools(this);
         console.log('🔧 CraftedTools handler initialized');
 
-        // �🎯 Player upgrades (modifiable through ToolBench)
+        // 🗡️ Initialize SpearSystem
+        this.spearSystem = new SpearSystem(this);
+        console.log('🗡️ SpearSystem initialized');
+
+        // 🎯 Player upgrades (modifiable through ToolBench)
         this.backpackStackSize = 50;  // Can upgrade to 75, 100
         this.movementSpeed = 1.0;     // Can upgrade to 1.5 (speed boots)
         this.harvestSpeed = 1.0;      // Can upgrade to 1.5 (machete upgrade)
@@ -2059,7 +2064,12 @@ class NebulaVoxelApp {
             // Add to inventory
             this.inventory.addToInventory(itemType, 1);
 
-            // 🐕 Notify companion hunt system if this was a discovery item
+            // �️ Notify spear system if this was a thrown spear
+            if ((itemType === 'stone_spear' || itemType === 'crafted_stone_spear') && this.spearSystem) {
+                this.spearSystem.removeSpear(sprite);
+            }
+
+            // �🐕 Notify companion hunt system if this was a discovery item
             if (isCompanionDiscovery && discoveryId && this.companionHuntSystem) {
                 this.companionHuntSystem.onItemCollected(discoveryId);
                 console.log(`🐕 Companion discovery collected: ${discoveryId}`);
@@ -10252,6 +10262,11 @@ class NebulaVoxelApp {
                 this.farmingSystem.update();
             }
 
+            // 🗡️ Update spear system - check for pickup proximity
+            if (this.spearSystem) {
+                this.spearSystem.update();
+            }
+
             // Check for nearby workbench (even when paused)
             this.checkWorkbenchProximity();
 
@@ -10953,6 +10968,18 @@ class NebulaVoxelApp {
         const mousedownHandler = (e) => {
             if (!this.controlsEnabled || document.pointerLockElement !== this.renderer.domElement) return;
             
+            // 🗡️ SPEAR CHARGING: Start charging on right-click with spear
+            if (e.button === 2) { // Right click
+                const selectedSlot = this.hotbarSystem.getSelectedSlot();
+                const selectedItem = selectedSlot?.itemType;
+                const isSpear = selectedItem === 'stone_spear' || selectedItem === 'crafted_stone_spear';
+                
+                if (isSpear && selectedSlot.quantity > 0) {
+                    this.spearSystem.startCharging();
+                    // Don't return - let it continue to show green highlight
+                }
+            }
+            
             // Change highlight color based on button
             if (e.button === 0) { // Left click - red for removal
                 this.targetHighlight.material.color.setHex(0xff0000);
@@ -11108,6 +11135,34 @@ class NebulaVoxelApp {
         const mouseupHandler = (e) => {
             // Reset highlight color to default (green for placement)
             this.targetHighlight.material.color.setHex(0x00ff00);
+
+            // 🗡️ SPEAR RELEASE: Release charged throw on right-click up
+            if (e.button === 2 && this.spearSystem.isCharging) {
+                // Get target position from raycaster
+                this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+                const intersects = this.raycaster.intersectObjects(
+                    this.scene.children.filter(obj => 
+                        (obj.isMesh || obj.isSprite) && 
+                        obj !== this.targetHighlight
+                    )
+                );
+                
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const pos = hit.object.position.clone();
+                    const normal = hit.face.normal;
+                    const placePos = pos.clone().add(normal);
+                    
+                    const targetPos = {
+                        x: Math.floor(placePos.x),
+                        y: Math.floor(placePos.y),
+                        z: Math.floor(placePos.z)
+                    };
+                    
+                    this.spearSystem.releaseThrow(targetPos);
+                }
+                return; // Don't continue to other mouseup actions
+            }
 
             // Stop harvesting when left mouse button is released
             if (e.button === 0) {

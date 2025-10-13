@@ -153,6 +153,54 @@ export class StaminaSystem {
         this.staminaContainer.appendChild(this.staminaFill);
         document.body.appendChild(this.staminaContainer);
 
+        // 🗡️ Create charge indicator (hidden by default)
+        this.chargeContainer = document.createElement('div');
+        this.chargeContainer.id = 'spear-charge';
+        this.chargeContainer.style.cssText = `
+            position: fixed;
+            top: 82px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(255, 165, 0, 0.5);
+            border-radius: 6px;
+            overflow: hidden;
+            z-index: 1000;
+            pointer-events: none;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
+            display: none;
+        `;
+
+        // Create charge fill bar
+        this.chargeFill = document.createElement('div');
+        this.chargeFill.style.cssText = `
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(to right, #f59e0b, #ef4444);
+            transition: width 0.05s linear;
+        `;
+
+        // Create charge label
+        this.chargeLabel = document.createElement('div');
+        this.chargeLabel.style.cssText = `
+            position: absolute;
+            top: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+        `;
+        this.chargeLabel.textContent = '🗡️ CHARGING';
+
+        this.chargeContainer.appendChild(this.chargeFill);
+        this.chargeContainer.appendChild(this.chargeLabel);
+        document.body.appendChild(this.chargeContainer);
+
         console.log('⚡ Stamina UI created');
     }
 
@@ -363,11 +411,57 @@ export class StaminaSystem {
     }
 
     /**
+     * 🗡️ Show spear charge indicator
+     */
+    showChargeIndicator() {
+        if (this.chargeContainer) {
+            this.chargeContainer.style.display = 'block';
+        }
+    }
+
+    /**
+     * 🗡️ Hide spear charge indicator
+     */
+    hideChargeIndicator() {
+        if (this.chargeContainer) {
+            this.chargeContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * 🗡️ Update spear charge visual
+     * @param {number} chargePercent - Charge percentage (0.0 to 1.0)
+     * @param {number} power - Power multiplier (0.5 to 2.0)
+     * @param {number} staminaCost - Stamina cost
+     */
+    updateChargeIndicator(chargePercent, power, staminaCost) {
+        if (!this.chargeFill || !this.chargeLabel) return;
+
+        // Update fill width
+        this.chargeFill.style.width = `${chargePercent * 100}%`;
+
+        // Update label text
+        this.chargeLabel.textContent = `🗡️ ${(chargePercent * 100).toFixed(0)}% (${power.toFixed(1)}x, -${staminaCost}⚡)`;
+
+        // Change color based on power
+        if (chargePercent < 0.33) {
+            this.chargeFill.style.background = 'linear-gradient(to right, #fbbf24, #f59e0b)'; // Yellow
+        } else if (chargePercent < 0.66) {
+            this.chargeFill.style.background = 'linear-gradient(to right, #f59e0b, #f97316)'; // Orange
+        } else {
+            this.chargeFill.style.background = 'linear-gradient(to right, #f97316, #ef4444)'; // Red
+        }
+    }
+
+    /**
      * Cleanup and remove UI
      */
     dispose() {
         if (this.staminaContainer && this.staminaContainer.parentNode) {
             this.staminaContainer.parentNode.removeChild(this.staminaContainer);
+        }
+        if (this.chargeContainer && this.chargeContainer.parentNode) {
+            this.chargeContainer.parentNode.removeChild(this.chargeContainer);
         }
         console.log('⚡ StaminaSystem disposed');
     }

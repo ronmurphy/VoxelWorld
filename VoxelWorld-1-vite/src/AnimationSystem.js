@@ -166,6 +166,77 @@ export class AnimationSystem {
     }
 
     /**
+     * 🗡️ PROJECTILE: Generic trajectory animation (spears, arrows, etc.)
+     * Similar to grappling hook but doesn't move player - just animates object
+     * @param {Object} startPos - Starting position {x, y, z}
+     * @param {Object} endPos - Target position {x, y, z}
+     * @param {number} duration - Animation duration in seconds
+     * @param {function} onUpdate - Callback with (progress, currentPos) during animation
+     * @param {function} onComplete - Callback when animation completes
+     */
+    animateProjectile(startPos, endPos, duration = 0.6, onUpdate = null, onComplete = null) {
+        // Calculate apex (highest point of arc)
+        const distance = Math.sqrt(
+            Math.pow(endPos.x - startPos.x, 2) + 
+            Math.pow(endPos.z - startPos.z, 2)
+        );
+        
+        // Apex height: lower arc than grappling hook (more realistic throw)
+        const apexHeight = Math.max(
+            Math.max(startPos.y, endPos.y) + 2,
+            Math.max(startPos.y, endPos.y) + (distance * 0.2)
+        );
+
+        // Bezier curve control point (apex position)
+        const apexPos = {
+            x: (startPos.x + endPos.x) / 2,
+            y: apexHeight,
+            z: (startPos.z + endPos.z) / 2
+        };
+
+        console.log(`🗡️ Projectile trajectory: Start(${startPos.x.toFixed(1)}, ${startPos.y.toFixed(1)}, ${startPos.z.toFixed(1)}) → Apex(${apexPos.x.toFixed(1)}, ${apexPos.y.toFixed(1)}, ${apexPos.z.toFixed(1)}) → End(${endPos.x.toFixed(1)}, ${endPos.y.toFixed(1)}, ${endPos.z.toFixed(1)})`);
+
+        // Create animation (no visual line for projectiles - object itself shows path)
+        const animId = this.animationId++;
+        this.activeAnimations.set(animId, {
+            type: 'projectile',
+            progress: 0,
+            duration: duration,
+            startPos: startPos,
+            apexPos: apexPos,
+            endPos: endPos,
+            onUpdate: (progress) => {
+                // Quadratic Bezier curve interpolation
+                const t = progress;
+                const invT = 1 - t;
+                const invT2 = invT * invT;
+                const t2 = t * t;
+                const blend = 2 * invT * t;
+
+                const currentPos = {
+                    x: invT2 * startPos.x + blend * apexPos.x + t2 * endPos.x,
+                    y: invT2 * startPos.y + blend * apexPos.y + t2 * endPos.y,
+                    z: invT2 * startPos.z + blend * apexPos.z + t2 * endPos.z
+                };
+
+                // Call custom update callback with current position
+                if (onUpdate) {
+                    onUpdate(progress, currentPos);
+                }
+            },
+            onComplete: () => {
+                console.log(`🗡️ Projectile animation complete!`);
+
+                if (onComplete) {
+                    onComplete();
+                }
+            }
+        });
+
+        return animId;
+    }
+
+    /**
      * Cancel a specific animation
      * @param {number} animationId - Animation ID to cancel
      */

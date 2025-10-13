@@ -4,7 +4,159 @@ Continuation of CHANGELOG.md for new development sessions.
 
 ---
 
-## 2025-01-12 - 🐾 Epic Debugging Session: Performance, Stone Pillars, Kitchen Polish & Companion Hunt
+## 2025-01-12 (Evening) - 🗡️ Spear Throwing System: Hold-to-Charge Ranged Combat!
+
+**Status: FULLY IMPLEMENTED ✅**
+
+### 🎯 Session Overview
+
+Implemented a complete spear throwing system with hold-to-charge mechanics, trajectory animations, visual charge indicator, and harvest-based pickup. Players can now launch spears across multiple chunks with full power charges!
+
+---
+
+### 🗡️ Spear Throwing System - NEW FEATURE!
+
+**Core Mechanics:**
+- **Hold-to-Charge**: Hold right-click to charge throw power
+- **Power Scaling**: 0.5x (quick tap) → 2.0x (full charge) distance
+- **Stamina Cost**: 5 (weak) → 20 (max power) stamina consumption
+- **Max Charge Time**: 2 seconds for full power
+
+**Visual Charge Indicator** (StaminaSystem.js Lines 135-178):
+```javascript
+// Charge bar appears under stamina bar when charging
+this.chargeContainer = document.createElement('div');
+// Color changes: Yellow → Orange → Red based on power
+// Shows: 🗡️ 85% (1.8x, -18⚡)
+```
+
+**New Files Created:**
+1. **SpearSystem.js** (315 lines)
+   - `startCharging()` - Begin charge on right-click down
+   - `releaseThrow(targetPos)` - Release spear on mouse up
+   - `throwSpear(targetPos, power, staminaCost)` - Execute throw with physics
+   - `stickSpearInGround()` - Place spear as harvestable world item
+   - `removeSpear()` - Track cleanup when harvested
+
+2. **AnimationSystem.js** - Enhanced (Lines 168-230):
+   - `animateProjectile(start, end, duration, onUpdate, onComplete)` - Generic projectile trajectory
+   - Reuses grappling hook bezier curve math
+   - Lower arc than grapple for realistic throw
+   - Smooth parabolic flight path
+
+**Integration Points:**
+
+**VoxelWorld.js:**
+- Line 33: Import SpearSystem
+- Line 214: `this.spearSystem = new SpearSystem(this)`
+- Line 10262: `this.spearSystem.update()` in animation loop
+- Lines 10965-10977: Mousedown handler starts charging
+- Lines 11132-11164: Mouseup handler releases throw
+- Lines 2067-2070: Harvest integration for spear pickup
+
+**CraftedTools.js:**
+- Lines 54-60: Spear detection prevents block placement
+
+**ToolBenchSystem.js:**
+- Lines 252-264: Stone spear recipe (stick×2, stone×3, feather×1)
+- Already existed - just activated!
+
+---
+
+### 🎨 Visual Feedback System
+
+**Charge Indicator Display:**
+- **Position**: Directly under stamina bar (top: 82px)
+- **Size**: 200px × 12px with gradient fill
+- **Colors**: 
+  - 🟡 Yellow (0-33%): Low power
+  - 🟠 Orange (33-66%): Medium power
+  - 🔴 Red (66-100%): MAX POWER!
+- **Label**: Shows % charge, power multiplier, stamina cost
+
+**Projectile Animation:**
+- Spear billboard rotates to face direction of travel
+- Bezier curve creates realistic arc
+- Adjustable apex height based on distance
+- Smooth 0.6 second flight duration
+
+**Ground Placement:**
+- Spear sticks at 45° angle
+- Always faces camera (billboard effect)
+- Harvestable like pumpkins/backpacks
+- Left-click to collect
+
+---
+
+### 🎮 Gameplay Mechanics
+
+**Power Multiplier System:**
+```javascript
+// Distance calculation with power
+const poweredTarget = {
+    x: startPos.x + (direction.x * power),
+    y: startPos.y + (direction.y * power),
+    z: startPos.z + (direction.z * power)
+};
+// Full charge (2.0x) can throw SEVERAL CHUNKS away! 🚀
+```
+
+**Stamina Integration:**
+- Base cost: 5 stamina (quick throw)
+- Max cost: 20 stamina (full power)
+- Linear scaling: `5 + (chargePercent * 15)`
+- Prevents throw if insufficient stamina
+
+**Harvest-Based Pickup:**
+- Spear becomes world item with `userData.type = 'worldItem'`
+- Standard left-click harvest (like all world items)
+- Returns to inventory via `inventory.addToInventory()`
+- No auto-pickup - consistent with game mechanics
+
+---
+
+### 🐛 Bug Fixes & Refinements
+
+**Fixed Issues:**
+1. ✅ Billboard texture cache null check (SpearSystem.js:207-215)
+2. ✅ Stamina consumption method (direct `currentStamina` modification)
+3. ✅ Inventory system reference (`inventorySystem.addToInventory()`)
+4. ✅ Slot quantity decrement (direct `selectedSlot.quantity--`)
+5. ✅ Charge-then-throw timing (moved to mouseup handler)
+
+**Design Decisions:**
+- Initially tried auto-pickup on proximity → Changed to harvest (user feedback)
+- Considered showing charge in stamina bar → Added separate mini meter (better UX)
+- Power levels intentionally high for fun factor ("it will teach players how to read the power/stamina gauge")
+
+---
+
+### 📊 Impact Summary
+
+**New Gameplay:**
+- ✅ Ranged combat capability
+- ✅ Strategic stamina management for power throws
+- ✅ Visual charge feedback system
+- ✅ Skill-based aiming with charge control
+
+**Technical Achievement:**
+- ✅ Reused grappling hook trajectory system
+- ✅ Integrated with existing harvest mechanics
+- ✅ Clean UI integration with stamina system
+- ✅ Proper world item lifecycle
+
+**User Feedback:**
+- "it works! and uuh.. this is the second stone spear.. the first one i saw the power build up... and i let it get to max... and i think it flew several chunks away" 😂
+- "in hindsight, you should have just had the charge meter reduce the stamina meter as it charges... but i like the mini charge meter :D"
+
+**Fun Factor**: 🌟🌟🌟🌟🌟
+- MAX POWER throws launching spears multiple chunks = HILARIOUS
+- Teaches power management through experimentation
+- Satisfying visual and mechanical feedback
+
+---
+
+## 2025-01-12 (Day) - 🐾 Epic Debugging Session: Performance, Stone Pillars, Kitchen Polish & Companion Hunt
 
 **Status: FULLY IMPLEMENTED ✅**
 
