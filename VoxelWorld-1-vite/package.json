@@ -1,7 +1,7 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.3.5",
+  "version": "0.4.6",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
@@ -43,6 +43,7 @@
       "output": "dist-electron"
     },
     "asarUnpack": [
+      "electron-preload.cjs",
       "dist/fonts/**/*",
       "dist/art/**/*",
       "dist/music/**/*",
@@ -55,7 +56,8 @@
       "dist/**/*",
       "node_modules/**/*",
       "package.json",
-      "electron.cjs"
+      "electron.cjs",
+      "electron-preload.cjs"
     ],
     "win": {
       "target": [

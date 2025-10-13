@@ -3,6 +3,12 @@ const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
 function createWindow() {
+  // Use app.getAppPath() to work with asar packaging
+  const preloadPath = path.join(app.getAppPath(), 'electron-preload.cjs');
+  
+  console.log('🔧 Preload script path:', preloadPath);
+  console.log('🔧 app.getAppPath():', app.getAppPath());
+
   // Create the browser window
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -13,7 +19,7 @@ function createWindow() {
       enableRemoteModule: false,
       webSecurity: false, // Allow loading local assets
       sandbox: false, // Disable sandbox to allow preload script access to Node.js
-      preload: path.join(__dirname, 'electron-preload.cjs')
+      preload: preloadPath
     },
     icon: path.join(__dirname, 'build/icon.png'), // Add icon later
     title: 'VoxelWorld',

@@ -201,7 +201,7 @@ class NebulaVoxelApp {
         // Start background music after a short delay (let game load first) - only if autoplay enabled
         setTimeout(() => {
             if (this.musicSystem.autoplayEnabled) {
-                this.musicSystem.play('/assets/music/forestDay.ogg');
+                this.musicSystem.play('/music/forestDay.ogg');
             } else {
                 console.log('🎵 Autoplay disabled - music not started');
             }

@@ -66,8 +66,17 @@ export function getEmojiImageUrl(emoji, set = null) {
   
   const packageName = setMap[emojiSet] || setMap['google'];
   
-  // Use 64px images for better quality
-  return `/node_modules/${packageName}/img/${emojiSet}/64/${codepoint}.png`;
+  // Detect electron environment
+  const isElectron = window.isElectron?.platform;
+  
+  if (isElectron) {
+    // In electron, node_modules is at the same level as dist/
+    // Since we're loading from dist/index.html, go up one level
+    return `../node_modules/${packageName}/img/${emojiSet}/64/${codepoint}.png`;
+  } else {
+    // In Vite dev/build, use absolute path
+    return `/node_modules/${packageName}/img/${emojiSet}/64/${codepoint}.png`;
+  }
 }
 
 /**

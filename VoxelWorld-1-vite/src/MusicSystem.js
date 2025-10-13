@@ -74,7 +74,7 @@ export class MusicSystem {
 
     /**
      * Play a music track (loops automatically)
-     * @param {string} trackPath - Path to music file (e.g., 'music/forestDay.ogg')
+     * @param {string} trackPath - Path to music file (e.g., '/music/forestDay.ogg' or 'music/forestDay.ogg')
      */
     async play(trackPath) {
         // If already playing this track, do nothing
@@ -89,8 +89,18 @@ export class MusicSystem {
         }
 
         try {
+            // Fix path for electron - remove leading slash to make it relative
+            // In electron: dist/index.html loads music from dist/music/
+            // So we need relative path: music/forestDay.ogg (not /music/forestDay.ogg)
+            const isElectron = window.isElectron?.platform;
+            const fixedPath = isElectron && trackPath.startsWith('/') 
+                ? trackPath.substring(1)  // Remove leading slash
+                : trackPath;
+            
+            console.log(`🎵 Loading music: "${trackPath}" → "${fixedPath}" (electron: ${!!isElectron})`);
+            
             // Create new audio element
-            this.audio = new Audio(trackPath);
+            this.audio = new Audio(fixedPath);
             this.audio.loop = true; // Enable looping
             this.audio.volume = this.isMuted ? 0 : this.volume;
             this.currentTrack = trackPath;
@@ -98,7 +108,12 @@ export class MusicSystem {
             // Wait for audio to be ready
             await new Promise((resolve, reject) => {
                 this.audio.addEventListener('canplaythrough', resolve, { once: true });
-                this.audio.addEventListener('error', reject, { once: true });
+                this.audio.addEventListener('error', (e) => {
+                    console.error('🎵 Audio load error:', e);
+                    console.error('🎵 Failed path:', fixedPath);
+                    console.error('🎵 Audio error:', this.audio.error);
+                    reject(e);
+                }, { once: true });
             });
 
             // Play with fade-in
@@ -106,10 +121,12 @@ export class MusicSystem {
             this.isPlaying = true;
             this.fadeIn();
 
-            console.log('🎵 Now playing:', trackPath, `(Volume: ${Math.round(this.volume * 100)}%)`);
+            console.log('🎵 Now playing:', fixedPath, `(Volume: ${Math.round(this.volume * 100)}%)`);
 
         } catch (error) {
             console.error('🎵 Failed to play music:', error);
+            console.error('🎵 Original path:', trackPath);
+            console.error('🎵 Attempted path:', isElectron ? trackPath.substring(1) : trackPath);
             this.cleanup();
         }
     }

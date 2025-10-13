@@ -520,15 +520,44 @@ export class EnhancedGraphics {
             try {
                 // Apply alias mapping: tool_bench → toolbench for file loading
                 const actualFilename = this.textureAliases[toolType] || toolType;
-                const imagePath = `${this.assetPaths.tools}/${actualFilename}.png`;
-
-                const image = await this._loadImage(imagePath);
-                // Store both the image and the relative path (using original toolType as key)
-                this.toolImages.set(toolType, {
-                    image: image,
-                    path: imagePath
-                });
-                return { toolType, success: true };
+                
+                // Try loading with known extension first, then fallback to trying all
+                const knownExt = this.fileExtensionMap?.tools?.[actualFilename];
+                let imagePath;
+                let image;
+                
+                if (knownExt) {
+                    imagePath = `${this.assetPaths.tools}/${actualFilename}${knownExt}`;
+                    try {
+                        image = await this._loadImage(imagePath);
+                    } catch (e) {
+                        // Fall through to try all extensions
+                    }
+                }
+                
+                if (!image) {
+                    // Try all possible extensions
+                    for (const ext of ['.png', '.jpg', '.jpeg']) {
+                        try {
+                            imagePath = `${this.assetPaths.tools}/${actualFilename}${ext}`;
+                            image = await this._loadImage(imagePath);
+                            break;
+                        } catch (e) {
+                            // Continue to next extension
+                        }
+                    }
+                }
+                
+                if (image) {
+                    // Store both the image and the relative path (using original toolType as key)
+                    this.toolImages.set(toolType, {
+                        image: image,
+                        path: imagePath
+                    });
+                    return { toolType, success: true };
+                } else {
+                    throw new Error(`No image found for ${actualFilename}`);
+                }
             } catch (error) {
                 console.warn(`⚠️ Failed to load tool image: ${toolType}`, error);
                 return { toolType, success: false, error };
@@ -547,14 +576,41 @@ export class EnhancedGraphics {
     async _loadTimeImages() {
         const promises = this.availableAssets.time.map(async (timePeriod) => {
             try {
-                const imagePath = `${this.assetPaths.time}/${timePeriod}.png`;
-                const image = await this._loadImage(imagePath);
-                // Store both the image and the relative path
-                this.timeImages.set(timePeriod, {
-                    image: image,
-                    path: imagePath
-                });
-                return { timePeriod, success: true };
+                // Try loading with known extension first, then fallback
+                const knownExt = this.fileExtensionMap?.time?.[timePeriod];
+                let imagePath;
+                let image;
+                
+                if (knownExt) {
+                    imagePath = `${this.assetPaths.time}/${timePeriod}${knownExt}`;
+                    try {
+                        image = await this._loadImage(imagePath);
+                    } catch (e) {
+                        // Fall through
+                    }
+                }
+                
+                if (!image) {
+                    for (const ext of ['.png', '.jpg', '.jpeg']) {
+                        try {
+                            imagePath = `${this.assetPaths.time}/${timePeriod}${ext}`;
+                            image = await this._loadImage(imagePath);
+                            break;
+                        } catch (e) {
+                            // Continue
+                        }
+                    }
+                }
+                
+                if (image) {
+                    this.timeImages.set(timePeriod, {
+                        image: image,
+                        path: imagePath
+                    });
+                    return { timePeriod, success: true };
+                } else {
+                    throw new Error(`No image found for ${timePeriod}`);
+                }
             } catch (error) {
                 console.warn(`⚠️ Failed to load time image: ${timePeriod}`, error);
                 return { timePeriod, success: false, error };
@@ -575,12 +631,39 @@ export class EnhancedGraphics {
             const entityData = {};
             let hasAnySprite = false;
 
-            // Try to load main entity image (e.g., ghost.png)
+            // Helper to try loading with multiple extensions
+            const tryLoadEntityImage = async (baseName) => {
+                const knownExt = this.fileExtensionMap?.entities?.[baseName];
+                
+                if (knownExt) {
+                    // Use known extension from filesystem discovery
+                    try {
+                        const path = `${this.assetPaths.entities}/${baseName}${knownExt}`;
+                        const image = await this._loadImage(path);
+                        return { image, path };
+                    } catch (e) {
+                        // Fall through to try all extensions
+                    }
+                }
+                
+                // Try all possible extensions
+                for (const ext of ['.png', '.jpg', '.jpeg']) {
+                    try {
+                        const path = `${this.assetPaths.entities}/${baseName}${ext}`;
+                        const image = await this._loadImage(path);
+                        return { image, path };
+                    } catch (e) {
+                        // Continue to next extension
+                    }
+                }
+                throw new Error(`No image found for ${baseName}`);
+            };
+
+            // Try to load main entity image (e.g., ghost.png/jpeg)
             try {
-                const imagePath = `${this.assetPaths.entities}/${entityType}.png`;
-                const image = await this._loadImage(imagePath);
-                entityData.image = image;
-                entityData.path = imagePath;
+                const result = await tryLoadEntityImage(entityType);
+                entityData.image = result.image;
+                entityData.path = result.path;
                 hasAnySprite = true;
             } catch (e) {
                 // Base sprite not found, try pose variants
@@ -588,10 +671,9 @@ export class EnhancedGraphics {
 
             // Try to load ready pose variant (e.g., angry_ghost_ready_pose_enhanced.png)
             try {
-                const readyPath = `${this.assetPaths.entities}/${entityType}_ready_pose_enhanced.png`;
-                const readyImage = await this._loadImage(readyPath);
-                entityData.readyImage = readyImage;
-                entityData.readyPath = readyPath;
+                const result = await tryLoadEntityImage(`${entityType}_ready_pose_enhanced`);
+                entityData.readyImage = result.image;
+                entityData.readyPath = result.path;
                 hasAnySprite = true;
             } catch (e) {
                 // Ready pose not found, that's okay
@@ -599,10 +681,9 @@ export class EnhancedGraphics {
 
             // Try to load attack pose variant (e.g., angry_ghost_attack_pose_enhanced.png)
             try {
-                const attackPath = `${this.assetPaths.entities}/${entityType}_attack_pose_enhanced.png`;
-                const attackImage = await this._loadImage(attackPath);
-                entityData.attackImage = attackImage;
-                entityData.attackPath = attackPath;
+                const result = await tryLoadEntityImage(`${entityType}_attack_pose_enhanced`);
+                entityData.attackImage = result.image;
+                entityData.attackPath = result.path;
                 hasAnySprite = true;
             } catch (e) {
                 // Attack pose not found, that's okay
@@ -636,14 +717,42 @@ export class EnhancedGraphics {
     async _loadFoodImages() {
         const promises = this.availableAssets.food.map(async (foodType) => {
             try {
-                const imagePath = `${this.assetPaths.food}/${foodType}.png`;
-                const image = await this._loadImage(imagePath);
-                // Store in toolImages map so they work with inventory system
-                this.toolImages.set(foodType, {
-                    image: image,
-                    path: imagePath
-                });
-                return { foodType, success: true };
+                // Try loading with known extension first, then fallback
+                const knownExt = this.fileExtensionMap?.food?.[foodType];
+                let imagePath;
+                let image;
+                
+                if (knownExt) {
+                    imagePath = `${this.assetPaths.food}/${foodType}${knownExt}`;
+                    try {
+                        image = await this._loadImage(imagePath);
+                    } catch (e) {
+                        // Fall through
+                    }
+                }
+                
+                if (!image) {
+                    for (const ext of ['.png', '.jpg', '.jpeg']) {
+                        try {
+                            imagePath = `${this.assetPaths.food}/${foodType}${ext}`;
+                            image = await this._loadImage(imagePath);
+                            break;
+                        } catch (e) {
+                            // Continue
+                        }
+                    }
+                }
+                
+                if (image) {
+                    // Store in toolImages map so they work with inventory system
+                    this.toolImages.set(foodType, {
+                        image: image,
+                        path: imagePath
+                    });
+                    return { foodType, success: true };
+                } else {
+                    throw new Error(`No image found for ${foodType}`);
+                }
             } catch (error) {
                 console.warn(`⚠️ Failed to load food image: ${foodType}`, error);
                 return { foodType, success: false, error };

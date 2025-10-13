@@ -54,3 +54,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   }
 });
+
+// Also expose a simple isElectron flag at top level for convenience
+contextBridge.exposeInMainWorld('isElectron', {
+  platform: process.platform
+});
