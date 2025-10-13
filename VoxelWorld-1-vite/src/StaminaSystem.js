@@ -276,7 +276,8 @@ export class StaminaSystem {
     triggerPerformanceCleanup() {
         if (!this.voxelWorld.updateChunks) return;
 
-        const blockCount = Object.keys(this.voxelWorld.world).length;
+        // 🎯 PERFORMANCE: Use cached block count instead of Object.keys()
+        const blockCount = this.voxelWorld.blockCount || Object.keys(this.voxelWorld.world).length;
         
         // Only trigger if blocks are accumulating
         if (blockCount > 8000) {
