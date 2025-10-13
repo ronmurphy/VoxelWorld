@@ -5,6 +5,7 @@ import { initVoxelWorld } from './VoxelWorld.js';
 import { SplashScreen } from './SplashScreen.js';
 import { GameIntroOverlay } from './ui/GameIntroOverlay.js';
 import { ChatOverlay } from './ui/Chat.js';
+import { CompanionTutorialSystem } from './ui/CompanionTutorialSystem.js';
 import { initEmojiSupport } from './EmojiRenderer.js'; // Universal emoji support
 // import { initWorkbench } from './ShapeForgeWorkbench.js'; // To be created
 
@@ -59,6 +60,11 @@ window.addEventListener('DOMContentLoaded', () => {
     // Expose app to window for debugging
     window['voxelApp'] = app;
     console.log('🐛 voxelApp exposed to window for debugging');
+
+    // Initialize tutorial system
+    const tutorialSystem = new CompanionTutorialSystem();
+    app.tutorialSystem = tutorialSystem;
+    console.log('📚 Tutorial system initialized');
 
     // Add global convenience function for testing combat
     window['testCombat'] = (enemyId) => app.testCombat(enemyId);

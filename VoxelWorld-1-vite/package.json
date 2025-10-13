@@ -1,7 +1,7 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.3.4",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
@@ -44,10 +44,9 @@
     },
     "asarUnpack": [
       "dist/fonts/**/*",
-      "dist/assets/*.woff",
-      "dist/assets/*.woff2",
-      "dist/assets/*.ttf",
-      "dist/assets/*.eot",
+      "dist/art/**/*",
+      "dist/music/**/*",
+      "dist/assets/**/*",
       "node_modules/emoji-datasource-google/**/*",
       "node_modules/emoji-datasource-apple/**/*",
       "node_modules/emoji-datasource-twitter/**/*"

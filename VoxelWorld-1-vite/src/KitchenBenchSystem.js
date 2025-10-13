@@ -434,6 +434,11 @@ export class KitchenBenchSystem {
         this.updateFoodsDisplay();
 
         console.log('🍳 Kitchen Bench opened');
+
+        // Trigger tutorial after UI is visible
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.showKitchenBenchTutorial();
+        }
     }
 
     /**

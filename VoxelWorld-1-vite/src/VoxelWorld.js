@@ -687,6 +687,11 @@ class NebulaVoxelApp {
                         statusText.textContent = 'Ready to explore!';
                     }, 3000);
                 }
+
+                // Trigger campfire tutorial
+                if (this.tutorialSystem) {
+                    this.tutorialSystem.showCampfireTutorial();
+                }
             }
         };
 
@@ -2672,8 +2677,8 @@ class NebulaVoxelApp {
             // Check for first-time machete selection tutorial
             const selectedItem = this.hotbarSystem.getSelectedSlot();
             if (selectedItem && selectedItem.itemType === 'machete') {
-                if (this.showMacheteTutorial) {
-                    this.showMacheteTutorial();
+                if (this.tutorialSystem) {
+                    this.tutorialSystem.showMacheteTutorial();
                 }
             }
         };
@@ -9681,6 +9686,11 @@ class NebulaVoxelApp {
                 color = new THREE.Color(0x4169e1);
                 ambientIntensity = 0.05;
                 skyColor = new THREE.Color(0x0a0a0f); // Very dark blue/black
+
+                // Trigger nightfall tutorial once when night begins
+                if (this.tutorialSystem && this.dayNightCycle.currentTime >= 19 && this.dayNightCycle.currentTime < 19.5) {
+                    this.tutorialSystem.showNightfallTutorial();
+                }
             }
 
             this.dayNightCycle.directionalLight.intensity = intensity;

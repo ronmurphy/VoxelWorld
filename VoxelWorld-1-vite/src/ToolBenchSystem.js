@@ -314,6 +314,11 @@ export class ToolBenchSystem {
         }
 
         console.log('🔧 Tool Bench opened');
+
+        // Trigger tutorial after UI is visible
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.showToolBenchTutorial();
+        }
     }
 
     /**
@@ -959,6 +964,11 @@ export class ToolBenchSystem {
         this.updateBlueprintDisplay();
 
         this.voxelWorld.updateStatus(`🔨 Crafted ${blueprint.name}!`, 'discovery');
+
+        // Trigger tutorial after first craft
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.onItemCrafted(blueprint);
+        }
     }
 
     /**

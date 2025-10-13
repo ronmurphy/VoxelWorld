@@ -228,6 +228,11 @@ export class WorkbenchSystem {
         // Start animation loop
         this.animate();
 
+        // Trigger tutorial after UI is visible
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.showWorkbenchTutorial();
+        }
+
         // Update status
         this.voxelWorld.updateStatus('🔨 Advanced Workbench - Shape Forge System', 'craft', false);
     }
