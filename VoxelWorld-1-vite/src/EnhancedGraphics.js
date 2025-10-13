@@ -239,6 +239,14 @@ export class EnhancedGraphics {
                     aliasedNames.forEach(alias => this.availableAssets[category].push(alias));
 
                     console.log(`✅ ${category}: ${this.availableAssets[category].length} assets found (including ${aliasedNames.length} aliases)`);
+                    
+                    // Debug: Show wood block textures found
+                    if (category === 'blocks') {
+                        const woodBlocks = this.availableAssets[category].filter(name => 
+                            name.includes('wood') || name.includes('oak') || name.includes('pine') || name.includes('birch')
+                        );
+                        console.log(`   🌲 Wood blocks found:`, woodBlocks);
+                    }
                 } catch (error) {
                     console.warn(`Failed to list ${category} assets:`, error);
                     this.availableAssets[category] = [];
