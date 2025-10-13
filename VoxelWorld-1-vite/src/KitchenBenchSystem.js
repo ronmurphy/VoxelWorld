@@ -17,7 +17,7 @@ export class KitchenBenchSystem {
 
         // State management
         this.isOpen = false;
-        this.selectedIngredients = new Set();  // Multi-select ingredients
+        this.selectedIngredients = new Map();  // Map<ingredientKey, quantity>
         this.selectedIngredient = null;        // Single ingredient for preview
         this.discoveredFoods = new Set();      // Foods player has made
 
@@ -558,7 +558,8 @@ export class KitchenBenchSystem {
 
         availableIngredients.forEach(([key, data]) => {
             const quantity = inventory[key] || 0;
-            const isSelected = this.selectedIngredients.has(key);
+            const selectedQty = this.selectedIngredients.get(key) || 0;
+            const isSelected = selectedQty > 0;
 
             const item = document.createElement('div');
             item.className = `ingredient-item ${isSelected ? 'selected' : ''}`;
@@ -568,9 +569,43 @@ export class KitchenBenchSystem {
                     <div class="ingredient-name">${data.name}</div>
                     <div class="ingredient-quantity">x${quantity}</div>
                 </div>
+                ${isSelected ? `
+                    <div class="quantity-controls">
+                        <button class="qty-btn minus">−</button>
+                        <span class="selected-qty">${selectedQty}</span>
+                        <button class="qty-btn plus">+</button>
+                    </div>
+                ` : ''}
             `;
 
-            item.addEventListener('click', () => this.toggleIngredient(key));
+            // Toggle on click (or add first one)
+            item.addEventListener('click', (e) => {
+                // Don't toggle if clicking +/- buttons
+                if (e.target.classList.contains('qty-btn')) return;
+                this.toggleIngredient(key);
+            });
+
+            // +/- button handlers
+            const minusBtn = item.querySelector('.minus');
+            const plusBtn = item.querySelector('.plus');
+            
+            if (minusBtn) {
+                minusBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.adjustQuantity(key, -1);
+                });
+            }
+            
+            if (plusBtn) {
+                plusBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Don't allow more than available
+                    if (selectedQty < quantity) {
+                        this.adjustQuantity(key, 1);
+                    }
+                });
+            }
+
             this.ingredientsListElement.appendChild(item);
         });
     }
@@ -609,6 +644,10 @@ export class KitchenBenchSystem {
                         <div class="food-description">${food.description}</div>
                     </div>
                 `;
+
+                // 🍳 Click to auto-fill recipe if player has ingredients
+                foodCard.style.cursor = 'pointer';
+                foodCard.addEventListener('click', () => this.autoFillRecipe(key, food));
             } else {
                 // Show mystery
                 foodCard.innerHTML = `
@@ -627,15 +666,65 @@ export class KitchenBenchSystem {
     }
 
     /**
-     * Toggle ingredient selection
+     * Auto-fill recipe when clicking a discovered food
+     */
+    autoFillRecipe(foodKey, food) {
+        const inventory = this.voxelWorld.getAllMaterialsFromSlots?.() || {};
+        
+        // Check if player has all ingredients
+        let canMake = true;
+        for (const [ing, qty] of Object.entries(food.ingredients)) {
+            if ((inventory[ing] || 0) < qty) {
+                canMake = false;
+                break;
+            }
+        }
+
+        if (!canMake) {
+            this.voxelWorld.updateStatus(`❌ Not enough ingredients for ${food.name}`, 'error');
+            return;
+        }
+
+        // Clear and set ingredients
+        this.selectedIngredients.clear();
+        for (const [ing, qty] of Object.entries(food.ingredients)) {
+            this.selectedIngredients.set(ing, qty);
+        }
+
+        // Update displays
+        this.updateIngredientsDisplay();
+        this.updateCookingPreview();
+        
+        this.voxelWorld.updateStatus(`✨ Recipe loaded: ${food.name} - Click COOK!`, 'info');
+    }
+
+    /**
+     * Toggle ingredient selection (add with quantity 1 or remove)
      */
     toggleIngredient(ingredientKey) {
         if (this.selectedIngredients.has(ingredientKey)) {
             this.selectedIngredients.delete(ingredientKey);
         } else {
-            this.selectedIngredients.add(ingredientKey);
+            this.selectedIngredients.set(ingredientKey, 1);  // Start with quantity 1
         }
 
+        this.updateIngredientsDisplay();
+        this.updateCookingPreview();
+    }
+
+    /**
+     * Adjust ingredient quantity
+     */
+    adjustQuantity(ingredientKey, delta) {
+        const currentQty = this.selectedIngredients.get(ingredientKey) || 0;
+        const newQty = Math.max(0, currentQty + delta);
+        
+        if (newQty === 0) {
+            this.selectedIngredients.delete(ingredientKey);
+        } else {
+            this.selectedIngredients.set(ingredientKey, newQty);
+        }
+        
         this.updateIngredientsDisplay();
         this.updateCookingPreview();
     }
@@ -673,27 +762,25 @@ export class KitchenBenchSystem {
         const inventory = this.voxelWorld.getAllMaterialsFromSlots?.() || {};
         let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">';
         
-        this.selectedIngredients.forEach(key => {
+        this.selectedIngredients.forEach((qty, key) => {
             const data = this.ingredientData[key];
-            const quantity = inventory[key] || 0;
+            const available = inventory[key] || 0;
             html += `
                 <div style="text-align: center;">
                     <div style="font-size: 2em;">${data.name.split(' ')[0]}</div>
-                    <div style="font-size: 0.8em;">x1/${quantity}</div>
+                    <div style="font-size: 0.8em;">x${qty}/${available}</div>
                 </div>
             `;
         });
         html += '</div>';
 
         previewContainer.innerHTML = html;
-        countElement.textContent = `${this.selectedIngredients.size} ingredients selected`;
+        const totalCount = Array.from(this.selectedIngredients.values()).reduce((a, b) => a + b, 0);
+        countElement.textContent = `${totalCount} ingredients selected`;
         cookBtn.disabled = false;
 
         // Check if this is a valid recipe that hasn't been discovered
-        const selectedCounts = {};
-        this.selectedIngredients.forEach(key => {
-            selectedCounts[key] = 1;
-        });
+        const selectedCounts = Object.fromEntries(this.selectedIngredients);
 
         let matchedFood = null;
         for (const [key, food] of Object.entries(this.foodDatabase)) {
@@ -707,8 +794,17 @@ export class KitchenBenchSystem {
         if (flameIcon) {
             if (matchedFood && !this.discoveredFoods.has(matchedFood.key)) {
                 flameIcon.style.animation = 'spin 1s linear infinite';
+                // Also apply to emoji image if present
+                const flameImg = flameIcon.querySelector('img.emoji');
+                if (flameImg) {
+                    flameImg.style.animation = 'spin 1s linear infinite';
+                }
             } else {
                 flameIcon.style.animation = '';
+                const flameImg = flameIcon.querySelector('img.emoji');
+                if (flameImg) {
+                    flameImg.style.animation = '';
+                }
             }
         }
     }
@@ -719,11 +815,8 @@ export class KitchenBenchSystem {
     attemptCook() {
         if (this.selectedIngredients.size === 0) return;
 
-        // Build ingredient count map
-        const selectedCounts = {};
-        this.selectedIngredients.forEach(key => {
-            selectedCounts[key] = 1;  // Each selected = 1 unit
-        });
+        // Build ingredient count map from selected quantities
+        const selectedCounts = Object.fromEntries(this.selectedIngredients);
 
         // Find matching recipe
         let matchedFood = null;

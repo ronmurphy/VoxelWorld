@@ -4,6 +4,213 @@ Continuation of CHANGELOG.md for new development sessions.
 
 ---
 
+## 2025-01-12 - 🐾 Epic Debugging Session: Performance, Stone Pillars, Kitchen Polish & Companion Hunt
+
+**Status: FULLY IMPLEMENTED ✅**
+
+### 🎯 Session Overview
+
+A marathon debugging session that fixed a 2-week-old stone pillar bug, resolved catastrophic performance issues, enhanced the Kitchen Bench system with quantity controls and auto-fill, and implemented companion hunt markers on the journal map!
+
+---
+
+### 🚀 Performance Fixes & Optimization
+
+**Texture Cache Memory Leak - CRITICAL FIX**
+- **Problem**: TextureLoader creating new instances for every billboard, causing massive slowdown (single-digit FPS)
+- **Solution**: Implemented shared texture cache in VoxelWorld.js
+  - Lines 97-99: Cache initialization `this.billboardTextureCache = new Map()`
+  - Lines 887-902: Cached texture loading with shared instances
+- **Result**: ✅ Eliminated texture memory leak completely
+
+**Vite HMR Cache Buildup - ROOT CAUSE IDENTIFIED**
+- **Problem**: Extended dev sessions cause HMR cache accumulation, degrading performance over time
+- **Solution**: Documented periodic `nuclearClear()` or hard refresh (Ctrl+Shift+R)
+- **Result**: ✅ Performance acceptable with proper cache management
+- **Note**: Created PERFORMANCE_FIXES_2025-01-12.md documentation
+
+**Performance Stats Spam Fix**
+- **Problem**: Stats panel logging every frame
+- **Solution**: VoxelWorld.js line 10131 - Removed debug console.log
+- **Result**: ✅ Clean console output
+
+**Speed Boots State Check**
+- **Problem**: StaminaSystem checking undefined speedBootsActive
+- **Solution**: Line 323 - Added null safety check
+- **Result**: ✅ No more console errors during sprint
+
+---
+
+### 🌲 STONE PILLAR BUG - 2-WEEK BUG FIXED! 
+
+**The Problem**: Trees appearing as stone pillars after hard refresh (persisted for 2 weeks!)
+
+**Root Cause Analysis** (Multi-layer debugging):
+1. Chunks saving to IndexedDB without tree metadata
+2. Hard refresh loads chunks before TreeWorker initializes
+3. HeightMap/waterMap not saved with chunk data
+4. Message format mismatch: `generateTrees` vs `GENERATE_TREES`
+
+**The Solution** (WorkerManager.js - 4-part fix):
+
+**Part 1: Deferred Tree Request Queue**
+- Line 21: Added `this.deferredTreeRequests = []`
+- Lines 125-144: `onTreeWorkerInitComplete()` processes queued requests
+- **Result**: Handles chunks loaded before TreeWorker ready
+
+**Part 2: HeightMap/WaterMap Regeneration**
+- Lines 513-565: `convertBlocksToTransferable()` 
+  - Scans all blocks to rebuild heightMap/waterMap
+  - Calculates terrain height from saved block positions
+  - Identifies water blocks for waterMap
+- **Result**: Tree generation works with saved chunks
+
+**Part 3: Message Format Fix**
+- Lines 473-484: Fixed TreeWorker message
+  - Changed from `generateTrees` to `GENERATE_TREES` (case-sensitive!)
+  - Proper data structure with heightMap/waterMap
+- **Result**: TreeWorker correctly receives requests
+
+**Part 4: Chunk Loading Integration**
+- Lines 468-487: Enhanced chunk loading
+  - Checks TreeWorker ready state
+  - Defers if not ready, processes immediately if ready
+  - Sends correct message format
+- **Result**: Seamless tree generation on chunk load
+
+**Console Evidence of Fix:**
+```
+🌲 Chunk (-1, -2) loaded from disk without trees - requesting tree generation
+🌲 TreeWorker: Generating trees for chunk (-1, -2)
+🌲 TreeWorker: Sending 2 trees for chunk (-1, -2)
+🌲 WorkerManager: Received 2 trees for chunk (-1, -2)
+🏛️✅ Tree 37: Converted 3 pillar blocks to oak_wood (now registered for harvest!)
+```
+
+**User Feedback**: "i have to thank you, this bug has been around for about two weeks, and you just fixed it" 🎉
+
+---
+
+### 🍳 Kitchen Bench System - Major UX Enhancements
+
+**Ingredient Quantity System**
+- **Problem**: Could only select 1 of each ingredient (couldn't make recipes requiring wheat×2)
+- **Solution**: Refactored from Set to Map<ingredientKey, quantity>
+  - Line 20: `this.selectedIngredients = new Map()`
+  - Lines 680-694: `adjustQuantity(key, delta)` function
+  - Lines 558-609: Added +/- button controls with CSS styling
+- **Result**: ✅ Players can now select multiple quantities of ingredients!
+
+**+/- Button Styling** (style.css Lines 570-612):
+```css
+.qty-btn {
+    width: 24px; height: 24px;
+    border: 2px solid #8B5A2B;
+    background: linear-gradient(135deg, #D4A574, #B8906A);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.qty-btn:hover { transform: scale(1.1); }
+```
+
+**Auto-Fill Recipe Feature**
+- **Problem**: Tedious to manually select all ingredients for known recipes
+- **Solution**: Click discovered recipes to auto-populate ingredients!
+  - Lines 665-691: `autoFillRecipe(foodKey, food)` function
+    - Validates player has enough ingredients
+    - Auto-fills selectedIngredients Map with correct quantities
+    - Shows status message ("✨ Recipe loaded - Click COOK!")
+  - Lines 645-647: Added click event to discovered food cards
+- **Result**: ✅ One-click recipe preparation!
+
+**Visual Feedback** (style.css Lines 473-489):
+```css
+.food-card.discovered:hover {
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+}
+.food-card.discovered:hover .food-name::after {
+    content: " 👆 Click to auto-fill!";
+    font-size: 0.7em;
+    color: #4CAF50;
+}
+```
+
+**Cooking Preview Update**
+- Lines 720-726: Shows quantities `x${qty}/${available}`
+- Counts total ingredients: `Array.from(this.selectedIngredients.values()).reduce((a, b) => a + b, 0)`
+- **Result**: ✅ Clear visual feedback for ingredient selection
+
+**Spinning Flame Animation**
+- **Status**: "the bobbing flames animation is 100% perfect" - User
+- **Behavior**: Spins for valid undiscovered recipes, stops when invalid
+- **Result**: ✅ Delightful visual indicator for recipe discovery
+
+---
+
+### 🐾 Companion Hunt System - Journal Map Integration
+
+**Map Marker for Active Hunt Target**
+- **Feature**: Current hunt target shows on journal map with unique marker
+- **Implementation**: CompanionHuntSystem integrated with journal map
+- **Result**: ✅ Players can see where their target is located!
+
+**Journal Map Enhancements**
+- Hunt target marker distinct from other map icons
+- Real-time position updates
+- Visual feedback for hunt progress
+- **Result**: ✅ Improved spatial awareness during hunts
+
+---
+
+### 🛠️ Bug Fixes & Polish
+
+**Companion System**
+- ✅ Companion Codex equipment bugs fixed
+- ✅ Hunt system tracking working correctly
+- ✅ Multiple backpack spawn issue resolved
+
+**StaminaSystem**
+- ✅ Undefined variables fixed
+- ✅ Speed boots state check added
+- ✅ Console spam eliminated
+
+**Kitchen Bench**
+- ✅ Inventory bugs resolved
+- ✅ Cooking animations working perfectly
+- ✅ Recipe discovery system stable
+
+---
+
+### 📊 Impact Summary
+
+**Performance**: 
+- Texture memory leak ELIMINATED
+- Vite HMR cache issue DOCUMENTED
+- Game runs smoothly with proper cache management
+
+**Stone Pillar Bug**:
+- 2-week-old bug RESOLVED through multi-layer debugging
+- Trees generate correctly after hard refresh
+- Chunk persistence system working flawlessly
+
+**Kitchen Bench**:
+- Quantity controls ADDED
+- Auto-fill recipes IMPLEMENTED
+- UX dramatically improved
+
+**Companion Hunt**:
+- Map markers WORKING
+- Hunt tracking FUNCTIONAL
+- Spatial awareness ENHANCED
+
+**User Satisfaction**: 🌟🌟🌟🌟🌟
+- "the bobbing flames animation is 100% perfect"
+- "i have to thank you, this bug has been around for about two weeks, and you just fixed it"
+- "the fire does not stop spinning now :D it's so happy it made pumpkin pie!"
+
+---
+
 ## 2025-10-10 (Late Evening) - 🌾 Complete Farming System Polish & Visual Feedback
 
 **Status: FULLY IMPLEMENTED ✅**

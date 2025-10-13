@@ -472,12 +472,21 @@ img.emoji {
 
 .food-card.discovered {
   border-color: rgba(76, 175, 80, 0.5);
+  cursor: pointer;
 }
 
 .food-card.discovered:hover {
-  background: rgba(76, 175, 80, 0.1);
+  background: rgba(76, 175, 80, 0.2);
   border-color: #4CAF50;
   transform: translateX(5px);
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+}
+
+.food-card.discovered:hover .food-name::after {
+  content: " 👆 Click to auto-fill!";
+  font-size: 0.7em;
+  color: #4CAF50;
+  font-style: italic;
 }
 
 .food-card.undiscovered {
@@ -569,5 +578,48 @@ img.emoji {
 @keyframes bobFlame {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-8px); }
+}
+
+/* 🔢 Kitchen Bench Quantity Controls */
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding-left: 10px;
+}
+
+.qty-btn {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #8B5A2B;
+  background: linear-gradient(135deg, #D4A574, #B8906A);
+  color: #3E2723;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.qty-btn:hover {
+  background: linear-gradient(135deg, #E4B584, #C8A07A);
+  transform: scale(1.1);
+}
+
+.qty-btn:active {
+  transform: scale(0.95);
+}
+
+.selected-qty {
+  min-width: 20px;
+  text-align: center;
+  font-weight: bold;
+  color: #654321;
+  font-size: 14px;
 }
 
