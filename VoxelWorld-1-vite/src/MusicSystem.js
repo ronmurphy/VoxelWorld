@@ -3,15 +3,25 @@
  *
  * Features:
  * - Looping background music (OGG format)
+ * - Day/Night crossfading support
  * - Volume up/down/mute controls
  * - Fade in/out transitions
  * - Proper memory cleanup (no leaks!)
  * - Persistent volume settings (localStorage)
+ * - Powered by Howler.js for better audio quality and features
  */
+
+import { Howl, Howler } from 'howler';
 
 export class MusicSystem {
     constructor() {
-        this.audio = null;
+        // Day/Night track management
+        this.dayTrack = null;      // Howler instance for day music
+        this.nightTrack = null;    // Howler instance for night music
+        this.currentMode = null;   // 'day' or 'night'
+        
+        // Legacy single track support (for backward compatibility)
+        this.howl = null;
         this.currentTrack = null;
         this.isPlaying = false;
         this.isMuted = false;
@@ -23,7 +33,14 @@ export class MusicSystem {
         // Autoplay setting
         this.autoplayEnabled = this.loadAutoplay();
 
-        console.log('🎵 MusicSystem initialized');
+        // Day/Night cycle tracking
+        this.lastTimeOfDay = null;
+        this.crossfadeDuration = 3000; // 3 seconds for crossfade
+
+        // Set global Howler volume
+        Howler.volume(this.volume);
+
+        console.log('🎵 MusicSystem initialized (Howler.js with Day/Night support)');
     }
 
     /**
@@ -73,6 +90,178 @@ export class MusicSystem {
     }
 
     /**
+     * Initialize day/night music system with two tracks
+     * @param {string} dayTrackPath - Path to day music (e.g., 'music/forestDay.ogg')
+     * @param {string} nightTrackPath - Path to night music (e.g., 'music/forestNight.ogg')
+     */
+    async initDayNightMusic(dayTrackPath, nightTrackPath) {
+        console.log('🎵 Initializing Day/Night music system...');
+        
+        const isElectron = window.isElectron?.platform;
+        
+        // Fix paths for electron
+        const fixedDayPath = isElectron && dayTrackPath.startsWith('/') 
+            ? dayTrackPath.substring(1) 
+            : dayTrackPath;
+        const fixedNightPath = isElectron && nightTrackPath.startsWith('/') 
+            ? nightTrackPath.substring(1) 
+            : nightTrackPath;
+
+        console.log(`🎵 Day track: "${fixedDayPath}"`);
+        console.log(`🎵 Night track: "${fixedNightPath}"`);
+
+        // Create day track (preload but don't play yet)
+        this.dayTrack = new Howl({
+            src: [fixedDayPath],
+            loop: true,
+            volume: 0, // Start silent
+            html5: true,
+            preload: true,
+            onload: () => console.log('🌅 Day track loaded:', fixedDayPath),
+            onloaderror: (id, error) => console.error('🌅 Day track load error:', error)
+        });
+
+        // Create night track (preload but don't play yet)
+        this.nightTrack = new Howl({
+            src: [fixedNightPath],
+            loop: true,
+            volume: 0, // Start silent
+            html5: true,
+            preload: true,
+            onload: () => console.log('🌙 Night track loaded:', fixedNightPath),
+            onloaderror: (id, error) => console.error('🌙 Night track load error:', error)
+        });
+
+        // Wait a moment for preloading to start
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        console.log('🎵 Day/Night music system ready!');
+    }
+
+    /**
+     * Update music based on time of day (call this from your day/night cycle)
+     * @param {number} timeOfDay - Current time in 24-hour format (0-24)
+     */
+    updateTimeOfDay(timeOfDay) {
+        if (!this.dayTrack || !this.nightTrack) {
+            // Tracks not initialized yet - silently ignore (they'll start when ready)
+            return;
+        }
+
+        // Determine if it's day or night
+        // Day: 6am-7pm (6-19), Night: 7pm-6am (19-24, 0-6)
+        const isDaytime = timeOfDay >= 6 && timeOfDay < 19;
+        const targetMode = isDaytime ? 'day' : 'night';
+
+        // If mode hasn't changed, do nothing
+        if (targetMode === this.currentMode) {
+            return;
+        }
+
+        // Mode changed - perform crossfade!
+        console.log(`🎵 Time of day changed: ${timeOfDay.toFixed(1)}h → ${targetMode === 'day' ? '🌅 Day' : '🌙 Night'}`);
+        
+        const oldMode = this.currentMode;
+        this.currentMode = targetMode;
+
+        if (oldMode === null) {
+            // First time - just start the appropriate track
+            this.startDayNightTrack(targetMode);
+        } else {
+            // Crossfade from old to new
+            this.crossfadeDayNight(oldMode, targetMode);
+        }
+    }
+
+    /**
+     * Start a day or night track (initial play)
+     */
+    startDayNightTrack(mode) {
+        const track = mode === 'day' ? this.dayTrack : this.nightTrack;
+        const emoji = mode === 'day' ? '🌅' : '🌙';
+        
+        if (!track) return;
+
+        console.log(`${emoji} Starting ${mode} music...`);
+        
+        // Start playing
+        track.play();
+        this.isPlaying = true;
+        
+        // Fade in from 0 to target volume
+        const targetVolume = this.isMuted ? 0 : this.volume;
+        track.fade(0, targetVolume, this.crossfadeDuration);
+    }
+
+    /**
+     * Crossfade between day and night tracks
+     */
+    crossfadeDayNight(fromMode, toMode) {
+        const fromTrack = fromMode === 'day' ? this.dayTrack : this.nightTrack;
+        const toTrack = toMode === 'day' ? this.dayTrack : this.nightTrack;
+        const fromEmoji = fromMode === 'day' ? '🌅' : '🌙';
+        const toEmoji = toMode === 'day' ? '🌅' : '🌙';
+
+        if (!fromTrack || !toTrack) return;
+
+        console.log(`🎵 Crossfading: ${fromEmoji} ${fromMode} → ${toEmoji} ${toMode}`);
+
+        const targetVolume = this.isMuted ? 0 : this.volume;
+
+        // Fade out old track
+        const currentVolume = fromTrack.volume();
+        console.log(`${fromEmoji} Fading out from ${Math.round(currentVolume * 100)}% to 0%`);
+        fromTrack.fade(currentVolume, 0, this.crossfadeDuration);
+        
+        // Stop old track after fade completes (with proper cleanup)
+        setTimeout(() => {
+            if (fromTrack.playing()) {
+                console.log(`${fromEmoji} Stopping ${fromMode} track`);
+                fromTrack.stop();
+            }
+        }, this.crossfadeDuration + 100);
+
+        // Start new track if not already playing
+        if (!toTrack.playing()) {
+            console.log(`${toEmoji} Starting ${toMode} track...`);
+            toTrack.volume(0); // Ensure it starts at 0
+            const soundId = toTrack.play();
+            
+            // Verify it started
+            setTimeout(() => {
+                const isPlaying = toTrack.playing();
+                const currentVol = toTrack.volume();
+                console.log(`${toEmoji} Track status: playing=${isPlaying}, volume=${Math.round(currentVol * 100)}%, soundId=${soundId}`);
+            }, 100);
+        } else {
+            console.log(`${toEmoji} ${toMode} track already playing`);
+        }
+        
+        // Fade in new track (wait a tiny bit for play() to take effect)
+        setTimeout(() => {
+            console.log(`${toEmoji} Fading in from 0% to ${Math.round(targetVolume * 100)}%`);
+            toTrack.fade(0, targetVolume, this.crossfadeDuration);
+        }, 50);
+        
+        this.isPlaying = true;
+    }
+
+    /**
+     * Stop all day/night tracks
+     */
+    stopDayNightMusic() {
+        if (this.dayTrack) {
+            this.dayTrack.stop();
+        }
+        if (this.nightTrack) {
+            this.nightTrack.stop();
+        }
+        this.currentMode = null;
+        this.isPlaying = false;
+        console.log('🎵 Day/Night music stopped');
+    }
+
+    /**
      * Play a music track (loops automatically)
      * @param {string} trackPath - Path to music file (e.g., '/music/forestDay.ogg' or 'music/forestDay.ogg')
      */
@@ -84,7 +273,7 @@ export class MusicSystem {
         }
 
         // Stop current track if playing
-        if (this.audio) {
+        if (this.howl) {
             this.stop();
         }
 
@@ -99,25 +288,32 @@ export class MusicSystem {
             
             console.log(`🎵 Loading music: "${trackPath}" → "${fixedPath}" (electron: ${!!isElectron})`);
             
-            // Create new audio element
-            this.audio = new Audio(fixedPath);
-            this.audio.loop = true; // Enable looping
-            this.audio.volume = this.isMuted ? 0 : this.volume;
-            this.currentTrack = trackPath;
-
-            // Wait for audio to be ready
-            await new Promise((resolve, reject) => {
-                this.audio.addEventListener('canplaythrough', resolve, { once: true });
-                this.audio.addEventListener('error', (e) => {
-                    console.error('🎵 Audio load error:', e);
+            // Create new Howl instance
+            this.howl = new Howl({
+                src: [fixedPath],
+                loop: true,
+                volume: this.isMuted ? 0 : this.volume,
+                html5: true, // Better for streaming music files
+                onload: () => {
+                    console.log('🎵 Music loaded:', fixedPath);
+                },
+                onloaderror: (id, error) => {
+                    console.error('🎵 Audio load error:', error);
                     console.error('🎵 Failed path:', fixedPath);
-                    console.error('🎵 Audio error:', this.audio.error);
-                    reject(e);
-                }, { once: true });
+                },
+                onplayerror: (id, error) => {
+                    console.error('🎵 Audio play error:', error);
+                    // Try to unlock audio on mobile
+                    this.howl.once('unlock', () => {
+                        this.howl.play();
+                    });
+                }
             });
 
+            this.currentTrack = trackPath;
+
             // Play with fade-in
-            await this.audio.play();
+            this.howl.play();
             this.isPlaying = true;
             this.fadeIn();
 
@@ -126,7 +322,6 @@ export class MusicSystem {
         } catch (error) {
             console.error('🎵 Failed to play music:', error);
             console.error('🎵 Original path:', trackPath);
-            console.error('🎵 Attempted path:', isElectron ? trackPath.substring(1) : trackPath);
             this.cleanup();
         }
     }
@@ -135,9 +330,9 @@ export class MusicSystem {
      * Stop the current track
      */
     stop() {
-        if (!this.audio) return;
+        if (!this.howl) return;
 
-        this.audio.pause();
+        this.howl.stop();
         this.isPlaying = false;
         this.cleanup();
 
@@ -148,9 +343,9 @@ export class MusicSystem {
      * Pause the current track (can be resumed)
      */
     pause() {
-        if (!this.audio || !this.isPlaying) return;
+        if (!this.howl || !this.isPlaying) return;
 
-        this.audio.pause();
+        this.howl.pause();
         this.isPlaying = false;
 
         console.log('🎵 Music paused');
@@ -160,9 +355,9 @@ export class MusicSystem {
      * Resume the paused track
      */
     resume() {
-        if (!this.audio || this.isPlaying) return;
+        if (!this.howl || this.isPlaying) return;
 
-        this.audio.play();
+        this.howl.play();
         this.isPlaying = true;
 
         console.log('🎵 Music resumed');
@@ -207,66 +402,50 @@ export class MusicSystem {
      * Update audio element volume
      */
     updateVolume() {
-        if (!this.audio) return;
-        this.audio.volume = this.isMuted ? 0 : this.volume;
+        const targetVolume = this.isMuted ? 0 : this.volume;
+        
+        // Update day/night tracks if active
+        if (this.dayTrack && this.dayTrack.playing()) {
+            this.dayTrack.volume(targetVolume);
+        }
+        if (this.nightTrack && this.nightTrack.playing()) {
+            this.nightTrack.volume(targetVolume);
+        }
+        
+        // Update legacy single track
+        if (this.howl) {
+            this.howl.volume(targetVolume);
+        }
+        
+        // Global volume
+        Howler.volume(targetVolume);
     }
 
     /**
-     * Fade in effect (smooth volume increase)
+     * Fade in effect (smooth volume increase) - Using Howler's built-in fade
      */
     fadeIn(duration = 2000) {
-        if (!this.audio) return;
+        if (!this.howl) return;
 
         const targetVolume = this.isMuted ? 0 : this.volume;
-        const startVolume = 0;
-        const startTime = Date.now();
-
-        const fade = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-
-            if (this.audio) {
-                this.audio.volume = startVolume + (targetVolume - startVolume) * progress;
-            }
-
-            if (progress < 1 && this.audio) {
-                requestAnimationFrame(fade);
-            }
-        };
-
-        this.audio.volume = startVolume;
-        fade();
+        this.howl.fade(0, targetVolume, duration);
     }
 
     /**
-     * Fade out effect (smooth volume decrease)
+     * Fade out effect (smooth volume decrease) - Using Howler's built-in fade
      */
     fadeOut(duration = 1000) {
         return new Promise((resolve) => {
-            if (!this.audio) {
+            if (!this.howl) {
                 resolve();
                 return;
             }
 
-            const startVolume = this.audio.volume;
-            const startTime = Date.now();
-
-            const fade = () => {
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-
-                if (this.audio) {
-                    this.audio.volume = startVolume * (1 - progress);
-                }
-
-                if (progress < 1 && this.audio) {
-                    requestAnimationFrame(fade);
-                } else {
-                    resolve();
-                }
-            };
-
-            fade();
+            const currentVolume = this.howl.volume();
+            this.howl.fade(currentVolume, 0, duration);
+            
+            // Wait for fade to complete
+            setTimeout(resolve, duration);
         });
     }
 
@@ -327,12 +506,23 @@ export class MusicSystem {
      * Clean up audio resources (prevent memory leaks)
      */
     cleanup() {
-        if (this.audio) {
-            this.audio.pause();
-            this.audio.src = ''; // Release audio buffer
-            this.audio.load(); // Force cleanup
-            this.audio = null;
+        // Clean up day/night tracks
+        if (this.dayTrack) {
+            this.dayTrack.unload();
+            this.dayTrack = null;
         }
+        if (this.nightTrack) {
+            this.nightTrack.unload();
+            this.nightTrack = null;
+        }
+        this.currentMode = null;
+        
+        // Clean up legacy single track
+        if (this.howl) {
+            this.howl.unload();
+            this.howl = null;
+        }
+        
         this.currentTrack = null;
         this.isPlaying = false;
     }
@@ -341,6 +531,7 @@ export class MusicSystem {
      * Dispose of the music system (call on game shutdown)
      */
     dispose() {
+        this.stopDayNightMusic();
         this.stop();
         this.cleanup();
         console.log('🎵 MusicSystem disposed');

@@ -156,6 +156,79 @@ export class EnhancedGraphics {
     }
 
     /**
+     * Try to load asset manifest (fileList.json) from category
+     * Returns { baseName: extension } map, or null if not found
+     */
+    async _loadManifest(category) {
+        try {
+            const manifestPath = `${this.assetPaths[category]}/fileList.json`;
+            const response = await fetch(manifestPath);
+            
+            if (!response.ok) {
+                return null; // Manifest doesn't exist, use fallback
+            }
+            
+            const manifest = await response.json();
+            console.log(`📋 Loaded manifest for ${category}: ${Object.keys(manifest).length} entries`);
+            return manifest;
+        } catch (error) {
+            // Manifest not found or invalid - this is fine, we'll use discovery fallback
+            return null;
+        }
+    }
+
+    /**
+     * Parse manifest into availableAssets and fileExtensionMap
+     */
+    _parseManifest(category, manifest) {
+        const baseNames = new Set();
+        
+        // Build extension map and track what we have
+        const filesByBase = {};
+        
+        Object.entries(manifest).forEach(([variant, ext]) => {
+            // Store extension for this variant
+            this.fileExtensionMap[category][variant] = ext;
+            
+            // Extract base name (remove -sides, -top-bottom, etc.)
+            const baseName = variant.replace(/-(sides|top|bottom|top-bottom|all)$/i, '');
+            
+            // Track variants by base name
+            if (!filesByBase[baseName]) {
+                filesByBase[baseName] = { main: false, variants: [] };
+            }
+            
+            if (baseName === variant) {
+                filesByBase[baseName].main = true;
+            } else {
+                filesByBase[baseName].variants.push(variant);
+            }
+        });
+        
+        // Only include base names that have a main texture OR valid variants
+        Object.keys(filesByBase).forEach(baseName => {
+            const info = filesByBase[baseName];
+            // Include if has main texture, OR has both sides and top-bottom variants
+            if (info.main || info.variants.length >= 2) {
+                baseNames.add(baseName);
+            }
+        });
+        
+        this.availableAssets[category] = Array.from(baseNames);
+        
+        // Apply texture aliases (add aliased names to available assets)
+        const aliasedNames = [];
+        baseNames.forEach(name => {
+            if (this.textureAliases[name]) {
+                aliasedNames.push(this.textureAliases[name]);
+            }
+        });
+        aliasedNames.forEach(alias => this.availableAssets[category].push(alias));
+        
+        return { count: this.availableAssets[category].length, aliases: aliasedNames.length };
+    }
+
+    /**
      * Discover available assets by listing directory contents
      */
     async _discoverAvailableAssets() {
@@ -173,23 +246,60 @@ export class EnhancedGraphics {
             food: {}
         };
 
-        // Extract base name and extension from filename
-        const parseFilename = (filename) => {
-            const match = filename.match(/^(.+)\.(jpeg|jpg|png)$/i);
-            if (!match) return null;
+        // === STRATEGY 1: Try loading manifests first (fastest, cleanest) ===
+        let manifestsLoaded = false;
+        try {
+            console.log('📋 Trying to load asset manifests...');
+            const categories = ['blocks', 'tools', 'time', 'entities', 'food'];
+            const manifestPromises = categories.map(cat => this._loadManifest(cat));
+            const manifests = await Promise.all(manifestPromises);
+            
+            let successCount = 0;
+            manifests.forEach((manifest, idx) => {
+                const category = categories[idx];
+                if (manifest) {
+                    const result = this._parseManifest(category, manifest);
+                    console.log(`✅ ${category}: ${result.count} assets found (including ${result.aliases} aliases)`);
+                    
+                    if (category === 'blocks') {
+                        const woodBlocks = this.availableAssets[category].filter(name => 
+                            name.includes('wood') || name.includes('oak') || name.includes('pine') || name.includes('birch')
+                        );
+                        console.log(`   🌲 Wood blocks found:`, woodBlocks);
+                    }
+                    successCount++;
+                }
+            });
+            
+            if (successCount === categories.length) {
+                manifestsLoaded = true;
+                console.log('✅ All manifests loaded successfully!');
+            } else {
+                console.log(`⚠️ Only ${successCount}/${categories.length} manifests loaded, falling back to discovery`);
+            }
+        } catch (error) {
+            console.log('⚠️ Manifest loading failed, falling back to discovery:', error.message);
+        }
 
-            const nameWithExt = match[1];
-            const ext = `.${match[2].toLowerCase()}`;
+        // === STRATEGY 2: Fallback to filesystem discovery (if manifests not available) ===
+        if (!manifestsLoaded) {
+            // Extract base name and extension from filename
+            const parseFilename = (filename) => {
+                const match = filename.match(/^(.+)\.(jpeg|jpg|png)$/i);
+                if (!match) return null;
 
-            // Remove variant suffixes like -sides, -top-bottom, -all to get base name
-            const baseName = nameWithExt.replace(/-(sides|top|bottom|top-bottom|all)$/i, '');
+                const nameWithExt = match[1];
+                const ext = `.${match[2].toLowerCase()}`;
 
-            return { baseName, variant: nameWithExt, ext };
-        };
+                // Remove variant suffixes like -sides, -top-bottom, -all to get base name
+                const baseName = nameWithExt.replace(/-(sides|top|bottom|top-bottom|all)$/i, '');
 
-        if (isElectron && window.electronAPI.listAssetFiles) {
-            // Electron: Use filesystem API to list actual files
-            console.log('🔍 Using Electron filesystem API for asset discovery');
+                return { baseName, variant: nameWithExt, ext };
+            };
+
+            if (isElectron && window.electronAPI.listAssetFiles) {
+                // Electron: Use filesystem API to list actual files
+                console.log('🔍 Using Electron filesystem API for asset discovery');
 
             for (const category of ['blocks', 'tools', 'time', 'entities', 'food']) {
                 try {
@@ -318,6 +428,7 @@ export class EnhancedGraphics {
             entities: this.availableAssets.entities.length,
             food: this.availableAssets.food.length
         });
+        } // End of !manifestsLoaded fallback
     }
 
     /**

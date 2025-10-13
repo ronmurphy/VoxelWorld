@@ -198,14 +198,24 @@ class NebulaVoxelApp {
         this.musicSystem = new MusicSystem();
         console.log('🎵 MusicSystem initialized');
 
-        // Start background music after a short delay (let game load first) - only if autoplay enabled
-        setTimeout(() => {
-            if (this.musicSystem.autoplayEnabled) {
-                this.musicSystem.play('/music/forestDay.ogg');
-            } else {
-                console.log('🎵 Autoplay disabled - music not started');
-            }
-        }, 1000);
+        // Initialize Day/Night music system (async, will complete in background)
+        this.musicSystemReady = false;
+        if (this.musicSystem.autoplayEnabled) {
+            this.musicSystem.initDayNightMusic(
+                '/music/forestDay.ogg',
+                '/music/forestNight.ogg'
+            ).then(() => {
+                this.musicSystemReady = true;
+                // Start with appropriate music for current time
+                const currentTime = this.dayNightCycle ? this.dayNightCycle.currentTime : 12;
+                this.musicSystem.updateTimeOfDay(currentTime);
+                console.log('🎵 Day/Night music system started');
+            }).catch(error => {
+                console.error('🎵 Failed to initialize music:', error);
+            });
+        } else {
+            console.log('🎵 Autoplay disabled - music not started');
+        }
 
         // 🔧 Initialize CraftedTools handler
         this.craftedTools = new CraftedTools(this);
@@ -9696,6 +9706,11 @@ class NebulaVoxelApp {
             this.dayNightCycle.directionalLight.intensity = intensity;
             this.dayNightCycle.directionalLight.color.copy(color);
             this.dayNightCycle.ambientLight.intensity = ambientIntensity;
+            
+            // 🎵 Update music based on time of day (crossfade between day/night)
+            if (this.musicSystem) {
+                this.musicSystem.updateTimeOfDay(this.dayNightCycle.currentTime);
+            }
             
             // 🔦 Set torch allowed flag (dusk/night = 5pm-6am)
             const time = this.dayNightCycle.currentTime;

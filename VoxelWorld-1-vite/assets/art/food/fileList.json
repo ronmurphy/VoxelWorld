@@ -1,0 +1,22 @@
+{
+  "apple": ".png",
+  "berry_honey_snack": ".png",
+  "berry_seeds": ".png",
+  "carrot_seeds": ".png",
+  "cooked_egg": ".png",
+  "cookie": ".png",
+  "corn_ear": ".png",
+  "egg": ".png",
+  "energy_bar": ".png",
+  "fileList": ".json",
+  "fish": ".png",
+  "fish_rice": ".png",
+  "grilled_fish": ".png",
+  "honey": ".png",
+  "honey_bread": ".png",
+  "pumpkin_pie": ".png",
+  "pumpkin_seeds": ".png",
+  "rice": ".png",
+  "super_stew": ".png",
+  "wheat_seeds": ".png"
+}
