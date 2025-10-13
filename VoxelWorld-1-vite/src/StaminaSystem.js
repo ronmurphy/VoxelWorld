@@ -95,9 +95,9 @@ export class StaminaSystem {
         console.log(`  Normal: 1.0x drain`);
         console.log('');
         console.log('👢 Speed Boots Bonuses (when equipped):');
-        console.log(`  Max Stamina: ${this.speedBootsMultiplier}x (${this.maxStamina * this.speedBootsMultiplier} total)`);
-        console.log(`  Regen Rate: ${this.speedBootsRegenMultiplier}x faster`);
-        console.log(`  Run Speed: ${this.speedBootsRunMultiplier}x faster`);
+        console.log(`  Max Stamina: ${this.bootsStaminaMultiplier}x (${this.maxStamina * this.bootsStaminaMultiplier} total)`);
+        console.log(`  Regen Rate: ${this.bootsRegenMultiplier}x faster`);
+        console.log(`  Run Speed: ${this.bootsRunSpeedMultiplier}x faster`);
         console.log('');
         console.log('🚀 Speed Multipliers:');
         console.log(`  Normal: ${this.normalSpeedMultiplier}x (100% speed)`);
@@ -105,7 +105,7 @@ export class StaminaSystem {
         console.log(`  Depleted: ${this.depletedSpeedMultiplier}x (50% speed - exhausted!)`);
         console.log('');
         console.log('🧹 Performance Optimizations:');
-        console.log(`  Cleanup Trigger: ${this.restThreshold}s of idle`);
+        console.log(`  Cleanup Trigger: 30s of idle`);
         console.log(`  Emergency Mode: 10,000+ blocks (5 chunk radius)`);
         console.log(`  Normal Cleanup: 8 chunk radius`);
         console.log('');
@@ -320,6 +320,11 @@ export class StaminaSystem {
      * @param {boolean} active - Are speed boots equipped?
      */
     setSpeedBoots(active) {
+        // 🔇 PERFORMANCE FIX: Only update and log when state actually changes
+        if (this.bootsActive === active) {
+            return; // No change, skip update
+        }
+        
         this.bootsActive = active;
         
         if (active) {

@@ -27,6 +27,7 @@ export class WorkerManager {
         this.persistence = null; // Will be initialized in initialize()
         this.pendingRequests = new Map(); // Map<chunkKey, callback>
         this.pendingTreeRequests = new Map(); // Map<chunkKey, {chunkData, callback}>
+        this.deferredTreeRequests = []; // Queue for tree requests when TreeWorker not ready yet
         this.requestQueue = []; // Queue of pending requests
         this.isWorkerReady = false;
         this.isTreeWorkerReady = false;
@@ -123,6 +124,27 @@ export class WorkerManager {
                 this.onTreeWorkerInitComplete = () => {
                     treeWorkerReady = true;
                     checkBothReady();
+                    
+                    // 🌲 Process any deferred tree requests that came in before TreeWorker was ready
+                    if (this.deferredTreeRequests.length > 0) {
+                        console.log(`🌲 TreeWorker ready! Processing ${this.deferredTreeRequests.length} deferred tree requests`);
+                        for (const request of this.deferredTreeRequests) {
+                            const { chunkX, chunkZ, chunkData, callback } = request;
+                            const key = `${chunkX},${chunkZ}`;
+                            this.pendingTreeRequests.set(key, { chunkData, callback });
+                            this.treeWorker.postMessage({
+                                type: 'GENERATE_TREES',  // 🐛 FIX: Use uppercase to match TreeWorker
+                                data: {
+                                    chunkX, chunkZ,
+                                    heightMap: chunkData.heightMap,
+                                    waterMap: chunkData.waterMap,
+                                    worldSeed: this.worldSeed,
+                                    chunkSize: this.chunkSize
+                                }
+                            });
+                        }
+                        this.deferredTreeRequests = [];
+                    }
                 };
 
             } catch (error) {
@@ -437,7 +459,7 @@ export class WorkerManager {
 
                 // Convert disk data to transferable format
                 const transferableData = this.convertBlocksToTransferable(
-                    { blocks: finalBlocks, trees: diskData.trees },
+                    { blocks: finalBlocks, trees: diskData.trees || [] },
                     chunkX,
                     chunkZ
                 );
@@ -445,7 +467,31 @@ export class WorkerManager {
                 // Store in RAM cache
                 this.cache.set(chunkX, chunkZ, transferableData);
 
-                // Return to callback
+                // 🌲 FIX: If no tree data saved, request trees from TreeWorker
+                if (!diskData.trees || diskData.trees.length === 0) {
+                    if (this.isTreeWorkerReady && transferableData.heightMap) {
+                        console.log(`🌲 Chunk (${chunkX}, ${chunkZ}) loaded from disk without trees - requesting tree generation`);
+                        this.pendingTreeRequests.set(key, { chunkData: transferableData, callback });
+                        this.treeWorker.postMessage({
+                            type: 'GENERATE_TREES',  // 🐛 FIX: Use uppercase to match TreeWorker case statement
+                            data: {
+                                chunkX, chunkZ,
+                                heightMap: transferableData.heightMap,
+                                waterMap: transferableData.waterMap,
+                                worldSeed: this.worldSeed,
+                                chunkSize: this.chunkSize
+                            }
+                        });
+                        return; // Wait for trees before calling callback
+                    } else if (transferableData.heightMap) {
+                        // TreeWorker not ready yet - defer this request
+                        console.log(`⏳ Chunk (${chunkX}, ${chunkZ}) has no trees but TreeWorker not ready - deferring tree generation`);
+                        this.deferredTreeRequests.push({ chunkX, chunkZ, chunkData: transferableData, callback });
+                        return; // Wait for TreeWorker to become ready
+                    }
+                }
+
+                // Return to callback (with or without trees)
                 callback(transferableData);
                 return;
             }
@@ -476,6 +522,13 @@ export class WorkerManager {
         const blockTypes = new Uint8Array(blockCount);
         const colors = new Uint32Array(blockCount);
         const flags = new Uint8Array(blockCount);
+        
+        // 🗺️ Regenerate heightMap and waterMap from blocks
+        const chunkSize = 8;
+        const heightMap = new Uint8Array(chunkSize * chunkSize);
+        const waterMap = new Uint8Array(chunkSize * chunkSize);
+        heightMap.fill(0);
+        waterMap.fill(0);
 
         // Block type string to ID mapping (must match ChunkSerializer & ChunkWorker!)
         const blockTypeToId = {
@@ -498,6 +551,15 @@ export class WorkerManager {
             blockTypes[i] = blockTypeToId[block.type] || 0;
             colors[i] = block.color;
             flags[i] = block.flags || 0;
+            
+            // Update heightMap and waterMap
+            const mapIndex = block.z * chunkSize + block.x;
+            if (block.y > heightMap[mapIndex]) {
+                heightMap[mapIndex] = block.y;
+            }
+            if (block.type === 'water' && block.y > waterMap[mapIndex]) {
+                waterMap[mapIndex] = block.y;
+            }
         }
 
         return {
@@ -508,7 +570,9 @@ export class WorkerManager {
             positions,
             blockTypes,
             colors,
-            flags
+            flags,
+            heightMap,  // 🗺️ Regenerated from blocks
+            waterMap    // 🗺️ Regenerated from blocks
         };
     }
 

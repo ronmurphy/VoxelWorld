@@ -514,13 +514,16 @@ export class CompanionHuntSystem {
         if (itemCount > 0) {
             console.log(`🎁 Giving ${itemCount} items to player:`, this.discoveries.map(d => d.item));
             this.discoveries.forEach(discovery => {
-                const success = this.voxelWorld.addItemToInventory(discovery.item, 1);
-                if (success) {
+                const added = this.voxelWorld.inventory.addToInventory(discovery.item, 1);
+                if (added > 0) {
                     console.log(`✅ Added ${discovery.item} to inventory`);
                 } else {
-                    console.warn(`❌ Failed to add ${discovery.item} to inventory`);
+                    console.warn(`❌ Failed to add ${discovery.item} to inventory - might be full`);
                 }
             });
+            
+            // Update hotbar to show new items
+            this.voxelWorld.updateHotbarCounts();
         }
 
         // Update companion portrait (remove hunting indicator)

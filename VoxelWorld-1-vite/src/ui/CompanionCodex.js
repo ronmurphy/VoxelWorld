@@ -730,6 +730,15 @@ export class CompanionCodex {
      * Open item selector to equip items from inventory
      */
     openEquipmentSelector(companionId, slotName) {
+        // Check if companion is currently hunting
+        const isHunting = this.voxelWorld.companionHuntSystem?.isActive && 
+                         this.voxelWorld.companionHuntSystem?.companion?.id === companionId;
+        
+        if (isHunting) {
+            alert('⏳ Companion is currently on a hunt! Wait for them to return before changing equipment.');
+            return;
+        }
+
         // Get all equippable items from player inventory
         const equippableItems = [];
 
@@ -765,7 +774,7 @@ export class CompanionCodex {
             border: 4px solid #8B4513;
             border-radius: 12px;
             padding: 20px;
-            z-index: 10000;
+            z-index: 50002;
             max-width: 400px;
             max-height: 500px;
             overflow-y: auto;

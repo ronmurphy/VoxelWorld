@@ -96,7 +96,11 @@ class NebulaVoxelApp {
         this.debugHalloween = false; // 🎃 Debug flag to force Halloween mode
         this.activeBillboards = []; // 🎯 PERFORMANCE: Track only billboards that need animation
 
-        // 🌳 TREE ID SYSTEM: Advanced tree tracking with unique identifiers
+        // � TEXTURE CACHE: Prevent memory leak by reusing loaded textures
+        this.textureLoader = new THREE.TextureLoader();
+        this.textureCache = {};
+
+        // �🌳 TREE ID SYSTEM: Advanced tree tracking with unique identifiers
         this.nextTreeId = 1; // Incremental unique tree ID generator
         this.treeRegistry = new Map(); // Map<treeId, treeMetadata>
         this.blockToTreeMap = new Map(); // Map<blockKey, treeId> for fast lookups
@@ -196,7 +200,7 @@ class NebulaVoxelApp {
         // Start background music after a short delay (let game load first) - only if autoplay enabled
         setTimeout(() => {
             if (this.musicSystem.autoplayEnabled) {
-                this.musicSystem.play('music/forestDay.ogg');
+                this.musicSystem.play('/assets/music/forestDay.ogg');
             } else {
                 console.log('🎵 Autoplay disabled - music not started');
             }
@@ -880,13 +884,19 @@ class NebulaVoxelApp {
             let texture;
 
             // Use EnhancedGraphics API to get enhanced asset if available
-            console.log(`🔍 Billboard debug for ${type}: isReady=${this.enhancedGraphics.isReady()}, hasImage=${this.enhancedGraphics.toolImages.has(type)}`);
+            // DEBUG: Uncomment to debug billboard loading
+            // console.log(`🔍 Billboard debug for ${type}: isReady=${this.enhancedGraphics.isReady()}, hasImage=${this.enhancedGraphics.toolImages.has(type)}`);
             if (this.enhancedGraphics.isReady() && this.enhancedGraphics.toolImages.has(type)) {
                 // Use enhanced PNG image through proper API with relative path
                 const enhancedImageData = this.enhancedGraphics.toolImages.get(type);
-                texture = new THREE.TextureLoader().load(enhancedImageData.path);
-                texture.magFilter = THREE.LinearFilter;
-                texture.minFilter = THREE.LinearFilter;
+                
+                // 🎨 TEXTURE CACHE: Reuse loaded textures to prevent memory leak
+                if (!this.textureCache[enhancedImageData.path]) {
+                    this.textureCache[enhancedImageData.path] = this.textureLoader.load(enhancedImageData.path);
+                    this.textureCache[enhancedImageData.path].magFilter = THREE.LinearFilter;
+                    this.textureCache[enhancedImageData.path].minFilter = THREE.LinearFilter;
+                }
+                texture = this.textureCache[enhancedImageData.path];
                 // console.log(`🎨 Using enhanced billboard texture for ${type}: ${enhancedImageData.path}`);
             } else {
                 // Fall back to emoji canvas
@@ -6750,6 +6760,9 @@ class NebulaVoxelApp {
                 'hoe', 'watering_can', 'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
                 'carrot', 'rice', 'corn_ear',
 
+                // 🍖 Companion Hunt ingredients (rare)
+                'egg', 'fish', 'honey', 'apple',
+
                 // �🏗️ Workbench/ToolBench items
                 'workbench', 'backpack', 'tool_bench',
 
@@ -6775,6 +6788,8 @@ class NebulaVoxelApp {
                 console.log('%c� Valid Farming Items:', 'font-weight: bold; color: #8BC34A;');
                 console.log('  hoe, wheat_seeds, carrot_seeds, pumpkin_seeds, berry_seeds');
                 console.log('  carrot, rice, corn_ear');
+                console.log('%c🍖 Companion Hunt Items:', 'font-weight: bold; color: #FF5722;');
+                console.log('  egg, fish, honey, apple');
                 console.log('%c�🎨 Valid Crafted Items:', 'font-weight: bold; color: #9C27B0;');
                 console.log('  Any tool with "crafted_" prefix (e.g., crafted_grappling_hook)');
                 console.log('  Or use the tools list above with crafted_ prefix');
@@ -6849,7 +6864,18 @@ class NebulaVoxelApp {
             console.log('  workbench, tool_bench, backpack');
             console.log('');
             
-            console.log('%c🎨 Crafted Items (use crafted_ prefix):', 'font-weight: bold; color: #9C27B0;');
+            console.log('%c� Farming Items:', 'font-weight: bold; color: #8BC34A;');
+            console.log('  Tools: hoe, watering_can');
+            console.log('  Seeds: wheat_seeds, carrot_seeds, pumpkin_seeds, berry_seeds');
+            console.log('  Harvested: carrot, rice, corn_ear');
+            console.log('');
+            
+            console.log('%c🍖 Companion Hunt Items (Rare):', 'font-weight: bold; color: #FF5722;');
+            console.log('  egg, fish, honey, apple');
+            console.log('  (Companions find these during hunts)');
+            console.log('');
+            
+            console.log('%c�🎨 Crafted Items (use crafted_ prefix):', 'font-weight: bold; color: #9C27B0;');
             console.log('  crafted_grappling_hook, crafted_speed_boots');
             console.log('  crafted_combat_sword, crafted_mining_pick, crafted_stone_hammer');
             console.log('  crafted_magic_amulet, crafted_compass, crafted_compass_upgrade');
@@ -9392,8 +9418,10 @@ class NebulaVoxelApp {
         // 🌍 ENHANCED: Find proper spawn position after terrain generation
         this.findAndSetSpawnPosition();
 
-        // Spawn starting backpack after terrain is ready
-        this.spawnStartingBackpack();
+        // 🎒 NOTE: Backpack spawning now handled by:
+        // 1. App.js tutorial system (spawnStarterBackpack after chat)
+        // 2. newGame() function (spawnStartingBackpack for new worlds)
+        // Removed duplicate spawn that caused multiple backpacks!
 
         // Save/Load system methods
         this.updateStatus = (message) => {
@@ -10103,7 +10131,7 @@ class NebulaVoxelApp {
         // Improved movement with gravity and chunk loading
         let lastChunkUpdate = 0;
         let lastTime = 0;
-        let lastPerfLog = 0; // 🎯 PERFORMANCE: Track performance logging
+        let lastPerfLog = performance.now(); // 🎯 PERFORMANCE: Initialize to current time to prevent spam
         
         // ⏰ Game time tracking (for companion hunt and other time-based systems)
         if (this.gameTime === undefined) {

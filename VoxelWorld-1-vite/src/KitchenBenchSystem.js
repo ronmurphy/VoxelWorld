@@ -487,13 +487,14 @@ export class KitchenBenchSystem {
                     
                     <!-- Middle: Preview & Cook -->
                     <div class="kitchen-panel preview-panel">
-                        <h3>🔥 Cooking</h3>
+                        <h3><span id="flame-icon">🔥</span> Cooking</h3>
                         <div class="selected-ingredients">
                             <p style="color: #888; text-align: center;">Select ingredients to cook</p>
                         </div>
                         <div class="cook-info">
                             <p id="ingredient-count">0 ingredients selected</p>
                         </div>
+                        <div id="cooking-flames" style="display: none; text-align: center; margin: 10px 0; font-size: 1.5em;"></div>
                         <button class="cook-btn" disabled>🍳 Cook!</button>
                         <button class="clear-btn">🗑️ Clear</button>
                     </div>
@@ -655,16 +656,21 @@ export class KitchenBenchSystem {
         const previewContainer = this.kitchenModal.querySelector('.selected-ingredients');
         const countElement = this.kitchenModal.querySelector('#ingredient-count');
         const cookBtn = this.kitchenModal.querySelector('.cook-btn');
+        const flameIcon = this.kitchenModal.querySelector('#flame-icon');
 
         if (this.selectedIngredients.size === 0) {
             previewContainer.innerHTML = '<p style="color: #888; text-align: center;">Select ingredients to cook</p>';
             countElement.textContent = '0 ingredients selected';
             cookBtn.disabled = true;
+            // Stop spinning
+            if (flameIcon) {
+                flameIcon.style.animation = '';
+            }
             return;
         }
 
-        // Show selected ingredients
-        const inventory = this.voxelWorld.inventory?.items || {};
+        // 🐛 FIX: Use getAllMaterialsFromSlots() to access slot-based inventory
+        const inventory = this.voxelWorld.getAllMaterialsFromSlots?.() || {};
         let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">';
         
         this.selectedIngredients.forEach(key => {
@@ -682,6 +688,29 @@ export class KitchenBenchSystem {
         previewContainer.innerHTML = html;
         countElement.textContent = `${this.selectedIngredients.size} ingredients selected`;
         cookBtn.disabled = false;
+
+        // Check if this is a valid recipe that hasn't been discovered
+        const selectedCounts = {};
+        this.selectedIngredients.forEach(key => {
+            selectedCounts[key] = 1;
+        });
+
+        let matchedFood = null;
+        for (const [key, food] of Object.entries(this.foodDatabase)) {
+            if (this.ingredientsMatch(selectedCounts, food.ingredients)) {
+                matchedFood = { key, ...food };
+                break;
+            }
+        }
+
+        // Spin flame if valid recipe that isn't discovered yet
+        if (flameIcon) {
+            if (matchedFood && !this.discoveredFoods.has(matchedFood.key)) {
+                flameIcon.style.animation = 'spin 1s linear infinite';
+            } else {
+                flameIcon.style.animation = '';
+            }
+        }
     }
 
     /**
@@ -737,8 +766,8 @@ export class KitchenBenchSystem {
      * Cook the food!
      */
     cookFood(food) {
-        // Check inventory has enough
-        const inventory = this.voxelWorld.inventory?.items || {};
+        // 🐛 FIX: Use getAllMaterialsFromSlots() to access slot-based inventory (same as updateCookingPreview)
+        const inventory = this.voxelWorld.getAllMaterialsFromSlots?.() || {};
         for (const [ing, qty] of Object.entries(food.ingredients)) {
             if (!inventory[ing] || inventory[ing] < qty) {
                 this.voxelWorld.updateStatus(`❌ Not enough ${ing}!`, 'error');
@@ -746,33 +775,76 @@ export class KitchenBenchSystem {
             }
         }
 
-        // Consume ingredients
-        for (const [ing, qty] of Object.entries(food.ingredients)) {
-            this.voxelWorld.inventory.removeItem(ing, qty);
+        // Show cooking animation (bobbing flames for 3 seconds)
+        this.showCookingAnimation();
+
+        // Disable cook button during cooking
+        const cookBtn = this.kitchenModal.querySelector('.cook-btn');
+        cookBtn.disabled = true;
+        cookBtn.textContent = '🍳 Cooking...';
+
+        // Wait 3 seconds for cooking animation
+        setTimeout(() => {
+            // 🐛 FIX: Use removeFromInventory() (slot-based inventory system)
+            for (const [ing, qty] of Object.entries(food.ingredients)) {
+                this.voxelWorld.inventory.removeFromInventory(ing, qty);
+            }
+
+            // 🐛 FIX: Use inventory.addToInventory() (slot-based inventory system)
+            this.voxelWorld.inventory.addToInventory(food.key, 1);
+
+            // Mark as discovered
+            const wasDiscovered = this.discoveredFoods.has(food.key);
+            this.discoveredFoods.add(food.key);
+            this.saveDiscoveredFoods();
+
+            // Success message
+            if (!wasDiscovered) {
+                this.voxelWorld.updateStatus(`🎉 DISCOVERED: ${food.name}!`, 'discovery');
+                this.showDiscoveryEffect();
+            } else {
+                this.voxelWorld.updateStatus(`🍳 Cooked: ${food.name}`, 'success');
+            }
+
+            // Update displays
+            this.clearSelection();
+            this.updateIngredientsDisplay();
+            this.updateFoodsDisplay();
+
+            // Reset button
+            cookBtn.textContent = '🍳 Cook!';
+
+            console.log('🍳 Cooked:', food.name);
+        }, 3000);
+    }
+
+    /**
+     * Show cooking animation (bobbing flames)
+     */
+    showCookingAnimation() {
+        const flamesContainer = this.kitchenModal.querySelector('#cooking-flames');
+        if (!flamesContainer) return;
+
+        // Create 5 flame emojis
+        flamesContainer.innerHTML = '';
+        flamesContainer.style.display = 'block';
+
+        for (let i = 0; i < 5; i++) {
+            const flame = document.createElement('span');
+            flame.textContent = '🔥';
+            flame.style.cssText = `
+                display: inline-block;
+                animation: bobFlame 0.6s ease-in-out infinite;
+                animation-delay: ${i * 0.1}s;
+                margin: 0 2px;
+            `;
+            flamesContainer.appendChild(flame);
         }
 
-        // Add food to inventory
-        this.voxelWorld.addToInventory(food.key, 1);
-
-        // Mark as discovered
-        const wasDiscovered = this.discoveredFoods.has(food.key);
-        this.discoveredFoods.add(food.key);
-        this.saveDiscoveredFoods();
-
-        // Success message
-        if (!wasDiscovered) {
-            this.voxelWorld.updateStatus(`🎉 DISCOVERED: ${food.name}!`, 'discovery');
-            this.showDiscoveryEffect();
-        } else {
-            this.voxelWorld.updateStatus(`🍳 Cooked: ${food.name}`, 'success');
-        }
-
-        // Update displays
-        this.clearSelection();
-        this.updateIngredientsDisplay();
-        this.updateFoodsDisplay();
-
-        console.log('🍳 Cooked:', food.name);
+        // Hide after 3 seconds
+        setTimeout(() => {
+            flamesContainer.style.display = 'none';
+        }, 3000);
     }
 
     /**
