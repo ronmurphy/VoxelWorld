@@ -82,6 +82,93 @@ contextBridge.exposeInMainWorld('electronAPI', {
       console.error(`❌ Error reading file ${relativePath}:`, error);
       throw error;
     }
+  },
+
+  // 💾 SAVE SYSTEM: Write save file to user data directory
+  writeSaveFile: async (relativePath, data) => {
+    try {
+      const path = require('path');
+      
+      // In preload, __dirname points to the app location
+      // For Electron, we'll save in a 'saves' folder next to the app
+      const appPath = __dirname;
+      const userDataPath = path.join(appPath, 'user-data');
+      const filePath = path.join(userDataPath, relativePath);
+      const dirPath = path.dirname(filePath);
+      
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+        console.log(`📁 Created directory: ${dirPath}`);
+      }
+      
+      fs.writeFileSync(filePath, data, 'utf8');
+      console.log(`💾 Saved file: ${filePath} (${(data.length / 1024).toFixed(2)} KB)`);
+      return { success: true, path: filePath };
+    } catch (error) {
+      console.error(`❌ Error writing save file ${relativePath}:`, error);
+      throw error;
+    }
+  },
+
+  // 📂 SAVE SYSTEM: Read save file from user data directory
+  readSaveFile: async (relativePath) => {
+    try {
+      const path = require('path');
+      
+      // In preload, __dirname points to the app location
+      const appPath = __dirname;
+      const userDataPath = path.join(appPath, 'user-data');
+      const filePath = path.join(userDataPath, relativePath);
+      
+      if (!fs.existsSync(filePath)) {
+        console.log(`📂 Save file not found: ${filePath}`);
+        return null;
+      }
+      
+      const content = fs.readFileSync(filePath, 'utf8');
+      console.log(`📂 Loaded save file: ${filePath} (${(content.length / 1024).toFixed(2)} KB)`);
+      return content;
+    } catch (error) {
+      console.error(`❌ Error reading save file ${relativePath}:`, error);
+      throw error;
+    }
+  },
+
+  // 🗑️ SAVE SYSTEM: Delete save file
+  deleteSaveFile: async (relativePath) => {
+    try {
+      const path = require('path');
+      
+      // In preload, __dirname points to the app location
+      const appPath = __dirname;
+      const userDataPath = path.join(appPath, 'user-data');
+      const filePath = path.join(userDataPath, relativePath);
+      
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`🗑️ Deleted save file: ${filePath}`);
+        return { success: true };
+      } else {
+        console.log(`📂 Save file not found (already deleted?): ${filePath}`);
+        return { success: true };
+      }
+    } catch (error) {
+      console.error(`❌ Error deleting save file ${relativePath}:`, error);
+      throw error;
+    }
+  },
+
+  // 📁 SAVE SYSTEM: Get user data path (for debugging)
+  getUserDataPath: () => {
+    try {
+      const path = require('path');
+      const appPath = __dirname;
+      return path.join(appPath, 'user-data');
+    } catch (error) {
+      console.error('❌ Error getting user data path:', error);
+      return null;
+    }
   }
 });
 

@@ -31,6 +31,7 @@ import ChristmasSystem from './ChristmasSystem.js';
 import { FarmingSystem } from './FarmingSystem.js';
 import { MusicSystem } from './MusicSystem.js';
 import { marked } from 'marked';
+import { SaveSystem } from './SaveSystem.js';
 
 // 🚀 Enable BVH acceleration for all BufferGeometry raycasting
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -216,6 +217,20 @@ class NebulaVoxelApp {
         // 🎵 Initialize MusicSystem
         this.musicSystem = new MusicSystem();
         console.log('🎵 MusicSystem initialized');
+
+        // 💾 Initialize SaveSystem (with Electron API support)
+        this.saveSystem = new SaveSystem(this, window.electronAPI || null);
+        this.gameTime = 0; // Track total playtime in seconds
+        this.gameTimeInterval = setInterval(() => {
+            this.gameTime++;
+        }, 1000);
+        console.log('💾 SaveSystem initialized');
+        
+        // Log save directory location (helpful for debugging)
+        if (window.electronAPI && window.electronAPI.getUserDataPath) {
+            const userDataPath = window.electronAPI.getUserDataPath();
+            console.log(`💾 Save files location: ${userDataPath}/saves/`);
+        }
 
         // Initialize Day/Night music system (async, will complete in background)
         this.musicSystemReady = false;
@@ -12301,6 +12316,21 @@ class NebulaVoxelApp {
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.4);
                                 transition: all 0.2s;
                             ">💻 Command Line</button>
+                            <button class="help-topic-btn" data-topic="save-system" style="
+                                flex: 1;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #5a9a4a, #4a8a3a);
+                                color: #F5E6D3;
+                                border: 2px solid #3d7d2d;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">💾 Save System</button>
                         </div>
 
                         <!-- Help Content Area -->
@@ -12718,9 +12748,22 @@ class NebulaVoxelApp {
             this.updateStatus(`🎵 Music autoplay ${newState ? 'enabled' : 'disabled'}`, 'info');
         };
 
-        if (modalSaveBtn) modalSaveBtn.onclick = saveWorld;
-        if (modalLoadBtn) modalLoadBtn.onclick = loadWorld;
-        if (modalDeleteBtn) modalDeleteBtn.onclick = deleteSave;
+        // 💾 NEW SAVE SYSTEM: Replace old localStorage save/load with SaveSystem
+        if (modalSaveBtn) modalSaveBtn.onclick = () => {
+            modal.style.display = 'none'; // Close menu
+            this.showSaveMenu(); // Open save slot picker
+        };
+        
+        if (modalLoadBtn) modalLoadBtn.onclick = () => {
+            modal.style.display = 'none'; // Close menu
+            this.showLoadMenu(); // Open load slot picker
+        };
+        
+        if (modalDeleteBtn) modalDeleteBtn.onclick = () => {
+            modal.style.display = 'none'; // Close menu
+            this.showDeleteMenu(); // Open delete slot picker
+        };
+        
         if (modalNewGameBtn) modalNewGameBtn.onclick = newGame;
         if (modalBenchmarkBtn) modalBenchmarkBtn.onclick = reRunBenchmark;
         if (modalRenderDistanceBtn) modalRenderDistanceBtn.onclick = cycleRenderDistance;
@@ -12849,6 +12892,208 @@ class NebulaVoxelApp {
                 loadHelpTopic(topic);
             };
         });
+
+        // 💾 NEW SAVE SYSTEM: Save/Load/Delete Menu Functions
+        this.showSaveMenu = async () => {
+            console.log('💾 Opening save menu...');
+            try {
+                const slots = await this.saveSystem.getSaveSlots();
+                this.showSlotPicker(slots, 'save');
+            } catch (error) {
+                console.error('Failed to load save slots:', error);
+                this.updateStatus('❌ Failed to load save slots', 'error');
+            }
+        };
+
+        this.showLoadMenu = async () => {
+            console.log('📂 Opening load menu...');
+            try {
+                const slots = await this.saveSystem.getSaveSlots();
+                this.showSlotPicker(slots, 'load');
+            } catch (error) {
+                console.error('Failed to load save slots:', error);
+                this.updateStatus('❌ Failed to load save slots', 'error');
+            }
+        };
+
+        this.showDeleteMenu = async () => {
+            console.log('🗑️ Opening delete menu...');
+            try {
+                const slots = await this.saveSystem.getSaveSlots();
+                this.showSlotPicker(slots, 'delete');
+            } catch (error) {
+                console.error('Failed to load save slots:', error);
+                this.updateStatus('❌ Failed to load save slots', 'error');
+            }
+        };
+
+        this.showSlotPicker = (slots, mode) => {
+            const modal = document.createElement('div');
+            modal.id = 'slot-picker-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: linear-gradient(135deg, #2a1810 0%, #1a0f08 100%);
+                border: 3px solid #8B4513;
+                border-radius: 12px;
+                padding: 30px;
+                max-width: 900px;
+                max-height: 80vh;
+                overflow-y: auto;
+                z-index: 10001;
+                box-shadow: 0 0 50px rgba(0,0,0,0.9);
+            `;
+
+            // Title
+            const title = document.createElement('h2');
+            const titleText = mode === 'save' ? '💾 Save Game' : 
+                            mode === 'load' ? '📂 Load Game' : 
+                            '🗑️ Delete Save';
+            title.textContent = titleText;
+            title.style.cssText = `
+                color: #FFD700;
+                font-size: 28px;
+                margin: 0 0 20px 0;
+                text-align: center;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            `;
+            modal.appendChild(title);
+
+            // Slots grid
+            const slotsGrid = document.createElement('div');
+            slotsGrid.style.cssText = `
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 15px;
+                margin-bottom: 20px;
+            `;
+
+            for (const slot of slots) {
+                const slotCard = document.createElement('div');
+                slotCard.style.cssText = `
+                    background: rgba(0,0,0,0.6);
+                    border: 2px solid ${slot.exists ? '#4CAF50' : '#555'};
+                    border-radius: 8px;
+                    padding: 15px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                `;
+
+                // Thumbnail
+                if (slot.thumbnail) {
+                    const thumbnail = document.createElement('img');
+                    thumbnail.src = slot.thumbnail;
+                    thumbnail.style.cssText = `
+                        width: 100%;
+                        height: auto;
+                        border-radius: 4px;
+                        margin-bottom: 10px;
+                    `;
+                    slotCard.appendChild(thumbnail);
+                } else {
+                    const placeholder = document.createElement('div');
+                    placeholder.style.cssText = `
+                        width: 100%;
+                        height: 140px;
+                        background: linear-gradient(135deg, #333 0%, #222 100%);
+                        border-radius: 4px;
+                        margin-bottom: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 48px;
+                    `;
+                    placeholder.textContent = '📂';
+                    slotCard.appendChild(placeholder);
+                }
+
+                // Slot info
+                const info = document.createElement('div');
+                info.style.cssText = `color: #F5E6D3; font-size: 14px;`;
+                info.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 5px;">${slot.name}</div>
+                    ${slot.exists ? `
+                        <div>⏰ ${new Date(slot.timestamp).toLocaleString()}</div>
+                        <div>🎮 ${Math.floor(slot.playtime / 3600)}h ${Math.floor((slot.playtime % 3600) / 60)}m</div>
+                        <div>📊 ${slot.stats ? slot.stats.blocksPlaced : 0} blocks • ${slot.stats ? slot.stats.objectsCrafted : 0} objects</div>
+                    ` : '<div style="color: #999;">Empty Slot</div>'}
+                `;
+                slotCard.appendChild(info);
+
+                // Click handler based on mode
+                slotCard.addEventListener('click', async () => {
+                    try {
+                        if (mode === 'save') {
+                            await this.saveSystem.saveToSlot(slot.slot, `Save Slot ${slot.slot}`);
+                            this.updateStatus(`✅ Game saved to slot ${slot.slot}!`, 'success');
+                            document.body.removeChild(modal);
+                        } else if (mode === 'load') {
+                            if (!slot.exists) {
+                                this.updateStatus('❌ Slot is empty', 'error');
+                                return;
+                            }
+                            await this.saveSystem.loadFromSlot(slot.slot);
+                            this.updateStatus(`✅ Game loaded from slot ${slot.slot}!`, 'success');
+                            document.body.removeChild(modal);
+                            
+                            // Refresh the world view
+                            this.updateChunks();
+                        } else if (mode === 'delete') {
+                            if (!slot.exists) {
+                                this.updateStatus('❌ Slot is empty', 'error');
+                                return;
+                            }
+                            if (confirm(`Delete save slot ${slot.slot}?\n\n${slot.name}\n${new Date(slot.timestamp).toLocaleString()}\n\nThis cannot be undone!`)) {
+                                await this.saveSystem.deleteSlot(slot.slot);
+                                this.updateStatus(`✅ Deleted save slot ${slot.slot}`, 'success');
+                                document.body.removeChild(modal);
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`${mode} failed:`, error);
+                        this.updateStatus(`❌ ${mode} failed: ${error.message}`, 'error');
+                    }
+                });
+
+                // Hover effect
+                slotCard.addEventListener('mouseenter', () => {
+                    slotCard.style.borderColor = '#FFD700';
+                    slotCard.style.transform = 'scale(1.05)';
+                });
+
+                slotCard.addEventListener('mouseleave', () => {
+                    slotCard.style.borderColor = slot.exists ? '#4CAF50' : '#555';
+                    slotCard.style.transform = 'scale(1)';
+                });
+
+                slotsGrid.appendChild(slotCard);
+            }
+
+            modal.appendChild(slotsGrid);
+
+            // Close button
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '✖ Close';
+            closeBtn.style.cssText = `
+                width: 100%;
+                padding: 15px;
+                background: linear-gradient(180deg, #8B0000, #600000);
+                border: 2px solid #A52A2A;
+                border-radius: 8px;
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+                font-weight: bold;
+            `;
+            closeBtn.addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            modal.appendChild(closeBtn);
+
+            document.body.appendChild(modal);
+        };
 
         // Music control event listeners
         if (modalMusicVolumeSlider) modalMusicVolumeSlider.oninput = handleVolumeSliderChange;
