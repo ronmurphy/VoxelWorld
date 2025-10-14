@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxelWorld Tutorial/Quest Editor</title>
+    <link rel="stylesheet" href="./drawflow.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: #252526;
+            padding: 10px 20px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            color: #cccccc;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #1177bb;
+        }
+
+        .btn.secondary {
+            background: #3e3e42;
+        }
+
+        .btn.secondary:hover {
+            background: #505050;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: #252526;
+            border-right: 1px solid #3e3e42;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            color: #cccccc;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .node-type {
+            background: #37373d;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            cursor: grab;
+            border-left: 3px solid;
+            transition: background 0.2s;
+        }
+
+        .node-type:hover {
+            background: #3e3e42;
+        }
+
+        .node-type.dialogue { border-color: #4ec9b0; }
+        .node-type.choice { border-color: #569cd6; }
+        .node-type.image { border-color: #c586c0; }
+        .node-type.combat { border-color: #ce9178; }
+        .node-type.item { border-color: #dcdcaa; }
+        .node-type.condition { border-color: #f48771; }
+        .node-type.trigger { border-color: #b5cea8; }
+
+        .node-type-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .node-type-desc {
+            font-size: 12px;
+            color: #858585;
+        }
+
+        /* Canvas */
+        #drawflow {
+            flex: 1;
+            background: #1e1e1e;
+            position: relative;
+        }
+
+        /* Properties Panel */
+        .properties-panel {
+            width: 300px;
+            background: #252526;
+            border-left: 1px solid #3e3e42;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .properties-panel h3 {
+            color: #cccccc;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .properties-panel .empty-state {
+            color: #858585;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .property-group {
+            margin-bottom: 20px;
+        }
+
+        .property-label {
+            display: block;
+            color: #cccccc;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .property-input {
+            width: 100%;
+            background: #3c3c3c;
+            border: 1px solid #3e3e42;
+            color: #cccccc;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .property-input:focus {
+            outline: none;
+            border-color: #0e639c;
+        }
+
+        textarea.property-input {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        /* Custom Drawflow Node Styles */
+        .drawflow .drawflow-node {
+            background: #2d2d30;
+            border: 2px solid #3e3e42;
+            border-radius: 8px;
+            color: #cccccc;
+            padding: 15px;
+            min-width: 200px;
+        }
+
+        .drawflow .drawflow-node.selected {
+            border-color: #0e639c;
+            box-shadow: 0 0 10px rgba(14, 99, 156, 0.5);
+        }
+
+        .drawflow .drawflow-node .title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #4ec9b0;
+        }
+
+        .drawflow .drawflow-node .content {
+            font-size: 12px;
+            color: #858585;
+        }
+
+        /* File input hidden */
+        #file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>🎓 Tutorial/Quest Editor - VoxelWorld</h1>
+        <div class="header-actions">
+            <button class="btn secondary" onclick="loadJSON()">📂 Load JSON</button>
+            <button class="btn secondary" onclick="newFile()">📄 New</button>
+            <button class="btn" onclick="exportJSON()">💾 Save JSON</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Sidebar - Node Types -->
+        <div class="sidebar">
+            <h3>📦 Node Types</h3>
+            
+            <div class="node-type dialogue" draggable="true" ondragstart="drag(event)" data-node="dialogue">
+                <div class="node-type-name">💬 Dialogue</div>
+                <div class="node-type-desc">Show companion/NPC dialogue</div>
+            </div>
+
+            <div class="node-type choice" draggable="true" ondragstart="drag(event)" data-node="choice">
+                <div class="node-type-name">❓ Choice</div>
+                <div class="node-type-desc">Yes/No or Multiple Choice</div>
+            </div>
+
+            <div class="node-type image" draggable="true" ondragstart="drag(event)" data-node="image">
+                <div class="node-type-name">🖼️ Image</div>
+                <div class="node-type-desc">Show image from /art/pictures/</div>
+            </div>
+
+            <div class="node-type combat" draggable="true" ondragstart="drag(event)" data-node="combat">
+                <div class="node-type-name">⚔️ Combat</div>
+                <div class="node-type-desc">Trigger combat encounter</div>
+            </div>
+
+            <div class="node-type item" draggable="true" ondragstart="drag(event)" data-node="item">
+                <div class="node-type-name">🎁 Item</div>
+                <div class="node-type-desc">Give/Take items from player</div>
+            </div>
+
+            <div class="node-type condition" draggable="true" ondragstart="drag(event)" data-node="condition">
+                <div class="node-type-name">🔀 Condition</div>
+                <div class="node-type-desc">Check inventory/quest state</div>
+            </div>
+
+            <div class="node-type trigger" draggable="true" ondragstart="drag(event)" data-node="trigger">
+                <div class="node-type-name">⚡ Trigger</div>
+                <div class="node-type-desc">Fire game event (unlock area, spawn)</div>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <div id="drawflow" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+
+        <!-- Properties Panel -->
+        <div class="properties-panel">
+            <h3>⚙️ Properties</h3>
+            <div id="properties-content" class="empty-state">
+                Select a node to edit properties
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="file-input" accept=".json" onchange="handleFileLoad(event)">
+
+    <script src="./drawflow.min.js"></script>
+    <script type="module">
+        // Import converter
+        import { TutorialConverter } from './TutorialConverter.js';
+        window.TutorialConverter = TutorialConverter;
+
+        // Initialize Drawflow
+        const id = document.getElementById("drawflow");
+        const editor = new Drawflow(id);
+        editor.reroute = true; // Enable connection rerouting
+        editor.start();
+
+        let selectedNodeId = null;
+
+        // Node templates
+        const nodeTemplates = {
+            dialogue: {
+                inputs: 1,
+                outputs: 1,
+                data: { 
+                    type: 'dialogue',
+                    speaker: 'companion',
+                    text: 'Enter dialogue text here...'
+                },
+                html: `
+                    <div class="title">💬 Dialogue</div>
+                    <div class="content">Click to edit</div>
+                `
+            },
+            choice: {
+                inputs: 1,
+                outputs: 3, // Max 3 choices
+                data: { 
+                    type: 'choice',
+                    question: 'Enter question...',
+                    options: ['Option 1', 'Option 2', 'Option 3']
+                },
+                html: `
+                    <div class="title">❓ Choice</div>
+                    <div class="content">Multiple choice node</div>
+                `
+            },
+            image: {
+                inputs: 1,
+                outputs: 1,
+                data: { 
+                    type: 'image',
+                    path: '/art/pictures/',
+                    duration: 3
+                },
+                html: `
+                    <div class="title">🖼️ Image</div>
+                    <div class="content">Show image</div>
+                `
+            },
+            combat: {
+                inputs: 1,
+                outputs: 2, // Win/Lose
+                data: { 
+                    type: 'combat',
+                    enemy: 'ghost',
+                    level: 1
+                },
+                html: `
+                    <div class="title">⚔️ Combat</div>
+                    <div class="content">Battle encounter</div>
+                `
+            },
+            item: {
+                inputs: 1,
+                outputs: 1,
+                data: { 
+                    type: 'item',
+                    action: 'give',
+                    itemId: '',
+                    amount: 1
+                },
+                html: `
+                    <div class="title">🎁 Item</div>
+                    <div class="content">Give/Take item</div>
+                `
+            },
+            condition: {
+                inputs: 1,
+                outputs: 2, // True/False
+                data: { 
+                    type: 'condition',
+                    checkType: 'hasItem',
+                    value: ''
+                },
+                html: `
+                    <div class="title">🔀 Condition</div>
+                    <div class="content">If/Else check</div>
+                `
+            },
+            trigger: {
+                inputs: 1,
+                outputs: 1,
+                data: { 
+                    type: 'trigger',
+                    event: '',
+                    params: {}
+                },
+                html: `
+                    <div class="title">⚡ Trigger</div>
+                    <div class="content">Fire event</div>
+                `
+            }
+        };
+
+        // Drag and Drop
+        let draggedNodeType = null;
+
+        function drag(ev) {
+            draggedNodeType = ev.target.closest('.node-type').dataset.node;
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            if (!draggedNodeType) return;
+
+            const template = nodeTemplates[draggedNodeType];
+            const posX = ev.clientX - id.getBoundingClientRect().left;
+            const posY = ev.clientY - id.getBoundingClientRect().top;
+
+            editor.addNode(
+                draggedNodeType,
+                template.inputs,
+                template.outputs,
+                posX,
+                posY,
+                draggedNodeType,
+                template.data,
+                template.html
+            );
+
+            draggedNodeType = null;
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+
+        // Node Selection Event
+        editor.on('nodeSelected', function(id) {
+            selectedNodeId = id;
+            showProperties(id);
+        });
+
+        editor.on('nodeUnselected', function() {
+            selectedNodeId = null;
+            document.getElementById('properties-content').innerHTML = '<div class="empty-state">Select a node to edit properties</div>';
+        });
+
+        // Show Properties Panel
+        function showProperties(nodeId) {
+            const nodeData = editor.getNodeFromId(nodeId);
+            const type = nodeData.data.type;
+            
+            let html = `
+                <div class="property-group">
+                    <label class="property-label">Tutorial ID</label>
+                    <input type="text" class="property-input" value="${nodeData.data.tutorialId || ''}" onchange="updateNodeData('${nodeId}', 'tutorialId', this.value)" placeholder="Auto-generated if empty">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">Trigger Event</label>
+                    <input type="text" class="property-input" value="${nodeData.data.trigger || 'manual'}" onchange="updateNodeData('${nodeId}', 'trigger', this.value)" placeholder="e.g., onMacheteSelected">
+                </div>
+                <div class="property-group">
+                    <label class="property-label">Show Once Only</label>
+                    <select class="property-input" onchange="updateNodeData('${nodeId}', 'once', this.value === 'true')">
+                        <option value="true" ${nodeData.data.once !== false ? 'selected' : ''}>Yes</option>
+                        <option value="false" ${nodeData.data.once === false ? 'selected' : ''}>No</option>
+                    </select>
+                </div>
+            `;
+
+            if (type === 'dialogue') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Speaker</label>
+                        <select class="property-input" onchange="updateNodeData('${nodeId}', 'speaker', this.value)">
+                            <option value="companion" ${nodeData.data.speaker === 'companion' ? 'selected' : ''}>Companion</option>
+                            <option value="npc" ${nodeData.data.speaker === 'npc' ? 'selected' : ''}>NPC</option>
+                            <option value="system" ${nodeData.data.speaker === 'system' ? 'selected' : ''}>System</option>
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Dialogue Text</label>
+                        <textarea class="property-input" onchange="updateNodeData('${nodeId}', 'text', this.value)">${nodeData.data.text || ''}</textarea>
+                    </div>
+                `;
+            } else if (type === 'choice') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Question</label>
+                        <textarea class="property-input" onchange="updateNodeData('${nodeId}', 'question', this.value)">${nodeData.data.question || ''}</textarea>
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Option 1</label>
+                        <input type="text" class="property-input" value="${nodeData.data.options[0] || ''}" onchange="updateChoiceOption('${nodeId}', 0, this.value)">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Option 2</label>
+                        <input type="text" class="property-input" value="${nodeData.data.options[1] || ''}" onchange="updateChoiceOption('${nodeId}', 1, this.value)">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Option 3 (Optional)</label>
+                        <input type="text" class="property-input" value="${nodeData.data.options[2] || ''}" onchange="updateChoiceOption('${nodeId}', 2, this.value)">
+                    </div>
+                `;
+            } else if (type === 'image') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Image Path</label>
+                        <input type="text" class="property-input" value="${nodeData.data.path || ''}" onchange="updateNodeData('${nodeId}', 'path', this.value)">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Duration (seconds)</label>
+                        <input type="number" class="property-input" value="${nodeData.data.duration || 3}" onchange="updateNodeData('${nodeId}', 'duration', parseFloat(this.value))">
+                    </div>
+                `;
+            } else if (type === 'combat') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Enemy Type</label>
+                        <input type="text" class="property-input" value="${nodeData.data.enemy || ''}" onchange="updateNodeData('${nodeId}', 'enemy', this.value)">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Level</label>
+                        <input type="number" class="property-input" value="${nodeData.data.level || 1}" onchange="updateNodeData('${nodeId}', 'level', parseInt(this.value))">
+                    </div>
+                `;
+            } else if (type === 'item') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Action</label>
+                        <select class="property-input" onchange="updateNodeData('${nodeId}', 'action', this.value)">
+                            <option value="give" ${nodeData.data.action === 'give' ? 'selected' : ''}>Give</option>
+                            <option value="take" ${nodeData.data.action === 'take' ? 'selected' : ''}>Take</option>
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Item ID</label>
+                        <input type="text" class="property-input" value="${nodeData.data.itemId || ''}" onchange="updateNodeData('${nodeId}', 'itemId', this.value)">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Amount</label>
+                        <input type="number" class="property-input" value="${nodeData.data.amount || 1}" onchange="updateNodeData('${nodeId}', 'amount', parseInt(this.value))">
+                    </div>
+                `;
+            } else if (type === 'condition') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Check Type</label>
+                        <select class="property-input" onchange="updateNodeData('${nodeId}', 'checkType', this.value)">
+                            <option value="hasItem" ${nodeData.data.checkType === 'hasItem' ? 'selected' : ''}>Has Item</option>
+                            <option value="questComplete" ${nodeData.data.checkType === 'questComplete' ? 'selected' : ''}>Quest Complete</option>
+                            <option value="level" ${nodeData.data.checkType === 'level' ? 'selected' : ''}>Player Level</option>
+                        </select>
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Value</label>
+                        <input type="text" class="property-input" value="${nodeData.data.value || ''}" onchange="updateNodeData('${nodeId}', 'value', this.value)">
+                    </div>
+                `;
+            } else if (type === 'trigger') {
+                html = `
+                    <div class="property-group">
+                        <label class="property-label">Event Name</label>
+                        <input type="text" class="property-input" value="${nodeData.data.event || ''}" onchange="updateNodeData('${nodeId}', 'event', this.value)">
+                    </div>
+                    <div class="property-group">
+                        <label class="property-label">Parameters (JSON)</label>
+                        <textarea class="property-input" onchange="updateNodeData('${nodeId}', 'params', JSON.parse(this.value))">${JSON.stringify(nodeData.data.params || {}, null, 2)}</textarea>
+                    </div>
+                `;
+            }
+
+            document.getElementById('properties-content').innerHTML = html;
+        }
+
+        // Update Node Data
+        function updateNodeData(nodeId, key, value) {
+            const nodeData = editor.getNodeFromId(nodeId);
+            nodeData.data[key] = value;
+            editor.updateNodeDataFromId(nodeId, nodeData.data);
+        }
+
+        function updateChoiceOption(nodeId, index, value) {
+            const nodeData = editor.getNodeFromId(nodeId);
+            nodeData.data.options[index] = value;
+            editor.updateNodeDataFromId(nodeId, nodeData.data);
+        }
+
+        // File Operations
+        function newFile() {
+            if (confirm('Create new file? Unsaved changes will be lost.')) {
+                editor.clear();
+            }
+        }
+
+        function loadJSON() {
+            document.getElementById('file-input').click();
+        }
+
+        function handleFileLoad(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Check if it's tutorial format or drawflow format
+                    if (data.tutorials) {
+                        // Tutorial format - convert to Drawflow
+                        console.log('📥 Loading tutorial format, converting to Drawflow...');
+                        const drawflowData = TutorialConverter.tutorialToDrawflow(data);
+                        editor.import(drawflowData);
+                        alert('Tutorial file loaded and converted successfully!');
+                    } else if (data.drawflow) {
+                        // Already Drawflow format
+                        console.log('📥 Loading Drawflow format...');
+                        editor.import(data);
+                        alert('Drawflow file loaded successfully!');
+                    } else {
+                        alert('Unknown file format!');
+                    }
+                } catch (error) {
+                    console.error('Load error:', error);
+                    alert('Error loading file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function exportJSON() {
+            const drawflowData = editor.export();
+            
+            // Ask user which format to export
+            const format = confirm('Click OK for Tutorial JSON format, Cancel for Drawflow format');
+            
+            let data, defaultFilename;
+            
+            if (format) {
+                // Convert to Tutorial JSON format
+                console.log('💾 Converting to Tutorial JSON format...');
+                data = TutorialConverter.drawflowToTutorial(drawflowData);
+                defaultFilename = 'tutorialScripts.json';
+            } else {
+                // Export as Drawflow format
+                console.log('💾 Exporting as Drawflow format...');
+                data = drawflowData;
+                defaultFilename = 'tutorial-drawflow.json';
+            }
+            
+            const filename = prompt('Enter filename:', defaultFilename);
+            if (!filename) return;
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename.endsWith('.json') ? filename : filename + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            console.log('✅ Saved as:', filename);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + S = Save
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                exportJSON();
+            }
+            // Ctrl/Cmd + O = Open
+            if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+                e.preventDefault();
+                loadJSON();
+            }
+        });
+
+        console.log('🎓 Tutorial Editor Ready!');
+        console.log('Drag node types from the left panel into the canvas');
+        console.log('Connect nodes by dragging from output to input');
+        console.log('Select a node to edit its properties');
+    </script>
+</body>
+</html>

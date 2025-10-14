@@ -26,6 +26,7 @@ import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
 import { TutorialScriptSystem } from './ui/TutorialScriptSystem.js';
+import { TutorialEditorModal } from './ui/TutorialEditorModal.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import ChristmasSystem from './ChristmasSystem.js';
@@ -305,6 +306,9 @@ class NebulaVoxelApp {
         // 🎓 Initialize Tutorial Script System
         this.tutorialSystem = new TutorialScriptSystem(this);
         console.log('🎓 TutorialScriptSystem initialized');
+
+        // 🎨 Initialize Tutorial Editor Modal (dev tool)
+        this.tutorialEditorModal = new TutorialEditorModal();
 
         // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
@@ -13201,12 +13205,14 @@ class NebulaVoxelApp {
         // voxelWorld.toggleLOD() - Enable/disable LOD system
         // voxelWorld.setVisualDistance(5) - Set how far LOD chunks extend
         // voxelWorld.getLODStats() - Get LOD performance stats
+        // voxelWorld.openTutorialEditor() - Open tutorial/quest editor
         if (typeof window !== 'undefined') {
             window.voxelWorld = this; // Expose for debugging
             console.log('🎮 Debug commands available:');
             console.log('  voxelWorld.toggleLOD() - Toggle LOD system');
             console.log('  voxelWorld.setVisualDistance(n) - Set LOD distance');
             console.log('  voxelWorld.getLODStats() - Get LOD stats');
+            console.log('  voxelWorld.openTutorialEditor() - Open tutorial editor');
         }
     }
 
@@ -13228,6 +13234,16 @@ class NebulaVoxelApp {
 
         // 🌫️ Update fog to match new visual distance using updateFog()
         this.updateFog();
+    }
+
+    // 🎓 TUTORIAL EDITOR - Dev command to open editor modal
+    openTutorialEditor() {
+        if (this.tutorialEditorModal) {
+            this.tutorialEditorModal.open();
+            console.log('🎓 Tutorial editor opened. Press ESC to close.');
+        } else {
+            console.warn('❌ Tutorial editor modal not initialized');
+        }
     }
 
     // 🐰 ANIMAL SYSTEM - Helper methods
