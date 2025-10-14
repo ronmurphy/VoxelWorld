@@ -5,7 +5,7 @@ import copyHelpFiles from './vite-plugin-copy-help.js';
 
 export default defineConfig({
   base: process.env.VITE_BASE || './',
-  // Copy assets folder to dist during build
+  // Copy assets folder to dist during build (now includes data subfolder)
   publicDir: 'assets',
   plugins: [
     assetManifest(),      // 📋 Generate asset manifests (fileList.json) at build time

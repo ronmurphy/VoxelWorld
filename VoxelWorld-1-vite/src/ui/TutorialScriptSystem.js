@@ -34,7 +34,7 @@ export class TutorialScriptSystem {
      */
     async loadScripts() {
         try {
-            const response = await fetch('/data/tutorialScripts.json');
+            const response = await fetch('./data/tutorialScripts.json');
             if (!response.ok) {
                 throw new Error(`Failed to load tutorial scripts: ${response.status}`);
             }

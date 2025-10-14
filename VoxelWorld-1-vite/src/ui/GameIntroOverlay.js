@@ -28,7 +28,7 @@ export class GameIntroOverlay {
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 10000;
+            z-index: 50000;
             opacity: 0;
             transition: opacity 0.5s ease;
         `;

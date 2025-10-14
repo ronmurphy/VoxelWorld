@@ -5,7 +5,6 @@ import { initVoxelWorld } from './VoxelWorld.js';
 import { SplashScreen } from './SplashScreen.js';
 import { GameIntroOverlay } from './ui/GameIntroOverlay.js';
 import { ChatOverlay } from './ui/Chat.js';
-import { CompanionTutorialSystem } from './ui/CompanionTutorialSystem.js';
 import { initEmojiSupport } from './EmojiRenderer.js'; // Universal emoji support
 // import { initWorkbench } from './ShapeForgeWorkbench.js'; // To be created
 
@@ -62,11 +61,6 @@ window.addEventListener('DOMContentLoaded', () => {
     window['voxelWorld'] = app; // Also expose as voxelWorld for electron menu
     console.log('🐛 voxelApp and voxelWorld exposed to window for debugging');
 
-    // Initialize tutorial system
-    const tutorialSystem = new CompanionTutorialSystem();
-    app.tutorialSystem = tutorialSystem;
-    console.log('📚 Tutorial system initialized');
-
     // Add global convenience function for testing combat
     window['testCombat'] = (enemyId) => app.testCombat(enemyId);
     console.log('🎮 testCombat() available globally');
@@ -75,88 +69,6 @@ window.addEventListener('DOMContentLoaded', () => {
     window['testDouglas'] = () => app.testDouglas();
     window['testChristmas'] = () => app.testChristmas();
     console.log('🎄 testDouglas() and testChristmas() available globally');
-
-    // Helper function to get companion info for tutorials
-    const getCompanionInfo = async () => {
-      const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
-      const companionId = playerData.starterMonster || 'rat';
-      const companionData = await ChatOverlay.loadCompanionData(companionId);
-      const companionName = companionData ? companionData.name : companionId;
-      return { companionId, companionName };
-    };
-
-    // Add journal tutorial method for post-backpack discovery
-    app.showJournalTutorial = async () => {
-      const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
-
-      // Only show if haven't seen it before
-      if (playerData.tutorialsSeen?.journal) return;
-
-      const { companionId, companionName } = await getCompanionInfo();
-
-      const chat = new ChatOverlay();
-      chat.showSequence([
-        {
-          character: companionId,
-          name: companionName,
-          text: `Great job finding the backpack! Press M to open your World Map, or press C to open the Companion Codex where you can view your companions and set your active battle partner!`
-        },
-        {
-          character: companionId,
-          name: companionName,
-          text: `Oh, and see that sun icon in the top-left? That shows the time of day - the image changes as time passes! Click on it to open the Explorer's Menu where you can save your game, adjust settings, and more.`
-        }
-      ], () => {
-        // Mark tutorial as seen
-        playerData.tutorialsSeen = playerData.tutorialsSeen || {};
-        playerData.tutorialsSeen.journal = true;
-        localStorage.setItem('NebulaWorld_playerData', JSON.stringify(playerData));
-      });
-    };
-
-    // Add machete tutorial for first-time selection
-    app.showMacheteTutorial = async () => {
-      const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
-
-      // Only show if haven't seen it before
-      if (playerData.tutorialsSeen?.machete) return;
-
-      const { companionId, companionName } = await getCompanionInfo();
-
-      const chat = new ChatOverlay();
-      chat.showMessage({
-        character: companionId,
-        name: companionName,
-        text: `Oh! That machete belonged to Uncle Beastly! He used to chop down trees with it by holding left-click on the trunk. It works on grass, leaves, dirt, even stone... and it never dulls! Pretty handy tool!`
-      }, () => {
-        // Mark tutorial as seen
-        playerData.tutorialsSeen = playerData.tutorialsSeen || {};
-        playerData.tutorialsSeen.machete = true;
-        localStorage.setItem('NebulaWorld_playerData', JSON.stringify(playerData));
-      });
-    };
-
-    // Add workbench tutorial
-    app.showWorkbenchTutorial = async () => {
-      const playerData = JSON.parse(localStorage.getItem('NebulaWorld_playerData') || '{}');
-
-      // Only show if haven't seen it before
-      if (playerData.tutorialsSeen?.workbench) return;
-
-      const { companionId, companionName } = await getCompanionInfo();
-
-      const chat = new ChatOverlay();
-      chat.showMessage({
-        character: companionId,
-        name: companionName,
-        text: `That Workbench is really useful! Press E to open it and craft things with interesting shapes. Some blocks can make lots of different shapes, while others... well, maybe they'll be useful later. Experiment and see what you can create!`
-      }, () => {
-        // Mark tutorial as seen
-        playerData.tutorialsSeen = playerData.tutorialsSeen || {};
-        playerData.tutorialsSeen.workbench = true;
-        localStorage.setItem('NebulaWorld_playerData', JSON.stringify(playerData));
-      });
-    };
 
     // If first-time player, show intro overlay AFTER world loads
     if (!hasPlayerData) {

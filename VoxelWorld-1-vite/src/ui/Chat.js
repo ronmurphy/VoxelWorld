@@ -64,7 +64,7 @@ export class ChatOverlay {
             display: flex;
             justify-content: center;
             align-items: flex-end;
-            z-index: 9999;
+            z-index: 50002;
             opacity: 0;
             transition: opacity 0.3s ease;
             padding-bottom: 40px;

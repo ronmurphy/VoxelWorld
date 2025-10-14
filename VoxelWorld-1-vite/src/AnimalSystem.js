@@ -205,7 +205,7 @@ export class AnimalSystem {
         console.log(`🐰 Spawned ${type} at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}, ${position.z.toFixed(0)})`);
         
         // Tutorial hook - first animal spawn (especially rabbits)
-        if (this.voxelWorld.tutorialSystem) {
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
             this.voxelWorld.tutorialSystem.onAnimalSpawn(type);
         }
         

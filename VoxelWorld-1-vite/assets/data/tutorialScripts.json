@@ -52,6 +52,14 @@
         },
         {
           "text": "Drag items between your hotbar and backpack to organize. Keep your most-used items in the hotbar for quick access!",
+          "delay": 2000
+        },
+        {
+          "text": "Great job finding the backpack! Press M to open your World Map, or press C to open the Companion Codex where you can view your companions and set your active battle partner!",
+          "delay": 2000
+        },
+        {
+          "text": "Oh, and see that sun icon in the top-left? That shows the time of day - the image changes as time passes! Click on it to open the Explorer's Menu where you can save your game, adjust settings, and more.",
           "delay": 0
         }
       ]

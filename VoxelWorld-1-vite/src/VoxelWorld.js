@@ -302,11 +302,11 @@ class NebulaVoxelApp {
         // 🖼️ Initialize Companion Portrait HUD
         this.companionPortrait = new CompanionPortrait(this);
 
-        // � Initialize Companion Tutorial System
+        // 🎓 Initialize Tutorial Script System
         this.tutorialSystem = new TutorialScriptSystem(this);
-        console.log('🎓 CompanionTutorialSystem initialized');
+        console.log('🎓 TutorialScriptSystem initialized');
 
-        // �🎨 Initialize Enhanced Graphics System
+        // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
 
         // ✨ Initialize Animation System
@@ -751,11 +751,6 @@ class NebulaVoxelApp {
                         statusIcon.textContent = '🎮';
                         statusText.textContent = 'Ready to explore!';
                     }, 3000);
-                }
-
-                // Trigger campfire tutorial
-                if (this.tutorialSystem) {
-                    this.tutorialSystem.showCampfireTutorial();
                 }
             }
         };
@@ -1329,9 +1324,9 @@ class NebulaVoxelApp {
                         console.log(`Found backpack! Hotbar unlocked!`);
                         this.updateStatus(`🎒 Found backpack! Inventory system unlocked!`, 'discovery');
 
-                        // Show journal tutorial for first-time players
-                        if (this.showJournalTutorial) {
-                            this.showJournalTutorial();
+                        // Show backpack tutorial for first-time players
+                        if (this.tutorialSystem) {
+                            this.tutorialSystem.onBackpackOpened();
                         }
 
                         // 🖼️ Create companion portrait after backpack found
@@ -2807,7 +2802,7 @@ class NebulaVoxelApp {
                 height: 100vh;
                 background: rgba(0, 0, 0, 0.8);
                 display: none;
-                z-index: 4000;
+                z-index: 50000;
                 backdrop-filter: blur(4px);
             `;
 
@@ -3691,7 +3686,7 @@ class NebulaVoxelApp {
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                z-index: 10000;
+                z-index: 50000;
             `;
 
             const panel = document.createElement('div');
@@ -5941,99 +5936,6 @@ class NebulaVoxelApp {
             rotatePreview();
         };
 
-        // Show workbench tutorial for first-time users
-        this.showWorkbenchTutorial = () => {
-            // Check if user has seen the tutorial before
-            const tutorialSeen = localStorage.getItem('voxelworld_workbench_tutorial_seen');
-            if (tutorialSeen) return;
-
-            // Create tutorial overlay
-            const tutorialOverlay = document.createElement('div');
-            tutorialOverlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                background: rgba(0, 0, 0, 0.8);
-                z-index: 5000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: tutorialFadeIn 0.5s ease-out;
-            `;
-
-            const tutorialContent = document.createElement('div');
-            tutorialContent.style.cssText = `
-                background: rgba(30, 30, 30, 0.95);
-                color: white;
-                padding: 30px;
-                border-radius: 12px;
-                max-width: 500px;
-                text-align: center;
-                border: 2px solid #4CAF50;
-                box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-                backdrop-filter: blur(8px);
-            `;
-
-            tutorialContent.innerHTML = `
-                <div style="font-size: 48px; margin-bottom: 15px;">🔨</div>
-                <h2 style="color: #4CAF50; margin: 0 0 20px 0;">Welcome to the Workbench!</h2>
-                <div style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
-                    <div style="margin-bottom: 12px;">📦 <strong>Step 1:</strong> Select a material from the left panel</div>
-                    <div style="margin-bottom: 12px;">🔷 <strong>Step 2:</strong> Choose a shape (cube auto-selected)</div>
-                    <div style="margin-bottom: 12px;">📍 <strong>Step 3:</strong> Pick a position on the 3×3 grid</div>
-                    <div style="margin-bottom: 12px;">✨ <strong>Step 4:</strong> Click "Create Object" to craft!</div>
-                    <div style="margin-top: 15px; font-size: 14px; opacity: 0.8;">
-                        🔄 Use the preview controls to rotate and zoom the 3D preview
-                    </div>
-                </div>
-                <button id="tutorial-got-it" style="
-                    background: linear-gradient(45deg, #4CAF50, #45a049);
-                    border: none;
-                    color: white;
-                    padding: 12px 24px;
-                    border-radius: 8px;
-                    font-size: 16px;
-                    font-weight: bold;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-                ">
-                    Got it! Let's craft! 🚀
-                </button>
-            `;
-
-            // Add animation CSS
-            if (!document.head.querySelector('style[data-tutorial-animation]')) {
-                const style = document.createElement('style');
-                style.setAttribute('data-tutorial-animation', 'true');
-                style.textContent = `
-                    @keyframes tutorialFadeIn {
-                        from { opacity: 0; transform: scale(0.9); }
-                        to { opacity: 1; transform: scale(1); }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            tutorialOverlay.appendChild(tutorialContent);
-
-            // Handle "Got it" button
-            const gotItButton = tutorialContent.querySelector('#tutorial-got-it');
-            gotItButton.addEventListener('click', () => {
-                localStorage.setItem('voxelworld_workbench_tutorial_seen', 'true');
-                tutorialOverlay.style.animation = 'tutorialFadeIn 0.3s ease-out reverse';
-                setTimeout(() => {
-                    tutorialOverlay.remove();
-                    this.updateStatus('📦 Select a material to get started!', 'info', false);
-                }, 300);
-            });
-
-            // Add to DOM
-            this.container.appendChild(tutorialOverlay);
-        };
-
         // 🌍 Update biome indicator in status display
         this.updateBiomeIndicator = () => {
             const playerX = Math.floor(this.player.position.x);
@@ -6798,9 +6700,9 @@ class NebulaVoxelApp {
             this.showHotbarTutorial(); // Show hotbar and tutorial
             this.showToolButtons(); // Show tool menu buttons
 
-            // Show journal tutorial for first-time players
-            if (this.showJournalTutorial) {
-                this.showJournalTutorial();
+            // Show backpack tutorial for first-time players
+            if (this.tutorialSystem) {
+                this.tutorialSystem.onBackpackOpened();
             }
 
             // 🖼️ Create companion portrait after backpack found
@@ -11063,11 +10965,6 @@ class NebulaVoxelApp {
                     // Direct workbench access - player can always craft after finding backpack
                     this.workbenchSystem.open(0, 0, 0);
 
-                    // Show workbench tutorial on first use
-                    if (this.showWorkbenchTutorial) {
-                        this.showWorkbenchTutorial();
-                    }
-
                     e.preventDefault();
                 } else if (this.currentNearbyWorkbench) {
                     // Legacy: placed workbench nearby
@@ -11808,7 +11705,7 @@ class NebulaVoxelApp {
             transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.6);
             display: none;
-            z-index: 3000;
+            z-index: 50000;
             pointer-events: auto;
         `;
         // Get max render distance from benchmark
@@ -13768,12 +13665,8 @@ export async function initVoxelWorld(container, splashScreen = null) {
 
         console.log('✅ VoxelWorld initialization completed');
 
-        // 🎓 Trigger game start tutorial (if first time)
-        if (app.tutorialSystem) {
-            setTimeout(() => {
-                app.tutorialSystem.onGameStart();
-            }, 2000); // Wait 2 seconds after world loads
-        }
+        // Note: First-time tutorial is handled by App.js intro sequence with companion selection
+        // Returning players will get contextual tutorials as they play
 
         // Hide splash screen after everything is loaded
         if (splashScreen) {
