@@ -166,6 +166,25 @@ export class StructureGenerator {
             groundY: null  // Will be set when structure is actually generated
         };
 
+        // 🌳🏛️ COLLISION DETECTION: Check if a tree is too close to this ruin location
+        // Prevent ruins from spawning on top of trees (especially rare Douglas Firs!)
+        if (this.voxelWorld && this.voxelWorld.treePositions) {
+            const sizeData = this.SIZES[size];
+            const ruinRadius = Math.max(sizeData.width, sizeData.depth) / 2 + 10; // Ruin half-size + 10 block buffer
+
+            for (const tree of this.voxelWorld.treePositions) {
+                const dx = structureData.worldX - tree.x;
+                const dz = structureData.worldZ - tree.z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+
+                if (distance < ruinRadius) {
+                    console.log(`🚫 Ruin at (${structureData.worldX}, ${structureData.worldZ}) CANCELLED - ${tree.type} tree at (${tree.x}, ${tree.z}) is ${Math.floor(distance)} blocks away (min: ${Math.floor(ruinRadius)})`);
+                    this.structureCache.set(cacheKey, null); // Cache negative result
+                    return null; // Don't spawn this ruin
+                }
+            }
+        }
+
         // 🚀 Cache positive result
         this.structureCache.set(cacheKey, structureData);
 

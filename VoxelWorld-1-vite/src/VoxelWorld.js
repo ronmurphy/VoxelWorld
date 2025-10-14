@@ -8425,6 +8425,32 @@ class NebulaVoxelApp {
                 for (const tree of trees) {
                     const { x, y, z, treeType, biome, isAncient, isMega, isMegaFir, pumpkin } = tree;
 
+                    // 🏛️🌳 COLLISION DETECTION: Check if a ruin is too close to this tree location
+                    // Prevent trees from spawning on top of ruins (especially inside hollow ruins!)
+                    let tooCloseToRuin = false;
+                    const treeRadius = treeType === 'douglas_fir' ? 8 : 6; // Douglas Firs are bigger
+
+                    for (const ruin of this.ruinPositions) {
+                        const dx = x - ruin.x;
+                        const dz = z - ruin.z;
+                        const distance = Math.sqrt(dx * dx + dz * dz);
+
+                        // Get ruin size-based radius
+                        const ruinSizeRadii = { small: 5, medium: 9, large: 15, colossal: 25 };
+                        const ruinRadius = (ruinSizeRadii[ruin.size] || 5) / 2 + treeRadius;
+
+                        if (distance < ruinRadius) {
+                            console.log(`🚫 Tree at (${x}, ${z}) CANCELLED - ${ruin.size} ruin at (${ruin.x}, ${ruin.z}) is ${Math.floor(distance)} blocks away (min: ${Math.floor(ruinRadius)})`);
+                            tooCloseToRuin = true;
+                            break;
+                        }
+                    }
+
+                    // Skip this tree if it's too close to a ruin
+                    if (tooCloseToRuin) {
+                        continue;
+                    }
+
                     // Get biome object from name
                     const biomeObj = this.biomeWorldGen.getBiomeAt(x, z, this.worldSeed);
 
