@@ -941,7 +941,7 @@ export class BattleArena {
                         
                         // Make transparent
                         material.transparent = true;
-                        material.opacity = 0.15; // Very see-through
+                        material.opacity = 0.05; // Very see-through
                         material.needsUpdate = true;
                         
                         count++;

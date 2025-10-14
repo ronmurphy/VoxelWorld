@@ -9821,6 +9821,9 @@ class NebulaVoxelApp {
                 color = new THREE.Color(0xffffff);
                 ambientIntensity = 0.5;
                 skyColor = new THREE.Color(0x87ceeb); // Sky blue
+                
+                // Reset nightfall tutorial flag for next night
+                this.nightfallTutorialShownThisNight = false;
             } else if (this.dayNightCycle.currentTime >= 17 && this.dayNightCycle.currentTime < 19) {
                 // Dusk (5pm-7pm) - orange/red fading
                 intensity = 0.8 - ((this.dayNightCycle.currentTime - 17) / 2) * 0.6;
@@ -9842,7 +9845,10 @@ class NebulaVoxelApp {
 
                 // 🎓 Trigger nightfall tutorial once when night begins
                 if (this.tutorialSystem && this.dayNightCycle.currentTime >= 19 && this.dayNightCycle.currentTime < 19.5) {
-                    this.tutorialSystem.onNightfall();
+                    if (!this.nightfallTutorialShownThisNight) {
+                        this.tutorialSystem.onNightfall();
+                        this.nightfallTutorialShownThisNight = true;
+                    }
                 }
             }
 
