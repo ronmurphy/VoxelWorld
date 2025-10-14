@@ -1152,4 +1152,30 @@ export class EnhancedGraphics {
         if (time >= 19 && time < 21) return 'moon';
         return 'night';
     }
+
+    /**
+     * Load entity texture (for animals, etc.)
+     * @param {string} texturePath - Path relative to art/ (e.g., 'animals/rabbit_rest.png')
+     * @returns {THREE.Texture} Loaded texture
+     */
+    loadEntityTexture(texturePath) {
+        try {
+            // Create full path (texturePath already includes 'animals/' prefix)
+            const fullPath = `art/${texturePath}`;
+            
+            const loader = new THREE.TextureLoader();
+            const texture = loader.load(fullPath);
+            
+            // Configure for pixel art
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.LinearMipmapNearestFilter;
+            texture.generateMipmaps = true;
+            texture.anisotropy = 4;
+            
+            return texture;
+        } catch (error) {
+            console.error(`Failed to load entity texture: ${texturePath}`, error);
+            return null;
+        }
+    }
 }

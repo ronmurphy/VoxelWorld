@@ -315,9 +315,9 @@ export class ToolBenchSystem {
 
         console.log('🔧 Tool Bench opened');
 
-        // Trigger tutorial after UI is visible
+        // 🎓 Trigger tutorial after UI is visible
         if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
-            this.voxelWorld.tutorialSystem.showToolBenchTutorial();
+            this.voxelWorld.tutorialSystem.onToolBenchOpened();
         }
     }
 
@@ -1044,6 +1044,11 @@ export class ToolBenchSystem {
         // Add the number of charges as quantity (e.g., 10 grappling hooks = 10 charges)
         const quantity = blueprint.charges || 1;
         this.voxelWorld.addToInventory(itemId, quantity);
+
+        // 🎓 Trigger item crafted tutorial
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.onItemCrafted(itemId);
+        }
     }
 
     /**
@@ -1083,6 +1088,11 @@ export class ToolBenchSystem {
         } else {
             // Non-tools go to regular inventory
             this.voxelWorld.addToInventory(itemId, 1);
+        }
+
+        // 🎓 Trigger item crafted tutorial
+        if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.onItemCrafted(itemId);
         }
     }
 

@@ -162,6 +162,11 @@ export class GhostSystem {
 
         console.log(`👻 Ghost spawned at (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}) - ${spawnType} - ID: ${ghostId}`);
 
+        // Tutorial hook - first ghost spawn
+        if (this.voxelWorld.tutorialSystem) {
+            this.voxelWorld.tutorialSystem.onGhostSpawn();
+        }
+
         return ghostId;
     }
 

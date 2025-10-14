@@ -161,6 +161,32 @@ export class SpearSystem {
                 // Update spear position along curve
                 spearMesh.position.set(currentPos.x, currentPos.y, currentPos.z);
                 
+                // 🐰 Check for animal collision during flight
+                if (this.voxelWorld.animalSystem && progress > 0.1) {
+                    const spearPos = new THREE.Vector3(currentPos.x, currentPos.y, currentPos.z);
+                    const animals = this.voxelWorld.animalSystem.getAnimals();
+                    
+                    for (const animal of animals) {
+                        if (!animal.alive || animal.state === 'hunted') continue;
+                        
+                        const distance = spearPos.distanceTo(animal.position);
+                        if (distance < 1.5) { // Hit detection range
+                            // HIT!
+                            this.voxelWorld.animalSystem.hitAnimal(animal.billboard, 1);
+                            
+                            // Stop animation early, spear lands where animal was
+                            this.stickSpearInGround(spearMesh, {
+                                x: animal.position.x,
+                                y: animal.position.y,
+                                z: animal.position.z
+                            }, selectedItem);
+                            
+                            console.log(`🎯 Spear hit ${animal.type}!`);
+                            return true; // Stop animation callback
+                        }
+                    }
+                }
+                
                 // Make spear point in direction of travel (optional rotation)
                 if (progress > 0.01) {
                     const prevPos = spearMesh.userData.prevPos || startPos;

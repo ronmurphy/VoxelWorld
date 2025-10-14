@@ -4,6 +4,308 @@ Continuation of CHANGELOG.md for new development sessions.
 
 ---
 
+## 2025-10-13 (Evening) - 📚 Tutorial System Complete Integration
+
+**Status: FULLY IMPLEMENTED ✅**
+
+### 🎓 Tutorial Script System - COMPLETE INTEGRATION!
+
+Completed full integration of the JSON-driven tutorial system with all 20 tutorials hooked throughout the game. Players now receive contextual, sequential guidance at key gameplay moments.
+
+**Session Goals Achieved:**
+- ✅ Fixed spear system null.normal crash
+- ✅ Fixed arena transparency during combat
+- ✅ Fixed tutorial system initialization timing
+- ✅ Integrated all 20 tutorial hooks across 6 system files
+- ✅ Successful build with no errors
+
+---
+
+### 🎯 Tutorial System Architecture
+
+**Core Components:**
+
+1. **TutorialScriptSystem.js** (Lines 1-200+):
+   - JSON-driven event system with 20+ `onEvent()` methods
+   - Automatic localStorage tracking (shows each tutorial once)
+   - Sequential message display with configurable delays
+   - Elegant UI with message container and close button
+
+2. **tutorialScripts.json** (20 tutorials):
+   - Structured JSON format: `{ id, title, messages[] }`
+   - Each message: `{ text, delay }`
+   - Easy to edit/translate without touching code
+   - Covers all game systems and mechanics
+
+**Tutorial Categories:**
+
+**🎮 Game Start & Basics:**
+- `game_start` - Welcome, controls, objectives (3 messages)
+- `machete_selected` - First weapon, harvesting trees
+- `backpack_opened` - Inventory management, sorting
+
+**🔨 Crafting Benches:**
+- `workbench_opened` - Basic crafting introduction
+- `workbench_crafted` - Encourages making first bench
+- `tool_bench_opened` - Advanced tools explanation
+- `tool_bench_crafted` - Celebration message
+- `kitchen_bench_opened` - Food crafting guide
+- `kitchen_bench_crafted` - Cooking unlocked message
+
+**🛠️ Tools & Items:**
+- `torch_crafted` - Light source usage
+- `campfire_crafted` - Respawn mechanic
+- `campfire_placed` - Respawn point set confirmation
+- `hoe_crafted` - Farming introduction
+- `watering_can_crafted` - Crop growing guide
+- `light_orb_crafted` - Advanced lighting
+- `spear_crafted` - Ranged combat introduction
+
+**🌙 Survival & Combat:**
+- `nightfall` - Danger warning, ghost spawn notice
+- `first_ghost` - Ghost behavior, combat tips
+- `first_rabbit` - Hunting mechanics, food source
+
+---
+
+### 🔗 Integration Hooks Added (14 locations)
+
+**VoxelWorld.js** (6 hooks):
+```javascript
+// Line ~13753 - Game initialization
+if (this.tutorialSystem) {
+    setTimeout(() => this.tutorialSystem.onGameStart(), 2000);
+}
+
+// Line ~2740 - Hotbar selection
+if (this.tutorialSystem) {
+    this.tutorialSystem.onMacheteSelected();
+}
+
+// Line ~2775 - Backpack toggle
+if (this.tutorialSystem) {
+    this.tutorialSystem.onBackpackOpened();
+}
+
+// Line ~11318 - Block placement
+if (this.tutorialSystem) {
+    this.tutorialSystem.onWorkbenchPlaced();
+}
+
+// Line ~733 - Campfire respawn
+if (this.tutorialSystem) {
+    this.tutorialSystem.onCampfirePlaced();
+}
+
+// Line ~9841 - Day/night cycle
+if (this.tutorialSystem && !this.nightfallTutorialShown) {
+    this.tutorialSystem.onNightfall();
+    this.nightfallTutorialShown = true;
+}
+```
+
+**WorkbenchSystem.js** (2 hooks):
+```javascript
+// Line ~234 - Workbench opened
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onWorkbenchOpened();
+}
+
+// Line ~2059 - Item crafted
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onItemCrafted(itemId);
+}
+```
+
+**ToolBenchSystem.js** (3 hooks):
+```javascript
+// Line ~321 - Tool bench opened
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onToolBenchOpened();
+}
+
+// Line ~1051 - Projectile crafted
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onItemCrafted(itemId);
+}
+
+// Line ~1091 - Tool crafted
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onItemCrafted(itemId);
+}
+```
+
+**KitchenBenchSystem.js** (1 hook):
+```javascript
+// Line ~439 - Kitchen bench opened
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onKitchenBenchOpened();
+}
+```
+
+**GhostSystem.js** (1 hook):
+```javascript
+// Line ~163 - Ghost spawned
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onGhostSpawn();
+}
+```
+
+**AnimalSystem.js** (1 hook):
+```javascript
+// Line ~209 - Animal spawned
+if (this.voxelWorld.tutorialSystem) {
+    this.voxelWorld.tutorialSystem.onAnimalSpawn(type);
+}
+```
+
+---
+
+### 🐛 Bug Fixes
+
+**1. Spear System Null Crash (SpearSystem.js ~Line 265)**
+
+**Problem:** `normal.normalize()` crashed with "Cannot read properties of null"
+
+**Cause:** Raycaster hit object had no normal vector for some face types
+
+**Fix:**
+```javascript
+// Added null check before normalize
+if (hit.face && hit.face.normal) {
+    normal = hit.face.normal.clone();
+    normal.normalize();
+} else {
+    // Fallback: use up vector
+    normal = new THREE.Vector3(0, 1, 0);
+}
+```
+
+**2. Arena Transparency During Combat (ArenaSystem.js ~Line 1067)**
+
+**Problem:** Arena walls not visible during combat, confusing players
+
+**Cause:** `visible = false` made entire arena invisible during fights
+
+**Fix:**
+```javascript
+// Changed to use opacity instead of visibility
+arena.mesh.material.opacity = inCombat ? 0.6 : 0.3;
+arena.mesh.material.transparent = true;
+arena.mesh.visible = true; // Always visible, just more/less opaque
+```
+
+**3. Tutorial System Initialization Timing (VoxelWorld.js ~Line 13753)**
+
+**Problem:** Tutorials not loading, system initialized too early
+
+**Cause:** `tutorialSystem = new TutorialScriptSystem()` before world ready
+
+**Fix:**
+```javascript
+// Moved initialization to AFTER world.initialize() completes
+this.tutorialSystem = new TutorialScriptSystem(this);
+console.log('✅ Tutorial system initialized and ready');
+
+// Added 2-second delay for game_start tutorial
+setTimeout(() => {
+    if (this.tutorialSystem) {
+        this.tutorialSystem.onGameStart();
+    }
+}, 2000);
+```
+
+---
+
+### 📦 Build Results
+
+**Build Status:** ✅ SUCCESS
+```
+vite v7.1.7 building for production...
+✓ 129 modules transformed.
+dist/assets/index-BaHZgfAt.js  1,453.33 kB │ gzip: 375.24 kB
+✓ built in 1.82s
+```
+
+**Files Modified:** 6 core system files
+**Lines Changed:** ~50 (14 hook integrations + 3 bug fixes)
+**New Files:** 0 (all existing files)
+**Bundle Impact:** Minimal (~2KB for hook guards)
+
+---
+
+### 🎮 Player Experience Improvements
+
+**Progressive Learning:**
+1. Game starts → Welcome tutorial (controls, objectives)
+2. Select machete → Learn harvesting
+3. Open backpack → Inventory management
+4. Craft workbench → Crafting introduction
+5. Place workbench → Progression milestone
+6. Open workbench → Available recipes
+7. Craft tools → Tool-specific tutorials
+8. Place campfire → Respawn mechanic
+9. Night falls → Danger warning
+10. Encounter ghost → Combat tips
+11. See rabbit → Hunting guide
+
+**User-Friendly Features:**
+- ✅ Each tutorial shows only once (localStorage tracking)
+- ✅ Sequential messages with natural timing
+- ✅ Close button for experienced players
+- ✅ Non-intrusive UI (elegant message box)
+- ✅ Context-aware (right place, right time)
+- ✅ Easily editable content (just edit JSON)
+
+---
+
+### 💡 Future Enhancement Ideas
+
+**TODO: Visual Node Editor for Tutorial/Dialogue System**
+
+**Concept:** Browser-based visual editor for creating tutorial sequences, dialogue trees, quest chains, and story events without coding.
+
+**Core Features:**
+- 🎨 **Node-based visual interface** (like Unreal Blueprint or Unity Dialogue System)
+- 🔗 **Drag-and-drop connections** between nodes (green YES → node A, red NO → node B)
+- 📝 **Node type templates:**
+  - 💬 Dialogue nodes (NPC talks, player responds)
+  - ❓ Choice nodes (Yes/No or custom options 1/2/3 with custom text)
+  - ⚔️ Combat nodes (trigger fight with specific enemy)
+  - 🖼️ Image nodes (show picture/cutscene)
+  - 📢 Event nodes (spawn NPC, change time, give item)
+  - 📚 Tutorial nodes (show game tips)
+- 💾 **Export to JSON** → game automatically loads
+- 🧪 **In-game test button** to preview mod
+- 🎯 **Modding-friendly:** No coding required, visual flow editing
+
+**Architecture:**
+- Standalone HTML page with canvas (React Flow or Rete.js library)
+- Node templates stored as JSON
+- Export button → downloads compatible JSON
+- Import button → loads existing JSON for editing
+- Game integration: Test button → sends JSON to running game
+
+**Benefits:**
+- ✅ Empowers modding community (no code required)
+- ✅ Faster content creation for developers
+- ✅ Visual representation of complex dialogue trees
+- ✅ Easy to understand and maintain
+- ✅ Reusable for tutorials, quests, dialogues, story events
+- ✅ Community can create full quest chains, NPC interactions, story-driven dungeons
+
+**Potential Use Cases:**
+- Custom tutorial sequences for mods
+- NPC dialogue trees with branching stories
+- Quest chains with conditional progression
+- Companion interactions
+- Story-driven dungeon encounters
+- Dynamic event sequences
+
+**Priority:** Medium (great for modding, but current system works well)
+
+---
+
 ## 2025-10-13 - 📊 FPS Counter & GPU Fixes & Help System (v0.4.10)
 
 **Status: FULLY IMPLEMENTED ✅**

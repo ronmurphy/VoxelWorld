@@ -228,9 +228,9 @@ export class WorkbenchSystem {
         // Start animation loop
         this.animate();
 
-        // Trigger tutorial after UI is visible
+        // 🎓 Trigger tutorial after UI is visible
         if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
-            this.voxelWorld.tutorialSystem.showWorkbenchTutorial();
+            this.voxelWorld.tutorialSystem.onWorkbenchOpened();
         }
 
         // Update status
@@ -2052,6 +2052,11 @@ export class WorkbenchSystem {
             // Add crafted item(s) to inventory
             const quantity = this.currentPlan.quantity || 1;
             this.voxelWorld.addToInventory(this.currentPlan.itemId, quantity);
+
+            // 🎓 Trigger item crafted tutorial
+            if (this.voxelWorld && this.voxelWorld.tutorialSystem) {
+                this.voxelWorld.tutorialSystem.onItemCrafted(this.currentPlan.itemId);
+            }
 
             // Update UI
             this.voxelWorld.updateHotbarCounts();

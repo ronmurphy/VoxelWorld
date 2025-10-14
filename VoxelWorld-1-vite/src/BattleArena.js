@@ -63,6 +63,9 @@ export class BattleArena {
         this.targetingRaycaster = new THREE.Raycaster();
         this.targetingEnabled = false;
 
+        // 👻 Arena transparency (blocks in arena become see-through during battle)
+        this.transparentBlocks = []; // Store original materials/opacity
+
         console.log('⚔️ BattleArena initialized');
     }
 
@@ -144,6 +147,9 @@ export class BattleArena {
         // Create arena walls (outer, gold) and danger zone walls (inner, red)
         this.createArenaWalls();
         this.createDangerZoneWalls();
+
+        // 👻 Make arena blocks transparent for better visibility
+        this.makeArenaBlocksTransparent();
 
         // Initialize player HP system (show hearts HUD)
         if (!this.voxelWorld.playerHP) {
@@ -798,6 +804,9 @@ export class BattleArena {
             this.arenaFloor = null;
         }
 
+        // 👻 Restore arena blocks to normal opacity
+        this.restoreArenaBlocksOpacity();
+
         // Re-enable player controls (unrestricted)
         setTimeout(() => {
             // Clear any buffered input before re-enabling controls
@@ -895,5 +904,71 @@ export class BattleArena {
      */
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * 👻 Make all blocks in arena transparent for better combat visibility
+     */
+    makeArenaBlocksTransparent() {
+        console.log('👻 Making arena blocks transparent...');
+        
+        const halfArena = this.arenaSize / 2;
+        const minX = Math.floor(this.arenaCenter.x - halfArena);
+        const maxX = Math.ceil(this.arenaCenter.x + halfArena);
+        const minZ = Math.floor(this.arenaCenter.z - halfArena);
+        const maxZ = Math.ceil(this.arenaCenter.z + halfArena);
+        const minY = Math.floor(this.arenaCenter.y - 2);
+        const maxY = Math.ceil(this.arenaCenter.y + 10); // Check up to 10 blocks high
+
+        let count = 0;
+
+        // Scan arena volume for blocks
+        for (let x = minX; x <= maxX; x++) {
+            for (let z = minZ; z <= maxZ; z++) {
+                for (let y = minY; y <= maxY; y++) {
+                    const key = `${x},${y},${z}`;
+                    const block = this.voxelWorld.world[key];
+                    
+                    if (block && block.mesh && block.mesh.material) {
+                        const material = block.mesh.material;
+                        
+                        // Store original opacity and transparency state
+                        this.transparentBlocks.push({
+                            mesh: block.mesh,
+                            originalOpacity: material.opacity !== undefined ? material.opacity : 1.0,
+                            originalTransparent: material.transparent || false
+                        });
+                        
+                        // Make transparent
+                        material.transparent = true;
+                        material.opacity = 0.15; // Very see-through
+                        material.needsUpdate = true;
+                        
+                        count++;
+                    }
+                }
+            }
+        }
+
+        console.log(`👻 Made ${count} blocks transparent in arena`);
+    }
+
+    /**
+     * 👻 Restore all arena blocks to original opacity after battle
+     */
+    restoreArenaBlocksOpacity() {
+        console.log('👻 Restoring arena blocks to normal...');
+        
+        for (const blockData of this.transparentBlocks) {
+            if (blockData.mesh && blockData.mesh.material) {
+                const material = blockData.mesh.material;
+                material.transparent = blockData.originalTransparent;
+                material.opacity = blockData.originalOpacity;
+                material.needsUpdate = true;
+            }
+        }
+
+        console.log(`👻 Restored ${this.transparentBlocks.length} blocks to normal opacity`);
+        this.transparentBlocks = []; // Clear array
     }
 }

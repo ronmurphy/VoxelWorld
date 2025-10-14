@@ -25,6 +25,7 @@ import { BattleArena } from './BattleArena.js';
 import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
+import { TutorialScriptSystem } from './ui/TutorialScriptSystem.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import ChristmasSystem from './ChristmasSystem.js';
@@ -32,6 +33,7 @@ import { FarmingSystem } from './FarmingSystem.js';
 import { MusicSystem } from './MusicSystem.js';
 import { marked } from 'marked';
 import { SaveSystem } from './SaveSystem.js';
+import { AnimalSystem } from './AnimalSystem.js';
 
 // 🚀 Enable BVH acceleration for all BufferGeometry raycasting
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -232,6 +234,10 @@ class NebulaVoxelApp {
             console.log(`💾 Save files location: ${userDataPath}/saves/`);
         }
 
+        // 🐰 Initialize Animal System
+        this.animalSystem = new AnimalSystem(this);
+        console.log('🐰 Animal System initialized');
+
         // Initialize Day/Night music system (async, will complete in background)
         this.musicSystemReady = false;
         if (this.musicSystem.autoplayEnabled) {
@@ -296,7 +302,11 @@ class NebulaVoxelApp {
         // 🖼️ Initialize Companion Portrait HUD
         this.companionPortrait = new CompanionPortrait(this);
 
-        // 🎨 Initialize Enhanced Graphics System
+        // � Initialize Companion Tutorial System
+        this.tutorialSystem = new TutorialScriptSystem(this);
+        console.log('🎓 CompanionTutorialSystem initialized');
+
+        // �🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
 
         // ✨ Initialize Animation System
@@ -723,6 +733,11 @@ class NebulaVoxelApp {
                 };
                 this.saveRespawnPoint();
                 console.log(`🔥 Respawn point set at campfire (${Math.floor(x)}, ${Math.floor(y)}, ${Math.floor(z)})`);
+
+                // 🎓 Trigger campfire tutorial
+                if (this.tutorialSystem) {
+                    this.tutorialSystem.onCampfirePlaced();
+                }
 
                 // Update bottom-left status area
                 const statusIcon = document.getElementById('status-icon');
@@ -2728,7 +2743,7 @@ class NebulaVoxelApp {
             const selectedItem = this.hotbarSystem.getSelectedSlot();
             if (selectedItem && selectedItem.itemType === 'machete') {
                 if (this.tutorialSystem) {
-                    this.tutorialSystem.showMacheteTutorial();
+                    this.tutorialSystem.onMacheteSelected();
                 }
             }
         };
@@ -2763,6 +2778,11 @@ class NebulaVoxelApp {
                 this.backpackSystem.backpackInventoryElement.style.transform = 'translateX(-50%) translateY(0px)';
                 this.updateBackpackInventoryDisplay();
                 this.updateStatus('Backpack opened - 20 slots (4x5 grid) • 50 per stack');
+
+                // 🎓 Trigger backpack tutorial (first time)
+                if (this.tutorialSystem) {
+                    this.tutorialSystem.onBackpackOpened();
+                }
 
                 // Exit pointer lock to allow cursor interaction
                 if (document.pointerLockElement) {
@@ -9820,9 +9840,9 @@ class NebulaVoxelApp {
                 ambientIntensity = 0.05;
                 skyColor = new THREE.Color(0x0a0a0f); // Very dark blue/black
 
-                // Trigger nightfall tutorial once when night begins
+                // 🎓 Trigger nightfall tutorial once when night begins
                 if (this.tutorialSystem && this.dayNightCycle.currentTime >= 19 && this.dayNightCycle.currentTime < 19.5) {
-                    this.tutorialSystem.showNightfallTutorial();
+                    this.tutorialSystem.onNightfall();
                 }
             }
 
@@ -10514,6 +10534,11 @@ class NebulaVoxelApp {
                 this.companionHuntSystem.update(this.gameTime);
             }
             
+            // 🐰 Update animal system (AI, movement, animations)
+            if (this.animalSystem) {
+                this.animalSystem.update(deltaTime);
+            }
+            
             // Get speed multiplier from stamina system
             const staminaSpeedMultiplier = this.staminaSystem.getSpeedMultiplier();
             const speed = baseSpeed * staminaSpeedMultiplier;
@@ -11160,6 +11185,22 @@ class NebulaVoxelApp {
                 // Get position from regular mesh
                 const pos = hit.object.position.clone();
 
+                // 🐰 Check if clicked object is a hunted animal
+                if (hit.object.userData && hit.object.userData.isAnimal) {
+                    const animal = hit.object.userData.animalInstance;
+                    if (animal && animal.state === 'hunted') {
+                        const loot = this.animalSystem.harvestAnimal(hit.object);
+                        // Add loot to inventory
+                        loot.forEach(item => {
+                            this.inventory.addToInventory(item, 1);
+                        });
+                        return; // Don't do other click actions
+                    } else if (animal) {
+                        this.updateStatus(`⚠️ You can't harvest a living ${animal.config.name}!`, 'error');
+                        return;
+                    }
+                }
+
                 // Check if clicked object is a world item billboard
                 if (hit.object.userData.type === 'worldItem') {
                     // Harvest world item directly
@@ -11272,6 +11313,11 @@ class NebulaVoxelApp {
                         } else {
                             // Place regular 1x1x1 block
                             this.addBlock(placePos.x, placePos.y, placePos.z, selectedBlock, true);
+
+                            // 🎓 Trigger workbench placement tutorial
+                            if (selectedBlock === 'workbench' && this.tutorialSystem) {
+                                this.tutorialSystem.onWorkbenchPlaced();
+                            }
                         }
                         selectedSlot.quantity--;
 
@@ -11308,8 +11354,17 @@ class NebulaVoxelApp {
                 if (intersects.length > 0) {
                     const hit = intersects[0];
                     const pos = hit.object.position.clone();
-                    const normal = hit.face.normal;
-                    const placePos = pos.clone().add(normal);
+                    
+                    // Handle sprites/billboards (animals) which don't have face.normal
+                    let placePos;
+                    if (hit.face && hit.face.normal) {
+                        // Block hit - use normal
+                        const normal = hit.face.normal;
+                        placePos = pos.clone().add(normal);
+                    } else {
+                        // Animal/sprite hit - use hit point directly
+                        placePos = hit.point ? hit.point.clone() : pos;
+                    }
                     
                     const targetPos = {
                         x: Math.floor(placePos.x),
@@ -13272,6 +13327,30 @@ class NebulaVoxelApp {
         this.updateFog();
     }
 
+    // 🐰 ANIMAL SYSTEM - Helper methods
+    getTimeOfDay() {
+        if (!this.gameTime) return 'day';
+        
+        const hour = Math.floor(this.gameTime / 3600) % 24;
+        
+        if (hour >= 5 && hour < 7) return 'dawn';
+        if (hour >= 7 && hour < 17) return 'day';
+        if (hour >= 17 && hour < 19) return 'dusk';
+        if (hour >= 19 || hour < 5) return 'night';
+        return 'day';
+    }
+
+    getGroundHeight(x, z) {
+        // Check for highest block at x,z
+        for (let y = 128; y >= 0; y--) {
+            const key = `${Math.floor(x)},${y},${Math.floor(z)}`;
+            if (this.world[key]) {
+                return y + 1; // Spawn one block above
+            }
+        }
+        return 1; // Default ground level
+    }
+
     getLODStats() {
         if (!this.lodManager) {
             console.warn('❌ LOD Manager not initialized');
@@ -13682,6 +13761,13 @@ export async function initVoxelWorld(container, splashScreen = null) {
         console.log('🔄 All block textures refreshed after Enhanced Graphics initialization');
 
         console.log('✅ VoxelWorld initialization completed');
+
+        // 🎓 Trigger game start tutorial (if first time)
+        if (app.tutorialSystem) {
+            setTimeout(() => {
+                app.tutorialSystem.onGameStart();
+            }, 2000); // Wait 2 seconds after world loads
+        }
 
         // Hide splash screen after everything is loaded
         if (splashScreen) {
