@@ -59,7 +59,8 @@ window.addEventListener('DOMContentLoaded', () => {
     console.log('✅ VoxelWorld initialized successfully');
     // Expose app to window for debugging
     window['voxelApp'] = app;
-    console.log('🐛 voxelApp exposed to window for debugging');
+    window['voxelWorld'] = app; // Also expose as voxelWorld for electron menu
+    console.log('🐛 voxelApp and voxelWorld exposed to window for debugging');
 
     // Initialize tutorial system
     const tutorialSystem = new CompanionTutorialSystem();

@@ -2,6 +2,21 @@ const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
+// 🎮 Force high-performance GPU (dGPU) for better performance
+// This helps on laptops with both integrated and dedicated GPUs
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
+// 🔧 Additional GPU-related flags for better performance
+app.commandLine.appendSwitch('disable-gpu-vsync'); // Disable V-Sync for uncapped FPS
+app.commandLine.appendSwitch('ignore-gpu-blacklist'); // Ignore GPU blacklist
+app.commandLine.appendSwitch('enable-gpu-rasterization'); // Use GPU for rasterization
+
+console.log('🎮 Electron GPU flags enabled:');
+console.log('   - force_high_performance_gpu: true');
+console.log('   - disable-gpu-vsync: true');
+console.log('   - ignore-gpu-blacklist: true');
+console.log('   - enable-gpu-rasterization: true');
+
 function createWindow() {
   // Use app.getAppPath() to work with asar packaging
   const preloadPath = path.join(app.getAppPath(), 'electron-preload.cjs');
@@ -56,6 +71,19 @@ function createWindow() {
           accelerator: 'F11',
           click: () => {
             mainWindow.setFullScreen(!mainWindow.isFullScreen());
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'FPS Counter',
+          type: 'checkbox',
+          checked: false,
+          click: (menuItem) => {
+            mainWindow.webContents.executeJavaScript(`
+              if (window.voxelWorld && window.voxelWorld.toggleFPS) {
+                window.voxelWorld.toggleFPS();
+              }
+            `);
           }
         },
         { type: 'separator' },

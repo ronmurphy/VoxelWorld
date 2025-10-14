@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import Stats from 'stats.js';
 import { WorkbenchSystem } from './WorkbenchSystem.js';
 import { ToolBenchSystem } from './ToolBenchSystem.js';
 import { KitchenBenchSystem } from './KitchenBenchSystem.js';
@@ -28,6 +30,12 @@ import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import ChristmasSystem from './ChristmasSystem.js';
 import { FarmingSystem } from './FarmingSystem.js';
 import { MusicSystem } from './MusicSystem.js';
+import { marked } from 'marked';
+
+// 🚀 Enable BVH acceleration for all BufferGeometry raycasting
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 import { farmingBlockTypes } from './FarmingBlockTypes.js';
 import { CraftedTools } from './CraftedTools.js';
 import { SpearSystem } from './SpearSystem.js';
@@ -39,6 +47,17 @@ class NebulaVoxelApp {
         // Initialize resource pool FIRST for geometry/material pooling
         this.resourcePool = new BlockResourcePool();
         console.log('🎮 Phase 1: Object Pooling enabled');
+
+        // 📊 Initialize FPS counter (hidden by default)
+        this.stats = new Stats();
+        this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb
+        this.stats.dom.style.position = 'absolute';
+        this.stats.dom.style.top = '0px';
+        this.stats.dom.style.left = '0px';
+        this.stats.dom.style.display = 'none'; // Hidden by default
+        this.statsEnabled = false;
+        document.body.appendChild(this.stats.dom);
+        console.log('📊 FPS counter initialized (toggle with View > FPS menu)');
 
         // Initialize properties
         this.world = {};
@@ -419,6 +438,12 @@ class NebulaVoxelApp {
             const cube = new THREE.Mesh(geo, mat);
             cube.position.set(x, y, z);
             cube.userData = { type, playerPlaced };
+            
+            // 🚀 BVH: Build acceleration structure for this mesh
+            if (cube.geometry && !cube.geometry.boundsTree) {
+                cube.geometry.computeBoundsTree();
+            }
+            
             this.scene.add(cube);
 
             // Create billboard sprite for special items
@@ -3587,6 +3612,14 @@ class NebulaVoxelApp {
                 }
             }, 300);
             console.log('🗺️ World map closed');
+        };
+
+        // 📊 Toggle FPS counter visibility
+        this.toggleFPS = () => {
+            this.statsEnabled = !this.statsEnabled;
+            this.stats.dom.style.display = this.statsEnabled ? 'block' : 'none';
+            console.log(`📊 FPS Counter: ${this.statsEnabled ? 'ON' : 'OFF'}`);
+            return this.statsEnabled;
         };
 
         // 🧭 Open compass target selector modal
@@ -8058,9 +8091,58 @@ class NebulaVoxelApp {
 
             // Store detected GPU info for display in menu
             this.detectedGPU = { vendor, renderer, preference: gpuPreference };
-            console.log('🎮 GPU INFO:', this.detectedGPU);
+            
+            // 🔍 Enhanced GPU detection logging
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🎮 GPU DETECTION REPORT:');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(`📝 Requested Preference: "${gpuPreference}"`);
+            console.log(`🏭 GPU Vendor: ${vendor}`);
+            console.log(`🎨 GPU Renderer: ${renderer}`);
+            console.log('');
+            
+            // Detect if iGPU or dGPU based on renderer string
+            const isIntegrated = renderer.toLowerCase().includes('intel') || 
+                                 renderer.toLowerCase().includes('integrated') ||
+                                 renderer.toLowerCase().includes('uhd') ||
+                                 renderer.toLowerCase().includes('iris');
+            const isDedicated = renderer.toLowerCase().includes('nvidia') || 
+                               renderer.toLowerCase().includes('geforce') ||
+                               renderer.toLowerCase().includes('rtx') ||
+                               renderer.toLowerCase().includes('gtx') ||
+                               renderer.toLowerCase().includes('radeon') ||
+                               renderer.toLowerCase().includes('amd');
+            
+            if (isDedicated) {
+                console.log('✅ DETECTED: Dedicated GPU (dGPU)');
+                if (gpuPreference === 'high-performance') {
+                    console.log('✅ STATUS: dGPU requested and dGPU detected - MATCH! 🎯');
+                } else {
+                    console.log('⚠️  WARNING: dGPU detected but preference is "' + gpuPreference + '"');
+                    console.log('   💡 TIP: Change GPU Mode to "High Performance" for better performance');
+                }
+            } else if (isIntegrated) {
+                console.log('🔋 DETECTED: Integrated GPU (iGPU)');
+                if (gpuPreference === 'low-power') {
+                    console.log('✅ STATUS: iGPU requested and iGPU detected - MATCH! 🎯');
+                } else if (gpuPreference === 'high-performance') {
+                    console.log('⚠️  WARNING: Requested dGPU but iGPU detected!');
+                    console.log('   ❌ ISSUE: Browser/OS may be ignoring powerPreference hint');
+                    console.log('   💡 FIX: Check Windows Graphics Settings or Electron GPU flags');
+                }
+            } else {
+                console.log('❓ UNKNOWN: Could not determine GPU type from renderer string');
+            }
+            
+            console.log('');
+            console.log('🔧 TROUBLESHOOTING:');
+            console.log('   1. Windows: Settings > System > Display > Graphics Settings');
+            console.log('   2. Add electron.exe and set to "High Performance"');
+            console.log('   3. Or launch with: --force_high_performance_gpu flag');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         } else {
             this.detectedGPU = { vendor: 'Unknown', renderer: 'Unknown', preference: gpuPreference };
+            console.warn('⚠️ WEBGL_debug_renderer_info extension not available - cannot detect GPU');
         }
 
         this.raycaster = new THREE.Raycaster();
@@ -10176,6 +10258,11 @@ class NebulaVoxelApp {
         const animate = (currentTime = 0) => {
             this.animationId = requestAnimationFrame(animate);
             
+            // 📊 FPS Counter: Begin measurement
+            if (this.statsEnabled) {
+                this.stats.begin();
+            }
+            
             // Calculate delta time for FPS-independent movement
             const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/30); // Cap at 30 FPS minimum
             lastTime = currentTime;
@@ -10717,6 +10804,11 @@ class NebulaVoxelApp {
             });
 
             this.renderer.render(this.scene, this.camera);
+            
+            // 📊 FPS Counter: End measurement
+            if (this.statsEnabled) {
+                this.stats.end();
+            }
         };
         animate();
 
@@ -11769,6 +11861,7 @@ class NebulaVoxelApp {
                         padding: 12px 16px;
                         background: rgba(80, 54, 27, 0.6);
                         border: none;
+                        border-right: 1px solid #654321;
                         color: #F5E6D3;
                         font-size: 14px;
                         font-family: 'Georgia', serif;
@@ -11776,6 +11869,18 @@ class NebulaVoxelApp {
                         transition: all 0.2s;
                         text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
                     ">🎵 Music</button>
+                    <button class="menu-tab" data-tab="help" style="
+                        flex: 1;
+                        padding: 12px 16px;
+                        background: rgba(80, 54, 27, 0.6);
+                        border: none;
+                        color: #F5E6D3;
+                        font-size: 14px;
+                        font-family: 'Georgia', serif;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+                    ">📚 Help</button>
                 </div>
 
                 <!-- Tab Content Container -->
@@ -12114,6 +12219,82 @@ class NebulaVoxelApp {
                             🎼 Music composed by Jason Heaberlin
                         </div>
                     </div>
+
+                    <!-- HELP TAB -->
+                    <div class="tab-content" data-tab="help" style="display: none;">
+                        <div style="color: #F5E6D3; font-size: 18px; margin-bottom: 16px; text-align: center; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">Help & Documentation</div>
+
+                        <!-- Help Topic Buttons -->
+                        <div style="
+                            display: flex;
+                            gap: 12px;
+                            margin-bottom: 20px;
+                        ">
+                            <button class="help-topic-btn" data-topic="quick-start" style="
+                                flex: 1;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #5a8a9a, #4a7a8a);
+                                color: #F5E6D3;
+                                border: 2px solid #3d6d7a;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">🚀 Quick Start</button>
+                            <button class="help-topic-btn" data-topic="gpu-setup" style="
+                                flex: 1;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #7a5a9a, #6a4a8a);
+                                color: #F5E6D3;
+                                border: 2px solid #5d3d7a;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">🎮 GPU Setup</button>
+                            <button class="help-topic-btn" data-topic="command-line" style="
+                                flex: 1;
+                                padding: 12px 16px;
+                                background: linear-gradient(180deg, #9a5a4a, #8a4a3a);
+                                color: #F5E6D3;
+                                border: 2px solid #7d3d2d;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-size: 13px;
+                                font-family: 'Georgia', serif;
+                                font-weight: bold;
+                                text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+                                transition: all 0.2s;
+                            ">💻 Command Line</button>
+                        </div>
+
+                        <!-- Help Content Area -->
+                        <div id="help-content-area" style="
+                            background: rgba(0, 0, 0, 0.3);
+                            border: 1px solid #654321;
+                            border-radius: 6px;
+                            padding: 20px;
+                            min-height: 300px;
+                            max-height: 400px;
+                            overflow-y: auto;
+                            color: #F5E6D3;
+                            font-size: 13px;
+                            line-height: 1.6;
+                        ">
+                            <div style="text-align: center; color: #FFE4B5; font-style: italic; padding: 40px 20px;">
+                                Select a topic above to view help documentation
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Footer -->
@@ -12238,6 +12419,25 @@ class NebulaVoxelApp {
                 transform: translateY(-2px);
                 box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important;
                 filter: brightness(1.1);
+            }
+            .help-topic-btn:hover {
+                transform: translateY(-2px) scale(1.02);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important;
+                filter: brightness(1.15);
+            }
+            #help-content-area::-webkit-scrollbar {
+                width: 8px;
+            }
+            #help-content-area::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 4px;
+            }
+            #help-content-area::-webkit-scrollbar-thumb {
+                background: rgba(101, 67, 33, 0.8);
+                border-radius: 4px;
+            }
+            #help-content-area::-webkit-scrollbar-thumb:hover {
+                background: rgba(139, 90, 43, 0.9);
             }
         `;
         document.head.appendChild(menuStyle);
@@ -12371,16 +12571,16 @@ class NebulaVoxelApp {
             // Save preference
             localStorage.setItem('voxelWorld_gpuPreference', next);
 
-            // Update button text
-            modalGPUBtn.textContent = getGPUPreferenceLabel();
+            // Show message about automatic reload
+            this.updateStatus('🎮 GPU preference changed! Reloading game...', 'info', false);
 
-            // Show message that reload is required
-            this.updateStatus('🎮 GPU preference saved! Reload page (F5) to apply changes.', 'info', false);
+            console.log(`🎮 GPU preference changed from ${current} to ${next}, reloading...`);
 
-            // Add visual indicator that reload is needed
-            modalGPUBtn.style.border = '2px solid #FFC107';
-
-            console.log(`🎮 GPU preference changed to: ${next}`);
+            // 🔄 AUTOMATIC RELOAD: GPU can only be changed by recreating the WebGL context
+            // This requires a full page reload since powerPreference is set at renderer creation
+            setTimeout(() => {
+                location.reload();
+            }, 1000); // 1 second delay to show the message
         };
 
         const toggleEnhancedGraphics = async () => {
@@ -12501,6 +12701,128 @@ class NebulaVoxelApp {
         if (modalEnhancedGraphicsBtn) modalEnhancedGraphicsBtn.onclick = toggleEnhancedGraphics;
         if (modalGPUBtn) modalGPUBtn.onclick = cycleGPUPreference;
         if (modalCloseBtn) modalCloseBtn.onclick = () => modal.style.display = 'none';
+
+        // 📚 Help system - Load markdown files
+        const helpContentArea = modal.querySelector('#help-content-area');
+        const helpTopicButtons = modal.querySelectorAll('.help-topic-btn');
+
+        const loadHelpTopic = async (topic) => {
+            try {
+                helpContentArea.innerHTML = '<div style="text-align: center; padding: 40px;"><div style="font-size: 16px;">⏳ Loading...</div></div>';
+                
+                let markdown = '';
+                
+                // Try to load via electronAPI first (for Electron), then fetch (for web)
+                if (window.electronAPI && window.electronAPI.readFile) {
+                    try {
+                        markdown = await window.electronAPI.readFile(`assets/help/${topic}.md`);
+                    } catch (e) {
+                        console.log('Electron read failed, trying fetch:', e);
+                        const response = await fetch(`/assets/help/${topic}.md`);
+                        markdown = await response.text();
+                    }
+                } else {
+                    const response = await fetch(`/assets/help/${topic}.md`);
+                    markdown = await response.text();
+                }
+                
+                // Convert markdown to HTML using marked
+                const html = marked.parse(markdown);
+                helpContentArea.innerHTML = html;
+                
+                // Style the markdown output
+                helpContentArea.style.fontSize = '13px';
+                helpContentArea.style.lineHeight = '1.6';
+                
+                // Style headings
+                helpContentArea.querySelectorAll('h1').forEach(h => {
+                    h.style.color = '#FFD700';
+                    h.style.fontSize = '20px';
+                    h.style.marginTop = '0';
+                    h.style.marginBottom = '16px';
+                    h.style.borderBottom = '2px solid #654321';
+                    h.style.paddingBottom = '8px';
+                });
+                
+                helpContentArea.querySelectorAll('h2').forEach(h => {
+                    h.style.color = '#F5E6D3';
+                    h.style.fontSize = '16px';
+                    h.style.marginTop = '20px';
+                    h.style.marginBottom = '12px';
+                });
+                
+                helpContentArea.querySelectorAll('h3').forEach(h => {
+                    h.style.color = '#FFE4B5';
+                    h.style.fontSize = '14px';
+                    h.style.marginTop = '16px';
+                    h.style.marginBottom = '8px';
+                });
+                
+                // Style code blocks
+                helpContentArea.querySelectorAll('code').forEach(code => {
+                    code.style.background = 'rgba(0, 0, 0, 0.4)';
+                    code.style.padding = '2px 6px';
+                    code.style.borderRadius = '3px';
+                    code.style.color = '#4CAF50';
+                    code.style.fontSize = '12px';
+                    code.style.fontFamily = 'monospace';
+                });
+                
+                helpContentArea.querySelectorAll('pre code').forEach(code => {
+                    code.style.display = 'block';
+                    code.style.padding = '12px';
+                    code.style.marginTop = '8px';
+                    code.style.marginBottom = '8px';
+                    code.style.overflowX = 'auto';
+                });
+                
+                // Style lists
+                helpContentArea.querySelectorAll('ul, ol').forEach(list => {
+                    list.style.marginLeft = '20px';
+                    list.style.marginBottom = '12px';
+                });
+                
+                helpContentArea.querySelectorAll('li').forEach(li => {
+                    li.style.marginBottom = '6px';
+                });
+                
+                // Style horizontal rules
+                helpContentArea.querySelectorAll('hr').forEach(hr => {
+                    hr.style.border = 'none';
+                    hr.style.borderTop = '1px solid #654321';
+                    hr.style.margin = '20px 0';
+                });
+                
+                console.log(`📚 Loaded help topic: ${topic}`);
+            } catch (error) {
+                console.error('Failed to load help topic:', error);
+                helpContentArea.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #F44336;">
+                        <div style="font-size: 24px; margin-bottom: 12px;">❌</div>
+                        <div style="font-size: 14px;">Failed to load help documentation</div>
+                        <div style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${error.message}</div>
+                    </div>
+                `;
+            }
+        };
+
+        // Add click handlers for help topic buttons
+        helpTopicButtons.forEach(button => {
+            button.onclick = () => {
+                const topic = button.getAttribute('data-topic');
+                
+                // Update button states
+                helpTopicButtons.forEach(btn => {
+                    btn.style.opacity = '0.7';
+                    btn.style.transform = 'scale(1)';
+                });
+                button.style.opacity = '1';
+                button.style.transform = 'scale(1.05)';
+                
+                // Load the topic
+                loadHelpTopic(topic);
+            };
+        });
 
         // Music control event listeners
         if (modalMusicVolumeSlider) modalMusicVolumeSlider.oninput = handleVolumeSliderChange;

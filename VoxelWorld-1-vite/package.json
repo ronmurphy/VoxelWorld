@@ -1,13 +1,14 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.4.9",
+  "version": "0.4.10",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run copy-help",
+    "copy-help": "mkdir -p dist/assets/help && cp -r assets/help/*.md dist/assets/help/ 2>/dev/null || true",
     "preview": "vite preview",
     "start": "electron .",
     "electron": "electron .",
@@ -34,7 +35,10 @@
     "emoji-datasource-google": "^16.0.0",
     "emoji-datasource-twitter": "^16.0.0",
     "howler": "^2.2.4",
-    "three": "^0.180.0"
+    "marked": "^16.4.0",
+    "stats.js": "^0.17.0",
+    "three": "^0.180.0",
+    "three-mesh-bvh": "^0.9.1"
   },
   "build": {
     "appId": "com.voxelworld.app",

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 
 /**
  * BlockResourcePool - Central storage for reusable THREE.js geometries and materials
@@ -8,6 +9,7 @@ import * as THREE from 'three';
  * - Reduces memory usage by ~30%
  * - Eliminates garbage collection pauses
  * - Faster block creation (no geometry allocation)
+ * - BVH acceleration structures pre-built on shared geometries
  *
  * Usage:
  *   const pool = new BlockResourcePool();
@@ -20,10 +22,15 @@ export class BlockResourcePool {
         this.geometries = new Map();
         this.materials = new Map();
         this.lodMaterials = new Map(); // Pooled materials for LOD chunks
+        
+        // Setup BVH on BufferGeometry prototype
+        THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+        THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+        
         this.initializeGeometries();
         this.initializeLODMaterials();
 
-        console.log('📦 BlockResourcePool initialized');
+        console.log('📦 BlockResourcePool initialized with BVH acceleration');
     }
 
     /**
@@ -32,27 +39,41 @@ export class BlockResourcePool {
      */
     initializeGeometries() {
         // Standard 1x1x1 cube for voxel blocks
-        this.geometries.set('cube', new THREE.BoxGeometry(1, 1, 1));
+        const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+        cubeGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('cube', cubeGeometry);
 
         // Sphere for collectibles and special objects
-        this.geometries.set('sphere', new THREE.SphereGeometry(0.5, 16, 16));
+        const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        sphereGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('sphere', sphereGeometry);
 
         // Cylinder for pillars and trees
-        this.geometries.set('cylinder', new THREE.CylinderGeometry(0.5, 0.5, 1, 16));
+        const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
+        cylinderGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('cylinder', cylinderGeometry);
 
         // Cone/pyramid for decorations
-        this.geometries.set('cone', new THREE.ConeGeometry(0.5, 1, 8));
+        const coneGeometry = new THREE.ConeGeometry(0.5, 1, 8);
+        coneGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('cone', coneGeometry);
 
         // Smaller cube for compact blocks (0.5x0.5x0.5)
-        this.geometries.set('small-cube', new THREE.BoxGeometry(0.5, 0.5, 0.5));
+        const smallCubeGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        smallCubeGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('small-cube', smallCubeGeometry);
 
         // Plane for flat surfaces and billboards
-        this.geometries.set('plane', new THREE.PlaneGeometry(1, 1));
+        const planeGeometry = new THREE.PlaneGeometry(1, 1);
+        planeGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('plane', planeGeometry);
 
         // Ring for decorative elements
-        this.geometries.set('ring', new THREE.RingGeometry(0.3, 0.5, 16));
+        const ringGeometry = new THREE.RingGeometry(0.3, 0.5, 16);
+        ringGeometry.computeBoundsTree(); // 🚀 Pre-compute BVH
+        this.geometries.set('ring', ringGeometry);
 
-        console.log(`✅ Created ${this.geometries.size} pooled geometries`);
+        console.log(`✅ Created ${this.geometries.size} pooled geometries with BVH acceleration`);
     }
 
     /**

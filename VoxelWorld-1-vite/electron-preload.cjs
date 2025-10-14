@@ -52,6 +52,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
       console.error(`Error listing asset files for ${category}:`, error);
       return [];
     }
+  },
+
+  // Read a file from the dist folder (for help files, etc.)
+  readFile: async (relativePath) => {
+    try {
+      const path = require('path');
+      const isDev = process.env.NODE_ENV === 'development';
+
+      let filePath;
+      if (isDev) {
+        // Development: read from project root
+        filePath = path.join(__dirname, relativePath);
+      } else {
+        // Production: read from dist/
+        filePath = path.join(__dirname, 'dist', relativePath);
+      }
+
+      console.log(`📖 Reading file: ${filePath}`);
+      
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      const content = fs.readFileSync(filePath, 'utf8');
+      console.log(`✅ Read ${content.length} bytes from ${relativePath}`);
+      return content;
+    } catch (error) {
+      console.error(`❌ Error reading file ${relativePath}:`, error);
+      throw error;
+    }
   }
 });
 
