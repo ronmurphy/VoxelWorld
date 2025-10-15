@@ -64,8 +64,8 @@ export class EnhancedGraphics {
             crafted_compass_upgrade: 'compass',
             crafted_speed_boots: 'boots_speed',
             // Farming items
-            crafted_hoe: 'stick',  // Temporary: using stick.png until hoe.png is created
-            hoe: 'stick',          // Temporary: using stick.png until hoe.png is created
+            crafted_hoe: 'hoe',  // Temporary: using stick.png until hoe.png is created
+            hoe: 'hoe',          // Temporary: using stick.png until hoe.png is created
             crafted_watering_can: 'watering_can',  // Will use emoji fallback until watering_can.png is created
             watering_can: 'watering_can'           // Will use emoji fallback until watering_can.png is created
         };
@@ -399,16 +399,28 @@ export class EnhancedGraphics {
                     'gift_wrapped', 'gift_wrapped-all', 'tilled_soil'
                 ],
                 tools: [
-                    'backpack', 'machete', 'stick', 'stone_hammer', 'workbench', 'pumpkin', 
-                    'compass', 'toolbench', 'tool_bench', 'grapple', 'sword', 'pickaxe',
-                    'boots_speed', 'cryatal', 'club', 'stone_spear', 'torch', 'wood_shield',
+                    'backpack', 'backpack_2', 'machete', 'machete_2', 'stick', 'stick_2', 'stone_hammer', 'workbench', 'pumpkin', 
+                    'compass', 'toolbench', 'tool_bench', 'kitchenbench', 'grapple', 'sword', 'rustySword', 'pickaxe', 'oldPickaxe',
+                    'boots_speed', 'cryatal', 'ancientAmulet', 'club', 'stone_spear', 'torch', 'wood_shield',
                     // Materials and discovery items (all in /tools/ folder)
-                    'coal', 'gold', 'iron', 'feather', 'fur', 'skull', 'flower', 'leaf',
+                    'coal', 'gold', 'iron', 'feather', 'fur', 'skull', 'bone', 'shell', 'flower', 'leaf', 'iceShard',
                     'hoe'  // Farming tool
                 ],
                 time: ['dawn', 'dusk', 'moon', 'night', 'sun'],
                 entities: ['ghost', 'angry_ghost'],
-                food: ['wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds', 'rice', 'corn_ear']
+                food: [
+                    // Seeds
+                    'wheat_seeds', 'carrot_seeds', 'pumpkin_seeds', 'berry_seeds',
+                    // Raw ingredients
+                    'rice', 'corn_ear', 'potato', 'egg', 'fish', 'mushroom', 'apple', 'berry', 'honey',
+                    // Cooked/prepared foods
+                    'bread', 'berry_bread', 'honey_bread', 'cookie', 'baked_potato', 'cooked_egg',
+                    'grilled_fish', 'roasted_corn', 'roasted_wheat', 'corn_chips', 'potato_chips',
+                    'rice_bowl', 'fish_rice', 'pumpkin_pie',
+                    // Snacks and meals
+                    'berry_snack', 'berry_honey_snack', 'mushroom_bites', 'mushroom_bites2', 'energy_bar',
+                    'mushroom_soup', 'carrot_stew', 'veggie_medley', 'super_stew'
+                ]
             };
 
             for (const [category, names] of Object.entries(candidates)) {

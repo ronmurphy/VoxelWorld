@@ -2662,9 +2662,9 @@ class NebulaVoxelApp {
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools, discovery items, and food items
             const toolsAndDiscoveryItems = [
-                // Crafting tools
-                'machete', 'workbench', 'backpack', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 
-                'tool_bench', 'kitchen_bench', 'grappling_hook', 'crafted_grappling_hook', 'hoe',
+                // Crafting tools (excluding benches - those are special UI items)
+                'machete', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 
+                'grappling_hook', 'crafted_grappling_hook', 'hoe',
                 // Discovery items (in /tools/ folder)
                 'skull', 'mushroom', 'flower', 'berry', 'crystal', 'feather', 'bone', 'shell', 
                 'fur', 'iceShard', 'rustySword', 'oldPickaxe', 'ancientAmulet',

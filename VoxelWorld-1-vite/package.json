@@ -1,7 +1,7 @@
 {
   "name": "voxelworld-1-vite",
   "private": true,
-  "version": "0.5.3",
+  "version": "0.5.5",
   "type": "module",
   "main": "electron.cjs",
   "homepage": "./",
