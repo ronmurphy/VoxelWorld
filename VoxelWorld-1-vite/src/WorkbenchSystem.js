@@ -151,10 +151,9 @@ export class WorkbenchSystem {
             house: {
                 name: '🏠 Simple House',
                 materials: { wood: 25, stone: 5 },
-                description: 'A basic dwelling structure',
+                description: 'A basic dwelling structure (min 4x4x4, door faces player)',
                 shapes: [
-                    { type: 'hollow_cube', position: { x: 0, y: 0, z: 0 }, size: { x: 4, y: 3, z: 4 } },
-                    { type: 'pyramid', position: { x: 0, y: 3, z: 0 }, size: { x: 4, y: 2, z: 4 } }
+                    { type: 'simple_house', position: { x: 0, y: 0, z: 0 }, size: { x: 4, y: 4, z: 4 } }
                 ]
             },
 
@@ -1210,9 +1209,27 @@ export class WorkbenchSystem {
             this.selectedShape = plan.shapes[0].type;
             console.log('🍳 Set selectedShape to:', this.selectedShape);
             
-            // 🔥 NEW: Auto-populate sliders with plan dimensions
-            const planSize = plan.shapes[0].size;
-            if (planSize) {
+            // 🏠 SPECIAL: Simple house requires minimum 4x4x4 interior dimensions
+            if (this.selectedShape === 'simple_house') {
+                this.shapeLength = 4;
+                this.shapeWidth = 4;
+                this.shapeHeight = 4;
+                
+                // Update slider UI elements
+                if (this.lengthSlider) this.lengthSlider.value = 4;
+                if (this.widthSlider) this.widthSlider.value = 4;
+                if (this.heightSlider) this.heightSlider.value = 4;
+                
+                // Update labels
+                if (this.lengthValue) this.lengthValue.textContent = '4.0';
+                if (this.widthValue) this.widthValue.textContent = '4.0';
+                if (this.heightValue) this.heightValue.textContent = '4.0';
+                
+                console.log('🏠 Auto-set house to minimum 4×4×4 interior dimensions');
+            }
+            // 🔥 AUTO-POPULATE sliders with plan dimensions (for other shapes)
+            else if (plan.shapes[0].size) {
+                const planSize = plan.shapes[0].size;
                 // Set dimensions from plan
                 this.shapeLength = planSize.x || 1;
                 this.shapeWidth = planSize.z || 1;

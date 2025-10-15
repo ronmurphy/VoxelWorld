@@ -530,12 +530,46 @@ class NebulaVoxelApp {
             }
         };
 
-        // 🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
+        // � HELPER: Determine which side of a building is closest to the player
+        // Returns: 'north', 'south', 'east', or 'west'
+        this.getClosestSideToPlayer = (buildingX, buildingZ) => {
+            const playerPos = this.player.position;
+            
+            // Calculate relative position of player to building
+            const dx = playerPos.x - buildingX;
+            const dz = playerPos.z - buildingZ;
+            
+            // Determine which axis has greater distance
+            if (Math.abs(dx) > Math.abs(dz)) {
+                // Player is more to the East or West
+                return dx > 0 ? 'east' : 'west';
+            } else {
+                // Player is more to the North or South
+                // In Three.js, positive Z is South, negative Z is North
+                return dz > 0 ? 'south' : 'north';
+            }
+        };
+
+        // �🎨 PHASE 2: 3D Object Creation Engine - Place crafted objects with real dimensions!
         this.placeCraftedObject = (x, y, z, itemId) => {
             console.log(`🎯 placeCraftedObject called: ${itemId} at (${x},${y},${z})`);
 
             // Get crafted item metadata
-            const metadata = this.inventoryMetadata[itemId];
+            let metadata = this.inventoryMetadata[itemId];
+            
+            // 🏠 SPECIAL: If no metadata (e.g., from giveItem), create default for simple_house
+            if (!metadata && itemId.includes('simple_house')) {
+                console.log('🏠 No metadata for simple_house - using default 4x4x4 dimensions');
+                metadata = {
+                    shape: {
+                        type: 'simple_house',
+                        dimensions: { length: 4, width: 4, height: 4 }
+                    },
+                    material: { type: 'oak' },
+                    appearance: { color: 0x8B4513 }
+                };
+            }
+            
             if (!metadata) {
                 console.error(`❌ No metadata found for crafted item: ${itemId}`);
                 return;
@@ -585,6 +619,49 @@ class NebulaVoxelApp {
                     // For now, create a regular box - can enhance with hollow geometry later
                     geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
                     break;
+                
+                case 'simple_house':
+                    // 🏠 SIMPLE HOUSE - Built with actual voxel blocks via StructureGenerator
+                    // Check minimum dimensions
+                    if (dimensions.length < 4 || dimensions.width < 4 || dimensions.height < 4) {
+                        console.error(`❌ Simple House requires minimum 4x4x4 dimensions (got ${dimensions.length}x${dimensions.width}x${dimensions.height})`);
+                        this.updateStatus(`⚠️ Simple House needs at least 4x4x4 size!`, 'error');
+                        return; // Cancel placement
+                    }
+
+                    // Determine which side faces the player for door placement
+                    const doorSide = this.getClosestSideToPlayer(x, z);
+                    console.log(`🚪 Door will be on ${doorSide} side (closest to player)`);
+
+                    // Use StructureGenerator to build house with actual voxel blocks
+                    if (this.biomeWorldGen && this.biomeWorldGen.structureGenerator) {
+                        this.biomeWorldGen.structureGenerator.generateHouse(
+                            x, z,
+                            dimensions.length,  // Interior length
+                            dimensions.width,   // Interior width  
+                            dimensions.height,  // Interior height
+                            material,           // Wall material (wood type)
+                            'stone',           // Floor/roof material
+                            doorSide,          // Door placement
+                            this.addBlock.bind(this),
+                            (wx, wz) => this.getGroundHeight(wx, wz)
+                        );
+                        
+                        this.updateStatus(`🏠 Built house with ${dimensions.length}×${dimensions.width}×${dimensions.height} interior!`, 'craft');
+                        
+                        // Consume materials from inventory
+                        const materialCost = dimensions.length * dimensions.width * dimensions.height * 2;
+                        this.inventory.removeFromInventory(material, materialCost);
+                        
+                        console.log(`✅ House placed using ${materialCost} ${material} blocks`);
+                        return; // Exit early - no mesh creation needed
+                    } else {
+                        console.error('❌ StructureGenerator not available');
+                        this.updateStatus(`⚠️ Could not build house - system error`, 'error');
+                        return;
+                    }
+                    break;
+                
                 default:
                     console.warn(`⚠️ Unknown shape type: ${shapeType}, defaulting to cube`);
                     geometry = new THREE.BoxGeometry(dimensions.length, dimensions.height, dimensions.width);
@@ -659,8 +736,15 @@ class NebulaVoxelApp {
             // 🔧 FIX: Force material to compile uniforms immediately
             craftedMaterial.needsUpdate = true;
 
-            // Create the 3D mesh
-            const craftedObject = new THREE.Mesh(geometry, craftedMaterial);
+            // Create the 3D mesh (or use existing Group for complex shapes like simple_house)
+            let craftedObject;
+            if (geometry.isGroup) {
+                // Geometry is already a THREE.Group (e.g., simple_house with all walls/floor/ceiling)
+                craftedObject = geometry;
+            } else {
+                // Normal geometry - create mesh with material
+                craftedObject = new THREE.Mesh(geometry, craftedMaterial);
+            }
             
             // 🔧 FIX: Ensure mesh matrices are properly initialized
             craftedObject.matrixAutoUpdate = true;
@@ -2570,6 +2654,10 @@ class NebulaVoxelApp {
                 crafted_healing_potion: '🧪',  // Crafted version
                 light_orb: '💡',               // Light orb (ceiling-mounted light)
                 crafted_light_orb: '💡',       // Crafted version
+                
+                // 🏠 STRUCTURES
+                simple_house: '🏠',            // Simple house structure
+                crafted_simple_house: '🏠',    // Crafted version
                 
                 // 🥬 HARVESTED INGREDIENTS
                 wheat: '🌾',         // Harvested wheat
@@ -6748,7 +6836,7 @@ class NebulaVoxelApp {
                 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
                 'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade',
                 'club', 'stone_spear', 'torch', 'wood_shield',
-                'hoe', 'watering_can', 'healing_potion', 'light_orb'
+                'hoe', 'watering_can', 'healing_potion', 'light_orb', 'simple_house'
             ];
 
             // If user types a craftable tool name WITHOUT "crafted_" prefix, auto-add it

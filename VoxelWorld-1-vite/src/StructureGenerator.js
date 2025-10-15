@@ -617,4 +617,156 @@ export class StructureGenerator {
 
         console.log(`✅ ${size} ${shapeName} generated! Look around position (${structureX}, ${structureZ})`);
     }
+
+    /**
+     * 🏠 Generate a simple house with sloped roof
+     * Interior dimensions = user-specified walkable area (length × width × height)
+     * Walls/roof built around it using actual voxel blocks
+     * 
+     * @param {number} worldX - World X position (center)
+     * @param {number} worldZ - World Z position (center)
+     * @param {number} interiorLength - Interior walkable length (min 4)
+     * @param {number} interiorWidth - Interior walkable width (min 4)
+     * @param {number} interiorHeight - Interior walkable height (min 4)
+     * @param {string} wallMaterial - Material for walls (wood type)
+     * @param {string} floorMaterial - Material for floor/roof (usually stone)
+     * @param {string} doorSide - Which side has door: 'north', 'south', 'east', 'west'
+     * @param {Function} addBlockFn - Function to place blocks
+     * @param {Function} getHeightFn - Function to get ground height
+     */
+    generateHouse(worldX, worldZ, interiorLength, interiorWidth, interiorHeight, 
+                  wallMaterial, floorMaterial, doorSide, addBlockFn, getHeightFn) {
+        
+        console.log(`🏠 Generating house at (${worldX}, ${worldZ}): ${interiorLength}×${interiorWidth}×${interiorHeight} interior, door on ${doorSide}`);
+        
+        // Get ground height
+        let groundY = getHeightFn(worldX, worldZ);
+        if (groundY === null || groundY === undefined) {
+            groundY = 8; // Safe fallback
+        }
+        
+        // Floor is at ground level
+        const baseY = groundY;
+        
+        // Wall thickness
+        const wallThickness = 1;
+        
+        // Total structure dimensions (interior + walls)
+        const totalLength = interiorLength + (wallThickness * 2);
+        const totalWidth = interiorWidth + (wallThickness * 2);
+        const totalHeight = interiorHeight + wallThickness; // +1 for floor
+        
+        // Calculate half dimensions for centering
+        const halfLength = Math.floor(totalLength / 2);
+        const halfWidth = Math.floor(totalWidth / 2);
+        
+        // Door dimensions (2x2 archway)
+        const doorWidth = 2;
+        const doorHeight = 2;
+        
+        // Build structure
+        for (let x = -halfLength; x <= halfLength; x++) {
+            for (let z = -halfWidth; z <= halfWidth; z++) {
+                for (let y = 0; y <= totalHeight + 2; y++) { // +2 for sloped roof peak
+                    const worldPosX = worldX + x;
+                    const worldPosZ = worldZ + z;
+                    const worldPosY = baseY + y;
+                    
+                    // Determine if this is interior space
+                    const isInterior = Math.abs(x) < halfLength - wallThickness + 1 && 
+                                     Math.abs(z) < halfWidth - wallThickness + 1;
+                    
+                    // Floor - stone, only on edges (leave interior empty for walking)
+                    if (y === 0 && !isInterior) {
+                        addBlockFn(worldPosX, worldPosY, worldPosZ, floorMaterial, true);
+                        continue;
+                    }
+                    
+                    // Skip interior space entirely (hollow)
+                    if (isInterior && y > 0 && y < totalHeight) continue;
+                    
+                    // Walls - wood, check if on edge
+                    const onNorthEdge = z === -halfWidth;
+                    const onSouthEdge = z === halfWidth;
+                    const onEastEdge = x === halfLength;
+                    const onWestEdge = x === -halfLength;
+                    
+                    const onEdge = onNorthEdge || onSouthEdge || onEastEdge || onWestEdge;
+                    
+                    if (onEdge && y > 0 && y <= totalHeight) {
+                        // Check if this is the door side
+                        const isDoorSide = (doorSide === 'north' && onNorthEdge) ||
+                                         (doorSide === 'south' && onSouthEdge) ||
+                                         (doorSide === 'east' && onEastEdge) ||
+                                         (doorSide === 'west' && onWestEdge);
+                        
+                        // Door cutout - 2x2 centered opening
+                        if (isDoorSide && y >= 1 && y <= doorHeight) {
+                            const doorCenterOffset = 0; // Center of wall
+                            const doorHalfWidth = doorWidth / 2;
+                            
+                            // Check if within door bounds
+                            let inDoor = false;
+                            if (doorSide === 'north' || doorSide === 'south') {
+                                // Door on N/S wall, check X position
+                                inDoor = x >= doorCenterOffset - doorHalfWidth && 
+                                        x <= doorCenterOffset + doorHalfWidth - 1;
+                            } else {
+                                // Door on E/W wall, check Z position
+                                inDoor = z >= doorCenterOffset - doorHalfWidth && 
+                                        z <= doorCenterOffset + doorHalfWidth - 1;
+                            }
+                            
+                            if (inDoor) continue; // Skip door blocks
+                        }
+                        
+                        // Determine wall height (taller on one side for sloped roof)
+                        let wallHeight = totalHeight;
+                        
+                        // Make opposite wall taller (+2 blocks)
+                        if ((doorSide === 'north' && onSouthEdge) || 
+                            (doorSide === 'south' && onNorthEdge) ||
+                            (doorSide === 'east' && onWestEdge) ||
+                            (doorSide === 'west' && onEastEdge)) {
+                            wallHeight = totalHeight + 2; // Tall wall opposite door
+                        }
+                        
+                        if (y <= wallHeight) {
+                            addBlockFn(worldPosX, worldPosY, worldPosZ, wallMaterial, true);
+                        }
+                    }
+                    
+                    // Sloped roof - connects tall wall to short wall at 45°
+                    if (y > totalHeight && y <= totalHeight + 2) {
+                        const roofY = y - totalHeight; // 1 or 2
+                        
+                        // Calculate slope based on door side
+                        let inRoof = false;
+                        
+                        if (doorSide === 'north' || doorSide === 'south') {
+                            // Slope runs along Z axis
+                            const slopeProgress = doorSide === 'north' ? 
+                                (z + halfWidth) / (totalWidth) : 
+                                (halfWidth - z) / (totalWidth);
+                            const roofZ = Math.floor(slopeProgress * 2); // 0, 1, or 2
+                            inRoof = roofY === (2 - roofZ) && Math.abs(x) <= halfLength;
+                        } else {
+                            // Slope runs along X axis
+                            const slopeProgress = doorSide === 'west' ? 
+                                (x + halfLength) / (totalLength) : 
+                                (halfLength - x) / (totalLength);
+                            const roofX = Math.floor(slopeProgress * 2); // 0, 1, or 2
+                            inRoof = roofY === (2 - roofX) && Math.abs(z) <= halfWidth;
+                        }
+                        
+                        if (inRoof) {
+                            addBlockFn(worldPosX, worldPosY, worldPosZ, floorMaterial, true);
+                        }
+                    }
+                }
+            }
+        }
+        
+        console.log(`✅ House built: ${totalLength}×${totalWidth}×${totalHeight + 2} total, ${interiorLength}×${interiorWidth}×${interiorHeight} interior walkable space`);
+    }
 }

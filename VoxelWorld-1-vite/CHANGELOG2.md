@@ -4,6 +4,52 @@ Continuation of CHANGELOG.md for new development sessions.
 
 ---
 
+## 2025-10-15 - 🏠 Voxel-Based Simple House System
+
+**Status: IMPLEMENTED ✅**
+
+### 🏗️ Simple House - Revolutionary Voxel Architecture!
+
+Completely redesigned the Simple House crafting system to use **actual voxel blocks** instead of THREE.js meshes. This provides better integration with the game world, proper collision detection, and a more authentic Minecraft-style building experience.
+
+**Key Features:**
+- ✅ Built with actual game voxel blocks (like ruins system)
+- ✅ Sloped roof design (tall wall opposite door, angled roof)
+- ✅ Interior dimensions = walkable space (4×4×4 minimum)
+- ✅ Smart door placement facing player position
+- ✅ Hollow interior with proper entrance
+- ✅ Wood walls, stone floor/roof construction
+- ✅ Workbench auto-sets dimensions to 4×4×4
+
+**Technical Implementation:**
+- Moved house generation to `StructureGenerator.js` (lines 623-762)
+- VoxelWorld.js simple_house case now calls `generateHouse()` method
+- Removed 200+ lines of THREE.js Group code from VoxelWorld.js
+- Door placement uses `getClosestSideToPlayer()` helper function
+- Material cost formula preserved: `length × width × height × 2`
+
+**Architecture Details:**
+- **Interior space**: User-specified dimensions (e.g., 4×4×4)
+- **Total structure**: Interior + 1-block thick walls (6×6×6 for 4×4×4)
+- **Floor**: Stone blocks on edges only (hollow interior)
+- **Walls**: Wood blocks with 2×2 door cutout on player-facing side
+- **Sloped roof**: Opposite wall +2 blocks tall, roof angles at 45°
+
+**Files Modified:**
+- `VoxelWorld.js`: Added simple_house case with StructureGenerator integration
+- `StructureGenerator.js`: Added generateHouse() method
+- `WorkbenchSystem.js`: Updated house plan and auto-dimension logic
+- See: `/docs/VOXEL_HOUSE_SYSTEM.md` for full documentation
+
+**Benefits:**
+- Better code organization (structures in StructureGenerator)
+- Smaller file sizes (removed mesh creation code)
+- Proper voxel collision and physics
+- Consistent with game's block-based world
+- Easy to modify and extend
+
+---
+
 ## 2025-10-13 (Evening) - 📚 Tutorial System Complete Integration
 
 **Status: FULLY IMPLEMENTED ✅**
