@@ -2490,58 +2490,7 @@ class NebulaVoxelApp {
         };
 
         this.getItemIcon = (itemType, context = 'inventory') => {
-            // ⚡ TOOLBENCH TOOLS: Check for ToolBench crafted tools FIRST (before general crafted_ parsing)
-            // These are special items like crafted_grappling_hook, crafted_speed_boots, etc.
-            const toolBenchTools = [
-                'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword',
-                'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
-                'crafted_compass', 'crafted_compass_upgrade', 'crafted_machete',
-                'crafted_club', 'crafted_stone_spear', 'crafted_torch', 'crafted_wood_shield',
-                'crafted_hoe', 'crafted_watering_can', 'crafted_healing_potion', 'crafted_light_orb',
-                'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
-                'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade', 'machete',
-                'club', 'stone_spear', 'torch', 'wood_shield', 'hoe', 'watering_can',
-                'healing_potion', 'light_orb'
-            ];
-            
-            if (toolBenchTools.includes(itemType)) {
-                if (context === 'status') {
-                    return this.enhancedGraphics.getStatusToolIcon(itemType, '🔧');
-                } else if (context === 'hotbar') {
-                    return this.enhancedGraphics.getHotbarToolIcon(itemType, '🔧');
-                } else {
-                    return this.enhancedGraphics.getInventoryToolIcon(itemType, '🔧');
-                }
-            }
-
-            // Check if this is a crafted item (starts with "crafted_")
-            if (itemType.startsWith('crafted_')) {
-                // Parse crafted item format: "crafted_wood_cube_3x2x4"
-                const parts = itemType.replace('crafted_', '').split('_');
-
-                if (parts.length >= 2) {
-                    const material = parts[0];
-                    const shape = parts[1];
-
-                    // Extract dimensions if present
-                    let dimensions = null;
-                    if (parts.length > 2) {
-                        const dimensionPart = parts[parts.length - 1];
-                        const dimensionMatch = dimensionPart.match(/(\d+)x(\d+)x(\d+)/);
-                        if (dimensionMatch) {
-                            dimensions = {
-                                length: parseInt(dimensionMatch[1]),
-                                width: parseInt(dimensionMatch[2]),
-                                height: parseInt(dimensionMatch[3])
-                            };
-                        }
-                    }
-
-                    return this.getCraftedItemIcon(material, shape, dimensions);
-                }
-            }
-
-            // Default emoji icons for base materials (FALLBACK ONLY)
+            // Default emoji icons for base materials (DEFINE FIRST for use as fallbacks)
             const icons = {
                 grass: '🌱',
                 stone: '🪨',
@@ -2617,8 +2566,10 @@ class NebulaVoxelApp {
                 berry_seeds: '🫐',   // Berry seeds
                 
                 // 🧪 CONSUMABLE TOOLS
-                healing_potion: '🧪',      // Healing potion (heals companion or player)
-                light_orb: '💡',           // Light orb (ceiling-mounted light)
+                healing_potion: '🧪',          // Healing potion (heals companion or player)
+                crafted_healing_potion: '🧪',  // Crafted version
+                light_orb: '💡',               // Light orb (ceiling-mounted light)
+                crafted_light_orb: '💡',       // Crafted version
                 
                 // 🥬 HARVESTED INGREDIENTS
                 wheat: '🌾',         // Harvested wheat
@@ -2662,7 +2613,60 @@ class NebulaVoxelApp {
                 cookie: '🍪'
             };
 
-            const defaultIcon = icons[itemType] || '❓';
+            // Get the default icon for this item (used as fallback if no graphics found)
+            // ❌ = clear visual indicator that emoji is missing and needs to be defined
+            const defaultIcon = icons[itemType] || '❌';
+            
+            // ⚡ TOOLBENCH TOOLS: Check for ToolBench crafted tools FIRST (before general crafted_ parsing)
+            // These are special items like crafted_grappling_hook, crafted_speed_boots, etc.
+            const toolBenchTools = [
+                'crafted_grappling_hook', 'crafted_speed_boots', 'crafted_combat_sword',
+                'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
+                'crafted_compass', 'crafted_compass_upgrade', 'crafted_machete',
+                'crafted_club', 'crafted_stone_spear', 'crafted_torch', 'crafted_wood_shield',
+                'crafted_hoe', 'crafted_watering_can', 'crafted_healing_potion', 'crafted_light_orb',
+                'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
+                'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade', 'machete',
+                'club', 'stone_spear', 'torch', 'wood_shield', 'hoe', 'watering_can',
+                'healing_potion', 'light_orb'
+            ];
+            
+            if (toolBenchTools.includes(itemType)) {
+                if (context === 'status') {
+                    return this.enhancedGraphics.getStatusToolIcon(itemType, defaultIcon);
+                } else if (context === 'hotbar') {
+                    return this.enhancedGraphics.getHotbarToolIcon(itemType, defaultIcon);
+                } else {
+                    return this.enhancedGraphics.getInventoryToolIcon(itemType, defaultIcon);
+                }
+            }
+
+            // Check if this is a crafted item (starts with "crafted_")
+            if (itemType.startsWith('crafted_')) {
+                // Parse crafted item format: "crafted_wood_cube_3x2x4"
+                const parts = itemType.replace('crafted_', '').split('_');
+
+                if (parts.length >= 2) {
+                    const material = parts[0];
+                    const shape = parts[1];
+
+                    // Extract dimensions if present
+                    let dimensions = null;
+                    if (parts.length > 2) {
+                        const dimensionPart = parts[parts.length - 1];
+                        const dimensionMatch = dimensionPart.match(/(\d+)x(\d+)x(\d+)/);
+                        if (dimensionMatch) {
+                            dimensions = {
+                                length: parseInt(dimensionMatch[1]),
+                                width: parseInt(dimensionMatch[2]),
+                                height: parseInt(dimensionMatch[3])
+                            };
+                        }
+                    }
+
+                    return this.getCraftedItemIcon(material, shape, dimensions);
+                }
+            }
 
             // Try to get enhanced graphics icon FIRST (if enhanced graphics is enabled and loaded)
             // Try to get enhanced icon for tools, discovery items, and food items
@@ -2728,7 +2732,8 @@ class NebulaVoxelApp {
             }
 
             // Fallback to emoji if no enhanced graphics available
-            return defaultIcon;
+            // Final safety check: ensure we never return empty/null/undefined
+            return defaultIcon || '❌';
         };
 
         // Format item names for display (replace underscores with spaces, capitalize each word)
