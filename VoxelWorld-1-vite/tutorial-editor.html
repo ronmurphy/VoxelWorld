@@ -218,9 +218,10 @@
     <div class="header">
         <h1>🎓 Tutorial/Quest Editor - VoxelWorld</h1>
         <div class="header-actions">
-            <button class="btn secondary" onclick="loadJSON()">📂 Load JSON</button>
+            <button class="btn secondary" onclick="openFile()">📂 Open File...</button>
             <button class="btn secondary" onclick="newFile()">📄 New</button>
-            <button class="btn" onclick="exportJSON()">💾 Save JSON</button>
+            <button class="btn" onclick="saveToDefault()">💾 Quick Save</button>
+            <button class="btn" onclick="saveAs()">💾 Save As...</button>
         </div>
     </div>
 
@@ -283,9 +284,12 @@
 
     <script src="./drawflow.min.js"></script>
     <script type="module">
-        // Import converter
+        // Import converter and file system utilities
         import { TutorialConverter } from './TutorialConverter.js';
+        import { ElectronFileSystem } from './src/utils/ElectronFileSystem.js';
+        
         window.TutorialConverter = TutorialConverter;
+        window.ElectronFileSystem = ElectronFileSystem;
 
         // Initialize Drawflow
         const id = document.getElementById("drawflow");
@@ -294,6 +298,22 @@
         editor.start();
 
         let selectedNodeId = null;
+        let currentFilePath = null; // Track current file for quick save
+
+        // Auto-load tutorialScripts.json on start
+        (async function autoLoad() {
+            try {
+                const data = await ElectronFileSystem.autoLoadTutorials();
+                if (data) {
+                    loadDataIntoEditor(data);
+                    console.log('✅ Auto-loaded existing tutorial scripts');
+                } else {
+                    console.log('ℹ️ No existing scripts, starting fresh');
+                }
+            } catch (error) {
+                console.error('❌ Auto-load failed:', error);
+            }
+        })();
 
         // Node templates
         const nodeTemplates = {
@@ -576,15 +596,125 @@
             editor.updateNodeDataFromId(nodeId, nodeData.data);
         }
 
-        // File Operations
-        function newFile() {
-            if (confirm('Create new file? Unsaved changes will be lost.')) {
-                editor.clear();
+        // ========================================
+        // FILE OPERATIONS (Electron-aware)
+        // ========================================
+
+        /**
+         * Load data into editor (handles both Tutorial and Drawflow formats)
+         */
+        function loadDataIntoEditor(data) {
+            try {
+                if (data.tutorials) {
+                    // Tutorial format - convert to Drawflow
+                    console.log('📥 Loading tutorial format, converting to Drawflow...');
+                    const drawflowData = TutorialConverter.tutorialToDrawflow(data);
+                    editor.import(drawflowData);
+                    console.log('✅ Tutorial data loaded');
+                } else if (data.drawflow) {
+                    // Already Drawflow format
+                    console.log('📥 Loading Drawflow format...');
+                    editor.import(data);
+                    console.log('✅ Drawflow data loaded');
+                } else {
+                    console.warn('⚠️ Unknown file format!');
+                    alert('Unknown file format!');
+                }
+            } catch (error) {
+                console.error('❌ Load error:', error);
+                alert('Error loading file: ' + error.message);
             }
         }
 
+        /**
+         * Open file using native dialog (Electron) or file input (web)
+         */
+        async function openFile() {
+            try {
+                const data = await ElectronFileSystem.showOpenDialog();
+                if (data) {
+                    loadDataIntoEditor(data);
+                    currentFilePath = null; // Reset current file path
+                    alert('File loaded successfully!');
+                }
+            } catch (error) {
+                console.error('❌ Open error:', error);
+                alert('Error opening file: ' + error.message);
+            }
+        }
+
+        /**
+         * Quick save to default location (data/tutorialScripts.json)
+         */
+        async function saveToDefault() {
+            try {
+                const drawflowData = editor.export();
+                const tutorialData = TutorialConverter.drawflowToTutorial(drawflowData);
+                
+                const success = await ElectronFileSystem.saveToDefault(tutorialData);
+                if (success) {
+                    currentFilePath = 'data/tutorialScripts.json';
+                    alert('✅ Saved to data/tutorialScripts.json');
+                }
+            } catch (error) {
+                console.error('❌ Quick save error:', error);
+                alert('Error saving: ' + error.message);
+            }
+        }
+
+        /**
+         * Save as - show save dialog
+         */
+        async function saveAs() {
+            try {
+                const drawflowData = editor.export();
+                
+                // Ask user which format to export
+                const useTutorialFormat = confirm(
+                    'Export Format:\n\n' +
+                    'OK = Tutorial JSON (for game)\n' +
+                    'Cancel = Drawflow JSON (for editor backup)'
+                );
+                
+                let data, defaultFilename;
+                
+                if (useTutorialFormat) {
+                    // Convert to Tutorial JSON format
+                    data = TutorialConverter.drawflowToTutorial(drawflowData);
+                    defaultFilename = 'tutorialScripts.json';
+                    console.log('💾 Converting to Tutorial JSON format...');
+                } else {
+                    // Export as Drawflow format
+                    data = drawflowData;
+                    defaultFilename = 'tutorial-drawflow.json';
+                    console.log('💾 Exporting as Drawflow format...');
+                }
+                
+                const success = await ElectronFileSystem.showSaveDialog(data, defaultFilename);
+                if (success) {
+                    alert('✅ File saved successfully!');
+                }
+            } catch (error) {
+                console.error('❌ Save error:', error);
+                alert('Error saving: ' + error.message);
+            }
+        }
+
+        function newFile() {
+            if (confirm('Create a new tutorial script? This will clear the current canvas.')) {
+                editor.clear();
+                currentFilePath = null;
+                console.log('📄 New file created');
+            }
+        }
+
+        // Legacy functions for web mode compatibility
         function loadJSON() {
-            document.getElementById('file-input').click();
+            openFile();
+        }
+
+        function exportJSON() {
+            saveAs();
         }
 
         function handleFileLoad(event) {
@@ -595,22 +725,8 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    
-                    // Check if it's tutorial format or drawflow format
-                    if (data.tutorials) {
-                        // Tutorial format - convert to Drawflow
-                        console.log('📥 Loading tutorial format, converting to Drawflow...');
-                        const drawflowData = TutorialConverter.tutorialToDrawflow(data);
-                        editor.import(drawflowData);
-                        alert('Tutorial file loaded and converted successfully!');
-                    } else if (data.drawflow) {
-                        // Already Drawflow format
-                        console.log('📥 Loading Drawflow format...');
-                        editor.import(data);
-                        alert('Drawflow file loaded successfully!');
-                    } else {
-                        alert('Unknown file format!');
-                    }
+                    loadDataIntoEditor(data);
+                    alert('File loaded successfully!');
                 } catch (error) {
                     console.error('Load error:', error);
                     alert('Error loading file: ' + error.message);
@@ -619,51 +735,22 @@
             reader.readAsText(file);
         }
 
-        function exportJSON() {
-            const drawflowData = editor.export();
-            
-            // Ask user which format to export
-            const format = confirm('Click OK for Tutorial JSON format, Cancel for Drawflow format');
-            
-            let data, defaultFilename;
-            
-            if (format) {
-                // Convert to Tutorial JSON format
-                console.log('💾 Converting to Tutorial JSON format...');
-                data = TutorialConverter.drawflowToTutorial(drawflowData);
-                defaultFilename = 'tutorialScripts.json';
-            } else {
-                // Export as Drawflow format
-                console.log('💾 Exporting as Drawflow format...');
-                data = drawflowData;
-                defaultFilename = 'tutorial-drawflow.json';
-            }
-            
-            const filename = prompt('Enter filename:', defaultFilename);
-            if (!filename) return;
-
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename.endsWith('.json') ? filename : filename + '.json';
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            console.log('✅ Saved as:', filename);
-        }
-
         // Keyboard shortcuts
         document.addEventListener('keydown', function(e) {
-            // Ctrl/Cmd + S = Save
+            // Ctrl/Cmd + S = Quick Save
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
-                exportJSON();
+                saveToDefault();
+            }
+            // Ctrl/Cmd + Shift + S = Save As
+            if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 's') {
+                e.preventDefault();
+                saveAs();
             }
             // Ctrl/Cmd + O = Open
             if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
                 e.preventDefault();
-                loadJSON();
+                openFile();
             }
         });
 

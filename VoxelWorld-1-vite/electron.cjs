@@ -1,5 +1,6 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs').promises;
 const isDev = process.env.NODE_ENV === 'development';
 
 // 🎮 Force high-performance GPU (dGPU) for better performance
@@ -16,6 +17,131 @@ console.log('   - force_high_performance_gpu: true');
 console.log('   - disable-gpu-vsync: true');
 console.log('   - ignore-gpu-blacklist: true');
 console.log('   - enable-gpu-rasterization: true');
+
+// ========================================
+// 🎓 TUTORIAL EDITOR IPC HANDLERS
+// ========================================
+
+/**
+ * Auto-load tutorialScripts.json from data folder
+ */
+ipcMain.handle('tutorial-editor:auto-load', async () => {
+  try {
+    const tutorialPath = isDev
+      ? path.join(__dirname, 'assets', 'data', 'tutorialScripts.json')
+      : path.join(app.getAppPath(), 'assets', 'data', 'tutorialScripts.json');
+    
+    console.log('📂 Attempting to auto-load from:', tutorialPath);
+    
+    const fileContent = await fs.readFile(tutorialPath, 'utf8');
+    const data = JSON.parse(fileContent);
+    
+    console.log('✅ Auto-loaded tutorialScripts.json');
+    return data;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.log('ℹ️ No tutorialScripts.json found (first run)');
+    } else {
+      console.error('❌ Auto-load error:', error);
+    }
+    return null;
+  }
+});
+
+/**
+ * Show open dialog and load selected file
+ */
+ipcMain.handle('tutorial-editor:open-dialog', async (event) => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: 'Open Tutorial Script',
+      filters: [
+        { name: 'JSON Files', extensions: ['json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true };
+    }
+
+    const filePath = result.filePaths[0];
+    console.log('📂 Loading file from:', filePath);
+    
+    const fileContent = await fs.readFile(filePath, 'utf8');
+    const data = JSON.parse(fileContent);
+
+    return {
+      canceled: false,
+      filePath: filePath,
+      data: data
+    };
+  } catch (error) {
+    console.error('❌ Open dialog error:', error);
+    throw error;
+  }
+});
+
+/**
+ * Show save dialog and save to selected location
+ */
+ipcMain.handle('tutorial-editor:save-dialog', async (event, { data, defaultPath }) => {
+  try {
+    const result = await dialog.showSaveDialog({
+      title: 'Save Tutorial Script',
+      defaultPath: defaultPath || 'tutorialScripts.json',
+      filters: [
+        { name: 'JSON Files', extensions: ['json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { canceled: true };
+    }
+
+    const filePath = result.filePath;
+    console.log('💾 Saving file to:', filePath);
+
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+
+    return {
+      canceled: false,
+      filePath: filePath
+    };
+  } catch (error) {
+    console.error('❌ Save dialog error:', error);
+    throw error;
+  }
+});
+
+/**
+ * Save to default location (data folder)
+ */
+ipcMain.handle('tutorial-editor:save-default', async (event, data) => {
+  try {
+    const tutorialPath = isDev
+      ? path.join(__dirname, 'assets', 'data', 'tutorialScripts.json')
+      : path.join(app.getAppPath(), 'assets', 'data', 'tutorialScripts.json');
+
+    console.log('💾 Saving to default location:', tutorialPath);
+
+    // Ensure data directory exists
+    const dataDir = path.dirname(tutorialPath);
+    await fs.mkdir(dataDir, { recursive: true });
+
+    await fs.writeFile(tutorialPath, JSON.stringify(data, null, 2), 'utf8');
+
+    console.log('✅ Saved to default location');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Default save error:', error);
+    throw error;
+  }
+});
+
+// ========================================
 
 function createWindow() {
   // Use app.getAppPath() to work with asar packaging

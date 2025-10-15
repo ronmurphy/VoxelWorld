@@ -26,7 +26,8 @@ import { RPGIntegration } from './rpg/RPGIntegration.js';
 import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
 import { TutorialScriptSystem } from './ui/TutorialScriptSystem.js';
-import { TutorialEditorModal } from './ui/TutorialEditorModal.js';
+import { SargemQuestEditor } from './ui/SargemQuestEditor.js';
+import { NPCManager } from './entities/NPC.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
 import ChristmasSystem from './ChristmasSystem.js';
@@ -307,8 +308,11 @@ class NebulaVoxelApp {
         this.tutorialSystem = new TutorialScriptSystem(this);
         console.log('🎓 TutorialScriptSystem initialized');
 
-        // 🎨 Initialize Tutorial Editor Modal (dev tool)
-        this.tutorialEditorModal = new TutorialEditorModal();
+        // 🐈‍⬛ Initialize Sargem Quest Editor (dev tool, StarNode-based)
+        this.sargemEditor = new SargemQuestEditor(this);
+
+        // 👥 Initialize NPC Manager
+        this.npcManager = new NPCManager(this);
 
         // 🎨 Initialize Enhanced Graphics System
         this.enhancedGraphics = new EnhancedGraphics();
@@ -8125,7 +8129,7 @@ class NebulaVoxelApp {
         // Day/Night Cycle
         this.dayNightCycle = {
             currentTime: 12, // Start at noon (24-hour format)
-            cycleDuration: 1200, // 20 minutes for full cycle (doubled from 600/10min)
+            cycleDuration: 1200, // 20 minutes for full day cycle (3 days per real hour)
             timeScale: 1.0,
             isActive: true,
             lastUpdate: Date.now(),
@@ -9715,14 +9719,16 @@ class NebulaVoxelApp {
             // Adjust light intensity and color based on time
             let intensity, color, ambientIntensity, skyColor;
 
+            // 20-minute cycle: Dawn 6-8, Day 8-17, Dusk 17-19, Evening 19-21, Night 21-6
             if (this.dayNightCycle.currentTime >= 6 && this.dayNightCycle.currentTime < 8) {
-                // Dawn (6am-8am) - orange/red light
-                intensity = 0.3 + ((this.dayNightCycle.currentTime - 6) / 2) * 0.5;
-                color = new THREE.Color().lerpColors(new THREE.Color(0xff4500), new THREE.Color(0xffffff), (this.dayNightCycle.currentTime - 6) / 2);
-                ambientIntensity = 0.2 + ((this.dayNightCycle.currentTime - 6) / 2) * 0.3;
-                skyColor = new THREE.Color().lerpColors(new THREE.Color(0x2c1810), new THREE.Color(0x87ceeb), (this.dayNightCycle.currentTime - 6) / 2);
+                // Dawn (6am-8am) - 2 minutes - orange/red light
+                const t = (this.dayNightCycle.currentTime - 6) / 2;
+                intensity = 0.3 + t * 0.5;
+                color = new THREE.Color().lerpColors(new THREE.Color(0xff4500), new THREE.Color(0xffffff), t);
+                ambientIntensity = 0.2 + t * 0.3;
+                skyColor = new THREE.Color().lerpColors(new THREE.Color(0x2c1810), new THREE.Color(0x87ceeb), t);
             } else if (this.dayNightCycle.currentTime >= 8 && this.dayNightCycle.currentTime < 17) {
-                // Day (8am-5pm) - full white light
+                // Day (8am-5pm) - 9 minutes - full white light
                 intensity = 0.8;
                 color = new THREE.Color(0xffffff);
                 ambientIntensity = 0.5;
@@ -9731,26 +9737,28 @@ class NebulaVoxelApp {
                 // Reset nightfall tutorial flag for next night
                 this.nightfallTutorialShownThisNight = false;
             } else if (this.dayNightCycle.currentTime >= 17 && this.dayNightCycle.currentTime < 19) {
-                // Dusk (5pm-7pm) - orange/red fading
-                intensity = 0.8 - ((this.dayNightCycle.currentTime - 17) / 2) * 0.6;
-                color = new THREE.Color().lerpColors(new THREE.Color(0xffffff), new THREE.Color(0xff4500), (this.dayNightCycle.currentTime - 17) / 2);
-                ambientIntensity = 0.5 - ((this.dayNightCycle.currentTime - 17) / 2) * 0.3;
-                skyColor = new THREE.Color().lerpColors(new THREE.Color(0x87ceeb), new THREE.Color(0xff6b35), (this.dayNightCycle.currentTime - 17) / 2);
+                // Dusk (5pm-7pm) - 2 minutes - orange/red fading
+                const t = (this.dayNightCycle.currentTime - 17) / 2;
+                intensity = 0.8 - t * 0.5;
+                color = new THREE.Color().lerpColors(new THREE.Color(0xffffff), new THREE.Color(0xff4500), t);
+                ambientIntensity = 0.5 - t * 0.25;
+                skyColor = new THREE.Color().lerpColors(new THREE.Color(0x87ceeb), new THREE.Color(0xff6b35), t);
             } else if (this.dayNightCycle.currentTime >= 19 && this.dayNightCycle.currentTime < 21) {
-                // Evening (7pm-9pm) - dim blue
-                intensity = 0.2 - ((this.dayNightCycle.currentTime - 19) / 2) * 0.15;
-                color = new THREE.Color().lerpColors(new THREE.Color(0xff4500), new THREE.Color(0x4169e1), (this.dayNightCycle.currentTime - 19) / 2);
-                ambientIntensity = 0.2 - ((this.dayNightCycle.currentTime - 19) / 2) * 0.15;
-                skyColor = new THREE.Color().lerpColors(new THREE.Color(0xff6b35), new THREE.Color(0x1a1a2e), (this.dayNightCycle.currentTime - 19) / 2);
+                // Evening (7pm-9pm) - 2 minutes - deeper orange to blue
+                const t = (this.dayNightCycle.currentTime - 19) / 2;
+                intensity = 0.3 - t * 0.25;
+                color = new THREE.Color().lerpColors(new THREE.Color(0xff4500), new THREE.Color(0x4169e1), t);
+                ambientIntensity = 0.25 - t * 0.2;
+                skyColor = new THREE.Color().lerpColors(new THREE.Color(0xff6b35), new THREE.Color(0x1a1a2e), t);
             } else {
-                // Night (9pm-6am) - very dim blue
+                // Night (9pm-6am) - 9 minutes - very dim blue
                 intensity = 0.05;
                 color = new THREE.Color(0x4169e1);
                 ambientIntensity = 0.05;
                 skyColor = new THREE.Color(0x0a0a0f); // Very dark blue/black
 
                 // 🎓 Trigger nightfall tutorial once when night begins
-                if (this.tutorialSystem && this.dayNightCycle.currentTime >= 19 && this.dayNightCycle.currentTime < 19.5) {
+                if (this.tutorialSystem && this.dayNightCycle.currentTime >= 21 && this.dayNightCycle.currentTime < 21.5) {
                     if (!this.nightfallTutorialShownThisNight) {
                         this.tutorialSystem.onNightfall();
                         this.nightfallTutorialShownThisNight = true;
@@ -10451,6 +10459,11 @@ class NebulaVoxelApp {
                 this.animalSystem.update(deltaTime);
             }
             
+            // 👥 Update NPC system (billboards, interactions)
+            if (this.npcManager) {
+                this.npcManager.update();
+            }
+            
             // Get speed multiplier from stamina system
             const staminaSpeedMultiplier = this.staminaSystem.getSpeedMultiplier();
             const speed = baseSpeed * staminaSpeedMultiplier;
@@ -11058,7 +11071,15 @@ class NebulaVoxelApp {
         const mousedownHandler = (e) => {
             if (!this.controlsEnabled || document.pointerLockElement !== this.renderer.domElement) return;
             
-            // 🗡️ SPEAR CHARGING: Start charging on right-click with spear
+            // � NPC INTERACTION: Check for nearby NPC on right-click
+            if (e.button === 2 && this.npcManager) {
+                if (this.npcManager.handleRightClick()) {
+                    e.preventDefault();
+                    return; // NPC interaction consumed the click
+                }
+            }
+            
+            // �🗡️ SPEAR CHARGING: Start charging on right-click with spear
             if (e.button === 2) { // Right click
                 const selectedSlot = this.hotbarSystem.getSelectedSlot();
                 const selectedItem = selectedSlot?.itemType;
@@ -13236,17 +13257,25 @@ class NebulaVoxelApp {
         this.updateFog();
     }
 
-    // 🎓 TUTORIAL EDITOR - Dev command to open editor modal
+    // 🐈‍⬛ SARGEM QUEST EDITOR - Dev command to open visual node editor
+    // Disables game controls while editing, re-enables on close
     openTutorialEditor() {
-        if (this.tutorialEditorModal) {
-            this.tutorialEditorModal.open();
-            console.log('🎓 Tutorial editor opened. Press ESC to close.');
+        if (this.sargemEditor) {
+            this.sargemEditor.open();
         } else {
-            console.warn('❌ Tutorial editor modal not initialized');
+            console.warn('❌ Sargem editor not initialized');
         }
     }
 
-    // 🐰 ANIMAL SYSTEM - Helper methods
+    // � NPC SYSTEM - Cleanup quest NPCs
+    cleanupQuestNPCs() {
+        if (this.npcManager) {
+            this.npcManager.removeAll();
+            console.log('🧹 Quest NPCs cleaned up');
+        }
+    }
+
+    // �🐰 ANIMAL SYSTEM - Helper methods
     getTimeOfDay() {
         if (!this.gameTime) return 'day';
         
@@ -13591,6 +13620,42 @@ class NebulaVoxelApp {
 
         // Start battle
         this.battleSystem.startBattle(enemyId, enemyPosition);
+    }
+
+    // NPC SYSTEM - Spawn helper for console
+    spawnNPC(emoji = '🐈‍⬛', name = 'Sargem', distance = 3) {
+        if (!this.npcManager) {
+            console.error('NPC Manager not ready');
+            return;
+        }
+
+        // Get player position and camera direction
+        const playerPos = this.player.position;
+        const cameraDir = new THREE.Vector3();
+        this.camera.getWorldDirection(cameraDir);
+        
+        // Calculate spawn X/Z position
+        const spawnX = Math.floor(playerPos.x + cameraDir.x * distance);
+        const spawnZ = Math.floor(playerPos.z + cameraDir.z * distance);
+        
+        // Find ground height (search down from player Y)
+        let groundY = Math.floor(playerPos.y);
+        for (let y = groundY; y > 0; y--) {
+            const block = this.getBlock(spawnX, y, spawnZ);
+            if (block && block.type !== 0) { // Found solid block
+                groundY = y + 1; // Spawn on top of block
+                break;
+            }
+        }
+        
+        const spawnPos = new THREE.Vector3(spawnX, groundY, spawnZ);
+
+        return this.npcManager.spawn({
+            name: name,
+            emoji: emoji,
+            position: spawnPos,
+            onInteract: (npc) => alert(`${npc.name} says: Meow!`)
+        });
     }
 }
 

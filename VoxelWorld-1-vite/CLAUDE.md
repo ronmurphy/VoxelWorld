@@ -306,6 +306,24 @@ giveItem('wheat_seeds')      // Gives wheat seeds for testing
 ### Long-Term Refactoring
 1. **Continue VoxelWorld.js Refactoring**: Extract Physics, PlayerController, UI, SaveLoad (reduce from 10,900+ lines to <2000)
 
+### Future Features / Ideas to Implement
+1. **🛠️ DevModal() - Visual Developer Console** 📋 *HIGH PRIORITY*
+   - Migrate all console commands to visual modal interface
+   - Categories: Items, Blocks, World, Time, Spawn, Stats, Debug
+   - Click-to-execute commands (no typing needed)
+   - Item/block picker with graphics from EnhancedGraphics
+   - Entity spawner with sprite previews
+   - Time slider (dawn → day → dusk → night visual selector)
+   - Keyboard shortcut (`` ` `` or `F3`) to toggle
+   - File: `src/dev/DevConsole.js` + `src/ui/DevModal.js`
+   - Benefits: Discoverable, organized, easier testing, clean code separation
+   
+2. **🐱 Cat Companions System** 🐈‍⬛
+   - Black cats (Sargem variant!), tabbies, calicos, orange boys
+   - Adoptable kittens found in world or rescued
+   - Follow player, sit on workbenches, general adorableness
+   - Special tribute to Brad's foster work (10+ years, neonatal care)
+
 ### Optional Enhancements
 1. **Companion Portrait UI**: Clickable companion portrait near hotbar (show HP, chat access)
 2. **Pumpkin Ghost Attraction**: Jack-o'-lantern ghost magnet mechanic

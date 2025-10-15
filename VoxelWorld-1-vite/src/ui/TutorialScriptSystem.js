@@ -32,8 +32,17 @@ export class TutorialScriptSystem {
     /**
      * Load tutorial scripts from JSON file
      */
-    async loadScripts() {
+    async loadScripts(scriptData = null) {
         try {
+            // If data provided directly (from Sargem test), use it
+            if (scriptData) {
+                this.scripts = scriptData;
+                this.loading = false;
+                console.log(`🎓 Loaded ${Object.keys(this.scripts.tutorials || {}).length} tutorial scripts (from Sargem)`);
+                return;
+            }
+            
+            // Otherwise fetch from file
             const response = await fetch('./data/tutorialScripts.json');
             if (!response.ok) {
                 throw new Error(`Failed to load tutorial scripts: ${response.status}`);
@@ -272,5 +281,20 @@ export class TutorialScriptSystem {
         playerData.tutorialsSeen = {};
         localStorage.setItem('NebulaWorld_playerData', JSON.stringify(playerData));
         console.log('🎓 All tutorials reset');
+    }
+
+    /**
+     * 🛑 Stop all running tutorials (for Sargem testing)
+     */
+    stopAll() {
+        // Close any open tutorial modals
+        const modals = document.querySelectorAll('.tutorial-modal, .companion-modal');
+        modals.forEach(modal => {
+            if (modal && modal.parentNode) {
+                modal.parentNode.removeChild(modal);
+            }
+        });
+        
+        console.log('🛑 All tutorials stopped');
     }
 }

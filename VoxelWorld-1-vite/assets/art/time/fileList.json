@@ -4,5 +4,6 @@
   "fileList": ".json",
   "moon": ".png",
   "night": ".png",
-  "sun": ".png"
+  "sun": ".png",
+  "timeWheel": ".png"
 }

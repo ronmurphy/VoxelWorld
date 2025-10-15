@@ -62,7 +62,8 @@ export class TutorialConverter {
                 Home: {
                     data: drawflowNodes
                 }
-            }
+            },
+            version: "0.0.60"  // Drawflow version (required for import)
         };
     }
 

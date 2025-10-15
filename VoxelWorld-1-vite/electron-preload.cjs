@@ -169,6 +169,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
       console.error('❌ Error getting user data path:', error);
       return null;
     }
+  },
+
+  // 🎓 TUTORIAL EDITOR: File operations
+  tutorialEditor: {
+    autoLoad: async () => {
+      const { ipcRenderer } = require('electron');
+      return await ipcRenderer.invoke('tutorial-editor:auto-load');
+    },
+    openDialog: async () => {
+      const { ipcRenderer } = require('electron');
+      return await ipcRenderer.invoke('tutorial-editor:open-dialog');
+    },
+    saveDialog: async (data, defaultPath) => {
+      const { ipcRenderer } = require('electron');
+      return await ipcRenderer.invoke('tutorial-editor:save-dialog', { data, defaultPath });
+    },
+    saveDefault: async (data) => {
+      const { ipcRenderer } = require('electron');
+      return await ipcRenderer.invoke('tutorial-editor:save-default', data);
+    }
   }
 });
 
