@@ -7,6 +7,8 @@
 import { TutorialConverter } from '../utils/TutorialConverter.js';
 import { ElectronFileSystem } from '../utils/ElectronFileSystem.js';
 import { QuestRunner } from '../quests/QuestRunner.js';
+import { itemPicker } from './ItemPicker.js';
+import { entityPicker } from './EntityPicker.js';
 
 export class SargemQuestEditor {
     constructor(voxelWorld) {
@@ -39,7 +41,7 @@ export class SargemQuestEditor {
             { id: 'dialogue', name: 'Dialogue', icon: '💬', color: '#4ec9b0', desc: 'Show companion/NPC dialogue' },
             { id: 'choice', name: 'Choice', icon: '❓', color: '#569cd6', desc: 'Yes/No or Multiple Choice' },
             { id: 'image', name: 'Image', icon: '🖼️', color: '#c586c0', desc: 'Show image from /art/pictures/' },
-            { id: 'combat', name: 'Combat', icon: '⚔️', color: '#ce9178', desc: 'Trigger combat encounter' },
+            { id: 'entity', name: 'Entity', icon: '👾', color: '#ce9178', desc: 'Spawn entity (enemy/NPC/animal)' },
             { id: 'item', name: 'Item', icon: '🎁', color: '#dcdcaa', desc: 'Give/Take items from player' },
             { id: 'condition', name: 'Condition', icon: '🔀', color: '#f48771', desc: 'Check inventory/quest state' },
             { id: 'trigger', name: 'Trigger', icon: '⚡', color: '#b5cea8', desc: 'Fire game event (unlock, spawn)' }
@@ -488,7 +490,7 @@ export class SargemQuestEditor {
             dialogue: { speaker: 'companion', text: '' },
             choice: { question: '', options: ['Yes', 'No'] },
             image: { path: '', duration: 3 },
-            combat: { enemy: '', level: 1 },
+            entity: { entityId: '', combat: true, level: 1 },
             item: { action: 'give', itemId: '', amount: 1 },
             condition: { checkType: 'hasItem', value: '' },
             trigger: { event: '', params: {} }
@@ -576,8 +578,27 @@ export class SargemQuestEditor {
             const opts = node.data.options || ['Yes', 'No'];
             return opts.join(' / ');
         }
-        if (node.data.enemy) return `Enemy: ${node.data.enemy}`;
-        if (node.data.itemId) return `${node.data.action}: ${node.data.itemId}`;
+        if (node.data.entityId) {
+            // Show entity with emoji + name
+            const entity = this.getEntityDisplay(node.data.entityId);
+            const prefix = node.data.combat ? 'Fight' : 'Spawn';
+            return `${prefix} ${entity.emoji} ${entity.name}`;
+        }
+        if (node.data.itemId) {
+            // Show item with emoji + name
+            const item = this.getItemDisplay(node.data.itemId);
+            return `${node.data.action}: ${item.emoji} ${item.name}`;
+        }
+        if (node.data.path) return `Image: ${node.data.path.split('/').pop()}`;
+        if (node.data.checkType) {
+            // Show condition check
+            if (node.data.checkType === 'hasItem' && node.data.value) {
+                const item = this.getItemDisplay(node.data.value);
+                return `Has ${item.emoji} ${item.name}?`;
+            }
+            return `Check: ${node.data.checkType}`;
+        }
+        if (node.data.event) return `Event: ${node.data.event}`;
         return 'Configure...';
     }
 
@@ -753,27 +774,178 @@ export class SargemQuestEditor {
             this.addTextField(content, 'Duration (seconds)', node.data.duration || 3, 
                 (val) => { node.data.duration = parseInt(val) || 3; this.updateNodePreview(node); });
         }
-        else if (node.type === 'combat') {
-            this.addTextField(content, 'Enemy Type', node.data.enemy || '', 
-                (val) => { node.data.enemy = val; this.updateNodePreview(node); });
-            this.addTextField(content, 'Level', node.data.level || 1, 
-                (val) => { node.data.level = parseInt(val) || 1; this.updateNodePreview(node); });
+        else if (node.type === 'entity') {
+            // Combat checkbox
+            const combatContainer = document.createElement('div');
+            combatContainer.style.cssText = 'margin-bottom: 15px;';
+            
+            const combatCheckbox = document.createElement('label');
+            combatCheckbox.style.cssText = 'display: flex; align-items: center; cursor: pointer; color: #cccccc; font-size: 13px;';
+            combatCheckbox.innerHTML = `
+                <input type="checkbox" ${node.data.combat ? 'checked' : ''} style="margin-right: 8px;">
+                <span>⚔️ Combat Encounter (unchecked = peaceful spawn)</span>
+            `;
+            
+            const checkbox = combatCheckbox.querySelector('input');
+            checkbox.onchange = () => {
+                node.data.combat = checkbox.checked;
+                this.updateNodePreview(node);
+            };
+            
+            combatContainer.appendChild(combatCheckbox);
+            content.appendChild(combatContainer);
+            
+            // Entity picker button instead of text input
+            const entityContainer = document.createElement('div');
+            entityContainer.style.cssText = 'margin-bottom: 15px;';
+            
+            const entityLabel = document.createElement('label');
+            entityLabel.textContent = 'Entity';
+            entityLabel.style.cssText = 'display: block; margin-bottom: 5px; color: #cccccc; font-size: 13px;';
+            entityContainer.appendChild(entityLabel);
+            
+            const entityButton = document.createElement('button');
+            const currentEntity = node.data.entityId ? 
+                this.getEntityDisplay(node.data.entityId) : 
+                { emoji: '👾', name: 'Choose Entity...' };
+            entityButton.innerHTML = `${currentEntity.emoji} ${currentEntity.name}`;
+            entityButton.style.cssText = `
+                width: 100%;
+                padding: 8px;
+                background: #0e639c;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+                font-size: 13px;
+                text-align: left;
+            `;
+            entityButton.onmouseover = () => entityButton.style.background = '#1177bb';
+            entityButton.onmouseout = () => entityButton.style.background = '#0e639c';
+            entityButton.onclick = () => {
+                entityPicker.show(node.data.entityId, (selectedEntity) => {
+                    console.log('👾 Entity selected in Sargem:', selectedEntity);
+                    node.data.entityId = selectedEntity.id;
+                    entityButton.innerHTML = `${selectedEntity.emoji} ${selectedEntity.name}`;
+                    this.updateNodePreview(node);
+                });
+            };
+            
+            entityContainer.appendChild(entityButton);
+            content.appendChild(entityContainer);
+            
+            // Level field (only show for combat)
+            if (node.data.combat) {
+                this.addTextField(content, 'Level', node.data.level || 1, 
+                    (val) => { node.data.level = parseInt(val) || 1; this.updateNodePreview(node); });
+            }
         }
         else if (node.type === 'item') {
             this.addSelectField(content, 'Action', node.data.action || 'give', 
                 ['give', 'take', 'check'], 
                 (val) => { node.data.action = val; this.updateNodePreview(node); });
-            this.addTextField(content, 'Item ID', node.data.itemId || '', 
-                (val) => { node.data.itemId = val; this.updateNodePreview(node); });
+            
+            // Item picker button instead of text input
+            const itemContainer = document.createElement('div');
+            itemContainer.style.cssText = 'margin-bottom: 15px;';
+            
+            const itemLabel = document.createElement('label');
+            itemLabel.textContent = 'Item';
+            itemLabel.style.cssText = 'display: block; margin-bottom: 5px; color: #cccccc; font-size: 13px;';
+            itemContainer.appendChild(itemLabel);
+            
+            const itemButton = document.createElement('button');
+            const currentItem = node.data.itemId ? 
+                this.getItemDisplay(node.data.itemId) : 
+                { emoji: '📦', name: 'Choose Item...' };
+            itemButton.innerHTML = `${currentItem.emoji} ${currentItem.name}`;
+            itemButton.style.cssText = `
+                width: 100%;
+                padding: 8px;
+                background: #0e639c;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+                font-size: 13px;
+                text-align: left;
+                transition: background 0.2s;
+            `;
+            itemButton.onmouseover = () => itemButton.style.background = '#1177bb';
+            itemButton.onmouseout = () => itemButton.style.background = '#0e639c';
+            itemButton.onclick = () => {
+                itemPicker.show(node.data.itemId, (selectedItem) => {
+                    console.log('📦 Item selected in Sargem:', selectedItem);
+                    node.data.itemId = selectedItem.id;
+                    itemButton.innerHTML = `${selectedItem.emoji} ${selectedItem.name}`;
+                    this.updateNodePreview(node);
+                });
+            };
+            
+            itemContainer.appendChild(itemButton);
+            content.appendChild(itemContainer);
+            
             this.addTextField(content, 'Amount', node.data.amount || 1, 
                 (val) => { node.data.amount = parseInt(val) || 1; this.updateNodePreview(node); });
         }
         else if (node.type === 'condition') {
             this.addSelectField(content, 'Check Type', node.data.checkType || 'hasItem', 
                 ['hasItem', 'hasQuest', 'level', 'health'], 
-                (val) => { node.data.checkType = val; this.updateNodePreview(node); });
-            this.addTextField(content, 'Value', node.data.value || '', 
-                (val) => { node.data.value = val; this.updateNodePreview(node); });
+                (val) => { 
+                    node.data.checkType = val; 
+                    this.updateNodePreview(node);
+                    // Re-render properties to show appropriate input
+                    this.showProperties(node);
+                });
+            
+            // Show different inputs based on check type
+            const checkType = node.data.checkType || 'hasItem';
+            
+            if (checkType === 'hasItem') {
+                // Use item picker for hasItem
+                const itemContainer = document.createElement('div');
+                itemContainer.style.cssText = 'margin-bottom: 15px;';
+                
+                const itemLabel = document.createElement('label');
+                itemLabel.textContent = 'Item';
+                itemLabel.style.cssText = 'display: block; margin-bottom: 5px; color: #cccccc; font-size: 13px;';
+                itemContainer.appendChild(itemLabel);
+                
+                const itemButton = document.createElement('button');
+                const currentItem = node.data.value ? 
+                    this.getItemDisplay(node.data.value) : 
+                    { emoji: '📦', name: 'Choose Item...' };
+                itemButton.innerHTML = `${currentItem.emoji} ${currentItem.name}`;
+                itemButton.style.cssText = `
+                    width: 100%;
+                    padding: 8px;
+                    background: #0e639c;
+                    border: none;
+                    border-radius: 4px;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 13px;
+                    text-align: left;
+                    transition: background 0.2s;
+                `;
+                itemButton.onmouseover = () => itemButton.style.background = '#1177bb';
+                itemButton.onmouseout = () => itemButton.style.background = '#0e639c';
+                itemButton.onclick = () => {
+                    itemPicker.show(node.data.value, (selectedItem) => {
+                        console.log('📦 Item selected in Condition node:', selectedItem);
+                        node.data.value = selectedItem.id;
+                        itemButton.innerHTML = `${selectedItem.emoji} ${selectedItem.name}`;
+                        this.updateNodePreview(node);
+                    });
+                };
+                
+                itemContainer.appendChild(itemButton);
+                content.appendChild(itemContainer);
+            } else {
+                // Text input for other check types
+                this.addTextField(content, 'Value', node.data.value || '', 
+                    (val) => { node.data.value = val; this.updateNodePreview(node); });
+            }
         }
         else if (node.type === 'trigger') {
             this.addTextField(content, 'Event Name', node.data.event || '', 
@@ -809,9 +981,39 @@ export class SargemQuestEditor {
         // Debug JSON
         const debugSection = document.createElement('details');
         debugSection.style.cssText = 'margin-top: 20px; padding-top: 20px; border-top: 1px solid #3e3e42;';
+        
+        // Header with refresh button
+        const debugHeader = document.createElement('div');
+        debugHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;';
+        
         const debugSummary = document.createElement('summary');
         debugSummary.textContent = '🐈‍⬛ Debug: Raw JSON';
-        debugSummary.style.cssText = 'cursor: pointer; color: #858585; margin-bottom: 10px;';
+        debugSummary.style.cssText = 'cursor: pointer; color: #858585; flex: 1;';
+        
+        const refreshBtn = document.createElement('button');
+        refreshBtn.innerHTML = '🔄';
+        refreshBtn.title = 'Refresh JSON';
+        refreshBtn.style.cssText = `
+            background: #3c3c3c;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            color: #cccccc;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 14px;
+            margin-left: 10px;
+        `;
+        refreshBtn.onmouseover = () => refreshBtn.style.background = '#4c4c4c';
+        refreshBtn.onmouseout = () => refreshBtn.style.background = '#3c3c3c';
+        refreshBtn.onclick = (e) => {
+            e.stopPropagation(); // Don't toggle details
+            debugPre.textContent = JSON.stringify(node, null, 2);
+            console.log('🔄 Debug JSON refreshed for node:', node.id);
+        };
+        
+        debugHeader.appendChild(debugSummary);
+        debugHeader.appendChild(refreshBtn);
+        
         const debugPre = document.createElement('pre');
         debugPre.style.cssText = `
             background: #1e1e1e;
@@ -822,7 +1024,8 @@ export class SargemQuestEditor {
             color: #d4d4d4;
         `;
         debugPre.textContent = JSON.stringify(node, null, 2);
-        debugSection.appendChild(debugSummary);
+        
+        debugSection.appendChild(debugHeader);
         debugSection.appendChild(debugPre);
         content.appendChild(debugSection);
     }
@@ -936,6 +1139,14 @@ export class SargemQuestEditor {
         const preview = nodeEl.querySelector('div:last-child');
         if (preview) {
             preview.textContent = this.getNodePreview(node);
+        }
+
+        // Also update debug JSON if properties panel is open for this node
+        if (this.selectedNode === node) {
+            const debugPre = document.querySelector('.sargem-properties pre');
+            if (debugPre) {
+                debugPre.textContent = JSON.stringify(node, null, 2);
+            }
         }
     }
 
@@ -1434,6 +1645,32 @@ export class SargemQuestEditor {
         if (!this.autosaveTimer) {
             this.autosaveTimer = setInterval(() => this.autoSaveToTemp(), 30000); // Every 30 seconds
         }
+    }
+
+    /**
+     * Get item display info (emoji + name) from item ID
+     */
+    getItemDisplay(itemId) {
+        // Search through itemPicker's items
+        for (const [category, items] of Object.entries(itemPicker.items)) {
+            const item = items.find(i => i.id === itemId);
+            if (item) return item;
+        }
+        // Fallback if not found
+        return { emoji: '❓', name: itemId };
+    }
+
+    /**
+     * Get entity display info from entityPicker
+     */
+    getEntityDisplay(entityId) {
+        // Search through entityPicker's entities
+        for (const [category, entities] of Object.entries(entityPicker.entities)) {
+            const entity = entities.find(e => e.id === entityId);
+            if (entity) return entity;
+        }
+        // Fallback if not found
+        return { emoji: '❓', name: entityId };
     }
 
     /**
