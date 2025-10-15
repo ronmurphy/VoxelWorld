@@ -233,15 +233,19 @@ export class MusicSystem {
                 const currentVol = toTrack.volume();
                 console.log(`${toEmoji} Track status: playing=${isPlaying}, volume=${Math.round(currentVol * 100)}%, soundId=${soundId}`);
             }, 100);
+            
+            // Fade in new track (wait a tiny bit for play() to take effect)
+            setTimeout(() => {
+                console.log(`${toEmoji} Fading in from 0% to ${Math.round(targetVolume * 100)}%`);
+                toTrack.fade(0, targetVolume, this.crossfadeDuration);
+            }, 50);
         } else {
-            console.log(`${toEmoji} ${toMode} track already playing`);
+            // Track already playing - just fade it to target volume from current volume
+            const currentVol = toTrack.volume();
+            console.log(`${toEmoji} ${toMode} track already playing at ${Math.round(currentVol * 100)}%`);
+            console.log(`${toEmoji} Fading from ${Math.round(currentVol * 100)}% to ${Math.round(targetVolume * 100)}%`);
+            toTrack.fade(currentVol, targetVolume, this.crossfadeDuration);
         }
-        
-        // Fade in new track (wait a tiny bit for play() to take effect)
-        setTimeout(() => {
-            console.log(`${toEmoji} Fading in from 0% to ${Math.round(targetVolume * 100)}%`);
-            toTrack.fade(0, targetVolume, this.crossfadeDuration);
-        }, 50);
         
         this.isPlaying = true;
     }

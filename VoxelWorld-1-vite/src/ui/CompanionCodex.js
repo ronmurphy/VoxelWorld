@@ -52,7 +52,7 @@ export class CompanionCodex {
             combat_sword: { attack: 4, label: '⚔️ Combat Sword', icon: 'art/tools/sword.png' },
             mining_pick: { attack: 2, defense: 2, label: '⛏️ Mining Pick', icon: 'art/tools/pickaxe.png' },
             stone_hammer: { attack: 3, defense: 1, label: '🔨 Stone Hammer', icon: 'art/tools/stone_hammer.png' },
-            magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/cryatal.png' },
+            magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/ancientAmulet.png' },
             compass: { speed: 1, label: '🧭 Compass', icon: 'art/tools/compass.png' },
             compass_upgrade: { speed: 2, label: '🧭 Crystal Compass', icon: 'art/tools/compass.png' },
             speed_boots: { speed: 3, label: '👢 Speed Boots', icon: 'art/tools/boots_speed.png' },
@@ -68,7 +68,7 @@ export class CompanionCodex {
             // Prefixed versions from ToolBench crafting system
             crafted_combat_sword: { attack: 4, label: '⚔️ Combat Sword', icon: 'art/tools/sword.png' },
             crafted_mining_pick: { attack: 2, defense: 2, label: '⛏️ Mining Pick', icon: 'art/tools/pickaxe.png' },
-            crafted_magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/cryatal.png' },
+            crafted_magic_amulet: { defense: 3, hp: 8, speed: 1, label: '📿 Magic Amulet', icon: 'art/tools/ancientAmulet.png' },
             crafted_grappling_hook: { speed: 2, label: '🕸️ Grappling Hook', icon: 'art/tools/grapple.png' },
             crafted_club: { attack: 3, label: '🏏 Wooden Club', icon: 'art/tools/club.png' },
             crafted_stone_spear: { attack: 4, speed: 1, label: '🗡️ Stone Spear', icon: 'art/tools/stone_spear.png' },
@@ -531,6 +531,20 @@ export class CompanionCodex {
                 stats.attack += bonuses.attack || 0;
                 stats.defense += bonuses.defense || 0;
                 stats.speed += bonuses.speed || 0;
+                
+                // 📿 MAGIC AMULET: Apply random bonus if exists
+                if ((item === 'magic_amulet' || item === 'crafted_magic_amulet') && 
+                    this.voxelWorld.inventoryMetadata && 
+                    this.voxelWorld.inventoryMetadata[item] &&
+                    this.voxelWorld.inventoryMetadata[item].randomBonus) {
+                    
+                    const randomBonus = this.voxelWorld.inventoryMetadata[item].randomBonus;
+                    const statName = randomBonus.stat;
+                    const bonusValue = randomBonus.value || 2;
+                    
+                    stats[statName] += bonusValue;
+                    console.log(`📿 Magic Amulet random bonus applied: +${bonusValue} ${statName}`);
+                }
             }
         });
 

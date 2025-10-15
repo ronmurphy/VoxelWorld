@@ -2497,10 +2497,11 @@ class NebulaVoxelApp {
                 'crafted_mining_pick', 'crafted_stone_hammer', 'crafted_magic_amulet',
                 'crafted_compass', 'crafted_compass_upgrade', 'crafted_machete',
                 'crafted_club', 'crafted_stone_spear', 'crafted_torch', 'crafted_wood_shield',
-                'crafted_hoe', 'crafted_watering_can',
+                'crafted_hoe', 'crafted_watering_can', 'crafted_healing_potion', 'crafted_light_orb',
                 'grappling_hook', 'speed_boots', 'combat_sword', 'mining_pick',
                 'stone_hammer', 'magic_amulet', 'compass', 'compass_upgrade', 'machete',
-                'club', 'stone_spear', 'torch', 'wood_shield', 'hoe', 'watering_can'
+                'club', 'stone_spear', 'torch', 'wood_shield', 'hoe', 'watering_can',
+                'healing_potion', 'light_orb'
             ];
             
             if (toolBenchTools.includes(itemType)) {
@@ -2615,6 +2616,10 @@ class NebulaVoxelApp {
                 pumpkin_seeds: '🎃', // Pumpkin seeds
                 berry_seeds: '🫐',   // Berry seeds
                 
+                // 🧪 CONSUMABLE TOOLS
+                healing_potion: '🧪',      // Healing potion (heals companion or player)
+                light_orb: '💡',           // Light orb (ceiling-mounted light)
+                
                 // 🥬 HARVESTED INGREDIENTS
                 wheat: '🌾',         // Harvested wheat
                 carrot: '🥕',        // Harvested carrot
@@ -2665,6 +2670,8 @@ class NebulaVoxelApp {
                 // Crafting tools (excluding benches - those are special UI items)
                 'machete', 'stone_hammer', 'stick', 'compass', 'compass_upgrade', 
                 'grappling_hook', 'crafted_grappling_hook', 'hoe',
+                // Consumable tools
+                'healing_potion', 'crafted_healing_potion', 'light_orb', 'crafted_light_orb',
                 // Discovery items (in /tools/ folder)
                 'skull', 'mushroom', 'flower', 'berry', 'crystal', 'feather', 'bone', 'shell', 
                 'fur', 'iceShard', 'rustySword', 'oldPickaxe', 'ancientAmulet',
@@ -11137,8 +11144,44 @@ class NebulaVoxelApp {
                 }
 
                 if (e.button === 0) { // Left click - harvesting (blocks or crafted objects)
-                    // 🔧 CRAFTED TOOLS: Check for special left-click tool actions
+                    // 🧪 HEALING POTION: Smart targeting system
                     const selectedSlot = this.hotbarSystem.getSelectedSlot();
+                    if (selectedSlot && (selectedSlot.itemType === 'healing_potion' || selectedSlot.itemType === 'crafted_healing_potion')) {
+                        // Check if targeting companion sprite in battle
+                        if (this.battleArena && this.battleArena.isActive && this.battleArena.companionSprite) {
+                            // Check if raycaster hit the companion sprite
+                            if (hit.object === this.battleArena.companionSprite.sprite ||
+                                hit.object === this.battleArena.companionSprite.hpBarSprite) {
+                                // Heal companion
+                                const healAmount = 10; // Heal 10 HP
+                                const newHP = Math.min(this.battleArena.companionSprite.maxHP, 
+                                                      this.battleArena.companionSprite.currentHP + healAmount);
+                                this.battleArena.companionSprite.updateHP(newHP);
+                                this.updateStatus(`🧪 Healed ${this.battleArena.companionSprite.name} for ${healAmount} HP!`, 'discovery');
+                                console.log(`🧪 Healing potion used on companion: ${healAmount} HP restored`);
+                                
+                                // Consume charge
+                                this.hotbarSystem.removeFromSlot(this.hotbarSystem.selectedSlotIndex, 1);
+                                return;
+                            }
+                        }
+                        
+                        // Otherwise, heal player (if not at full HP)
+                        if (this.playerHP && this.playerHP.currentHP < this.playerHP.maxHP) {
+                            this.playerHP.heal(1); // Restore 1 heart
+                            this.updateStatus('🧪 Healing potion restored 1 heart!', 'discovery');
+                            console.log('🧪 Healing potion used on player');
+                            
+                            // Consume charge
+                            this.hotbarSystem.removeFromSlot(this.hotbarSystem.selectedSlotIndex, 1);
+                            return;
+                        } else if (this.playerHP) {
+                            this.updateStatus('❤️ Already at full health!', 'info');
+                            return;
+                        }
+                    }
+
+                    // 🔧 CRAFTED TOOLS: Check for special left-click tool actions
                     const toolHandled = this.craftedTools.handleLeftClick(selectedSlot, pos);
                     if (toolHandled) {
                         return; // Tool action handled, don't continue

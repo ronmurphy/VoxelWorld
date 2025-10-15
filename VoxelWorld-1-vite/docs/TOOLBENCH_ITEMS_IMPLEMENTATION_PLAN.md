@@ -114,21 +114,20 @@ This document tracks all ToolBench craftable items, their implementation status,
 - **Location**: CompanionCodex.js lines 66, 76, 89-90
 
 ### 📿 Magic Amulet (`magic_amulet`, `crafted_magic_amulet`)
-- **Status**: ⚠️ In CompanionCodex but needs special implementation
-- **Current Stats**: Defense +3, HP +8, Speed +1
-- **Current Effect**: Heal 3 HP each turn
-- **Planned Effect**: 
-  - **Randomly chooses ONE stat on equip**
-  - **Permanently boosts that stat by +4**
+- **Status**: ⚠️ In CompanionCodex but needs enhancement
+- **Current Stats**: Defense +3, HP +8, Speed +1, Heal 3 HP/turn ✅ KEEP THESE
+- **Additional Effect to Add**: 
+  - **Randomly chooses ONE stat on craft/equip**
+  - **Permanently boosts that stat by +2** (stacks with existing bonuses)
   - **Boost is saved to that specific item instance**
-- **Graphics**: `/art/tools/cryatal.png` (note: typo in filename)
+- **Graphics**: `/art/tools/ancientAmulet.png`
 - **Blueprint Clues**: ❌ Needs riddles (currently "Mysterious powers TBD")
 - **Location**: CompanionCodex.js lines 55, 71, 103-104
 - **Implementation Notes**:
-  - Current implementation gives fixed stats (def+3, hp+8, spd+1)
-  - Need to change to random stat selection system
-  - Need item instance metadata storage
-  - Keep "heal 3 HP each turn" or make that the random effect?
+  - Keep all existing stats (def+3, hp+8, spd+1, heal 3HP/turn)
+  - ADD random +2 bonus to one stat (attack, defense, hp, or speed)
+  - Random selection happens on craft, saved to item metadata
+  - Display bonus in item tooltip/description
 
 ---
 
@@ -136,39 +135,41 @@ This document tracks all ToolBench craftable items, their implementation status,
 
 ### 🧪 Healing Potion
 - **Status**: ⏳ Needs Implementation
-- **Purpose**: **Dual-purpose healing item**
+- **Purpose**: **Smart healing item with auto-targeting**
 - **Functionality**:
-  1. **BattleArena Auto-battler**: 
-     - Player raycasts/targets fighting companion
-     - Click to heal companion during battle
-  2. **Player Use**:
-     - Restore 1 heart (PlayerHP system)
-     - +50% stamina (StaminaSystem - no overflow)
-- **System**: BattleArena files, PlayerHP, StaminaSystem
+  1. **In Combat - Target Companion**: 
+     - If companion is targeted during battle
+     - Harvest click (left-click) heals companion
+  2. **Out of Combat OR No Target**:
+     - Restore 1 heart to player (PlayerHP system)
+     - No overflow - max 3 hearts
+  3. **Stamina**: NOT restored (simplified from original plan)
+- **System**: BattleArena targeting, PlayerHP
 - **Blueprint**: 5 charges, mushroom+berry+wheat
-- **Blueprint Clues**: ❌ Needs riddles added
-- **Related Files**: "BattleArena" system files
+- **Blueprint Clues**: ❌ Needs creative riddles
+- **Implementation**:
+  - Check if companion sprite is targeted (raycaster)
+  - If yes + in battle → heal companion
+  - Otherwise → heal player (+1 heart, max 3)
 
-###  Light Orb
-- **Status**: ⏳ Complex Implementation (Do Last)
-- **Purpose**: **Placeable light source with smart attachment**
-- **Functionality**:
-  - Place ON block surfaces (not in-world like blocks)
-  - **Smart side detection**:
-    - Ceiling bottom (attach light to ceiling)
-    - 4 wall sides (attach to walls)
-    - Top of block (attach to floor/top)
+### 💡 Light Orb
+- **Status**: ⏳ Simplified Implementation
+- **Purpose**: **Ceiling-mounted light source (like Minecraft lamp)**
+- **Simplified Design**:
+  - **Always attaches to bottom of block above**
+  - Player targets any block, light orb places underneath it
+  - No complex face detection needed
   - Light + particles (similar to campfire)
   - Persistent in save system
-- **Graphics**: TBD
-- **System**: New placement system, lighting, particles
+- **Graphics**: TBD (create simple glowing orb sprite)
+- **System**: Simpler placement system, lighting, particles
 - **Blueprint**: 10 charges, crystal+iceShard
-- **Blueprint Clues**: ❌ Needs riddles added
+- **Blueprint Clues**: ❌ Needs creative riddles
 - **Implementation Notes**:
-  - Complex raycasting for surface detection
-  - Attachment point calculation per face
-  - Similar to campfire but surface-attached
-  - **Implement this LAST** (most complex)
+  - Right-click block → place light orb below it (hanging from ceiling)
+  - Much simpler than full surface attachment
+  - Similar to torch/campfire lighting system
+  - **Can implement earlier now** (no longer "do last")
 
 ---
 
@@ -185,31 +186,37 @@ This document tracks all ToolBench craftable items, their implementation status,
 
 ## 🎯 Implementation Priority
 
-### Phase 1: Magic Amulet Random Stat System (High Priority)
-1. Modify Magic Amulet to use random stat boost system
-2. Add item instance metadata storage
-3. Random stat selection on craft/equip (+4 to one stat)
-4. Save/load system for amulet stat data
+### Phase 1: Add Creative Blueprint Riddles (Quick Win)
+1. **Combat Sword** - "A blade once rusted, now reborn..." / "Sharpened with bones of the fallen..."
+2. **Healing Potion** - "Two sweet berries, one bitter fungus..." / "Golden grain to bind the brew..."
+3. **Light Orb** - "Three shards of earth's frozen tears..." / "Two crystals bright, to pierce the night..."
+4. **Magic Amulet** - "One ancient relic, power untold..." / "Three crystals pure..." / "Two shards of ice, to seal the spell..."
+5. **Backpack Upgrades** - "Warm pelts from the frozen north..." / "Ancient wisdom in amulet form..."
 
-### Phase 2: Healing Potion System (Medium Priority)
-1. Review BattleArena companion targeting
-2. Implement raycast targeting for companion healing
-3. Add PlayerHP.heal() method (restore 1 heart)
-4. Add StaminaSystem.restore() method (+50%, no overflow)
-5. Add hotbar right-click handler for potion use
+### Phase 2: Healing Potion Smart Targeting (Medium Priority)
+1. Add healing_potion to ToolBenchSystem blueprint (already exists)
+2. Modify VoxelWorld.js harvest click handler:
+   - Check if healing_potion is selected
+   - Raycast for companion sprite
+   - If companion targeted + in battle → heal companion
+   - Otherwise → heal player (PlayerHP.heal, +1 heart max 3)
+3. Add charge consumption (5 uses per potion)
 
-### Phase 3: Light Orb Surface Attachment (Low Priority - Do Last)
-1. Implement smart face detection raycasting
-2. Surface attachment point calculation
-3. Lighting & particle system (similar to campfire)
-4. Save system integration for placed light orbs
+### Phase 3: Magic Amulet Random Bonus (Medium Priority)
+1. Modify ToolBenchSystem crafting for magic_amulet
+2. On craft: Randomly select stat (attack/defense/hp/speed)
+3. Store in item metadata: `{ randomBonus: { stat: 'attack', value: 2 } }`
+4. Update CompanionCodex to read and apply bonus
+5. Display in tooltip: "Magic Amulet (+2 ATK)" or "+2 DEF" etc.
 
-### Phase 4: Blueprint Riddles (Documentation)
-1. Add riddles for Combat Sword
-2. Add riddles for Healing Potion  
-3. Add riddles for Light Orb
-4. Add riddles for Magic Amulet (replace "Mysterious powers TBD")
-5. Add riddles for Backpack Upgrades (replace plain descriptions)
+### Phase 4: Light Orb Ceiling Placement (Low Priority)
+1. Add light_orb as consumable tool
+2. Right-click block handler:
+   - Place light orb sprite at block position - Vector3(0, -0.5, 0)
+   - Add point light (similar to campfire)
+   - Add particle effect (glowing particles)
+3. Save system integration
+4. 10 charges per light orb
 
 ---
 
@@ -217,17 +224,16 @@ This document tracks all ToolBench craftable items, their implementation status,
 
 **Total Items**: 18
 - ✅ **Complete**: 9 items (Machete, Hoe, Watering Can, Stone Spear, Stone Hammer, Compass, Grappling Hook, Speed Boots, Backpack Upgrades)
-- ✅ **In CompanionCodex**: 4 items (Club, Combat Sword, Wooden Shield, Magic Amulet*)
-- ⏳ **Needs Implementation**: 3 items (Magic Amulet* random system, Healing Potion, Light Orb)
+- ✅ **In CompanionCodex**: 4 items (Club, Combat Sword, Wooden Shield, Magic Amulet)
+- ⏳ **Simple Implementations**: 3 items (Magic Amulet +2 bonus, Healing Potion, Light Orb)
 - ❓ **Uncertain**: 1 item (Mining Pick - redundant with Stone Hammer)
 
-*Magic Amulet is in CompanionCodex but needs special random stat implementation
+**Simplified Changes**:
+- ✅ Magic Amulet: Keep existing stats, ADD random +2 bonus (not replace)
+- ✅ Healing Potion: Target companion OR heal player (no stamina)
+- ✅ Light Orb: Simple ceiling-only attachment (like Minecraft lamp)
 
-**Key Discoveries**:
-- ✅ Companion equipment system already exists and working!
-- ✅ Club, Sword, Shield already have stats and special effects
-- ✅ All battle/HP/stamina systems exist and ready for potion integration
-- ⚠️ Magic Amulet needs conversion from fixed stats to random boost system
+**All items are now easy to implement!** 🎉
 
 ---
 

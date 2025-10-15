@@ -74,6 +74,10 @@ export class ToolBenchSystem {
                 name: '🎒 Backpack Upgrade I',
                 items: { fur: 4, ancientAmulet: 1 },
                 description: 'Increase stack size from 50 to 75',
+                clues: {
+                    fur: 'Four warm pelts from the frozen north...',
+                    ancientAmulet: 'One relic of wisdom, to expand your worth...'
+                },
                 category: 'upgrade',
                 isUpgrade: true,
                 upgradeType: 'backpackStackSize',
@@ -85,6 +89,11 @@ export class ToolBenchSystem {
                 name: '🎒 Backpack Upgrade II',
                 items: { fur: 4, ancientAmulet: 2, crystal: 3 },
                 description: 'Increase stack size from 75 to 100',
+                clues: {
+                    fur: 'Four more pelts, soft and deep...',
+                    ancientAmulet: 'Two relics of ages, secrets to keep...',
+                    crystal: 'Three shards of power, to expand the leap...'
+                },
                 category: 'upgrade',
                 isUpgrade: true,
                 upgradeType: 'backpackStackSize',
@@ -97,6 +106,11 @@ export class ToolBenchSystem {
                 name: '⚔️ Combat Sword',
                 items: { rustySword: 1, bone: 2, crystal: 1 },
                 description: 'Functional combat weapon',
+                clues: {
+                    rustySword: 'A blade once rusted, now reborn with purpose...',
+                    bone: 'Two remnants of the fallen, to sharpen its edge...',
+                    crystal: 'A single shard of purity, to seal the bond...'
+                },
                 category: 'combat',
                 isTool: true
             },
@@ -184,6 +198,11 @@ export class ToolBenchSystem {
                 name: '🧪 Healing Potion',
                 items: { mushroom: 2, berry: 1, wheat: 1 },
                 description: 'Restore health. 5 charges.',
+                clues: {
+                    mushroom: 'Two bitter fungi, earthy and dark...',
+                    berry: 'One sweet fruit, to heal the heart...',
+                    wheat: 'Golden grain, to bind the spark...'
+                },
                 category: 'consumable',
                 isConsumable: true,
                 charges: 5
@@ -193,6 +212,10 @@ export class ToolBenchSystem {
                 name: '💡 Light Orb',
                 items: { crystal: 3, iceShard: 2 },
                 description: 'Portable light source. 10 charges.',
+                clues: {
+                    crystal: 'Three shards of earth, bright and clear...',
+                    iceShard: 'Two frozen tears, to pierce the night\'s fear...'
+                },
                 category: 'consumable',
                 isConsumable: true,
                 charges: 10
@@ -201,7 +224,12 @@ export class ToolBenchSystem {
             magic_amulet: {
                 name: '📿 Magic Amulet',
                 items: { ancientAmulet: 1, crystal: 3, iceShard: 2 },
-                description: 'Mysterious powers (TBD)',
+                description: 'Ancient artifact with random mystical powers',
+                clues: {
+                    ancientAmulet: 'One relic of ages, power untold...',
+                    crystal: 'Three shards of purity, secrets to hold...',
+                    iceShard: 'Two frozen fragments, the spell to unfold...'
+                },
                 category: 'special',
                 isTool: true
             },
@@ -1088,6 +1116,28 @@ export class ToolBenchSystem {
         } else {
             // Non-tools go to regular inventory
             this.voxelWorld.addToInventory(itemId, 1);
+        }
+
+        // 📿 MAGIC AMULET: Add random +2 stat bonus on craft
+        if (this.selectedBlueprint === 'magic_amulet') {
+            const stats = ['attack', 'defense', 'hp', 'speed'];
+            const randomStat = stats[Math.floor(Math.random() * stats.length)];
+            const bonusValue = 2;
+            
+            // Store random bonus in metadata
+            if (!this.voxelWorld.inventoryMetadata) {
+                this.voxelWorld.inventoryMetadata = {};
+            }
+            if (!this.voxelWorld.inventoryMetadata[itemId]) {
+                this.voxelWorld.inventoryMetadata[itemId] = {};
+            }
+            this.voxelWorld.inventoryMetadata[itemId].randomBonus = {
+                stat: randomStat,
+                value: bonusValue
+            };
+            
+            console.log(`📿 Magic Amulet crafted with +${bonusValue} ${randomStat.toUpperCase()} bonus!`);
+            this.voxelWorld.updateStatus(`📿 Magic Amulet blessed with +${bonusValue} ${randomStat.toUpperCase()}!`, 'discovery');
         }
 
         // 🎓 Trigger item crafted tutorial

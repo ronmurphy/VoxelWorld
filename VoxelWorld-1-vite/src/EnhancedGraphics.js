@@ -50,8 +50,8 @@ export class EnhancedGraphics {
             tool_bench: 'toolbench',              // Code uses tool_bench, file is toolbench.png
             grappling_hook: 'grapple',            // Code uses grappling_hook, file is grapple.png
             crafted_grappling_hook: 'grapple',    // Crafted version also maps to grapple.png
-            magic_amulet: 'cryatal',              // magic_amulet uses cryatal.png (typo in filename)
-            crafted_magic_amulet: 'cryatal',      // Crafted version also maps to cryatal.png
+            magic_amulet: 'ancientAmulet',              // magic_amulet uses ancientAmulet.png
+            crafted_magic_amulet: 'ancientAmulet',      // Crafted version also maps to ancientAmulet.png
             crafted_club: 'club',                 // Crafted versions
             crafted_stone_spear: 'stone_spear',
             crafted_torch: 'torch',
@@ -67,7 +67,10 @@ export class EnhancedGraphics {
             crafted_hoe: 'hoe',  // Temporary: using stick.png until hoe.png is created
             hoe: 'hoe',          // Temporary: using stick.png until hoe.png is created
             crafted_watering_can: 'watering_can',  // Will use emoji fallback until watering_can.png is created
-            watering_can: 'watering_can'           // Will use emoji fallback until watering_can.png is created
+            watering_can: 'watering_can',          // Will use emoji fallback until watering_can.png is created
+            // Consumable tools
+            crafted_healing_potion: 'healing_potion',  // Will use emoji fallback until healing_potion.png is created
+            crafted_light_orb: 'light_orb'             // Will use emoji fallback until light_orb.png is created
         };
 
         // UI element size configurations
