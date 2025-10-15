@@ -200,10 +200,26 @@ export class ChatOverlay {
         // Update portrait
         const portrait = document.getElementById('chat-portrait');
         if (message.portrait) {
+            // Use provided portrait image
             portrait.src = message.portrait;
+            portrait.style.fontSize = ''; // Clear emoji styling
+            portrait.style.lineHeight = '';
+            portrait.style.textAlign = '';
+        } else if (message.emoji) {
+            // Use emoji as portrait (for NPCs without images)
+            portrait.removeAttribute('src'); // Remove image src
+            portrait.alt = '';
+            portrait.style.fontSize = '40px';
+            portrait.style.lineHeight = '60px';
+            portrait.style.textAlign = 'center';
+            portrait.textContent = message.emoji;
         } else if (message.character) {
             // Auto-generate portrait path from character ID
             portrait.src = `art/entities/${message.character}.jpeg`;
+            portrait.style.fontSize = ''; // Clear emoji styling
+            portrait.style.lineHeight = '';
+            portrait.style.textAlign = '';
+            portrait.textContent = ''; // Clear emoji
         }
 
         // Update name

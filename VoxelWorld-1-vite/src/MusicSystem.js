@@ -149,8 +149,8 @@ export class MusicSystem {
         }
 
         // Determine if it's day or night
-        // Day: 8am-5pm (8-17), Night: 9pm-6am (21-24, 0-6)
-        const isDaytime = timeOfDay >= 8 && timeOfDay < 17;
+        // Day: 8am-5pm (8-17), Night: 5pm-8am (17-24, 0-8)
+        const isDaytime = timeOfDay >= 8 && timeOfDay < 19;
         const targetMode = isDaytime ? 'day' : 'night';
 
         // If mode hasn't changed, do nothing

@@ -6,11 +6,15 @@
 
 import { TutorialConverter } from '../utils/TutorialConverter.js';
 import { ElectronFileSystem } from '../utils/ElectronFileSystem.js';
+import { QuestRunner } from '../quests/QuestRunner.js';
 
 export class SargemQuestEditor {
     constructor(voxelWorld) {
         this.voxelWorld = voxelWorld;
         this.isOpen = false;
+        
+        // Quest runner
+        this.questRunner = new QuestRunner(voxelWorld);
         
         // Editor state
         this.nodes = [];
@@ -656,8 +660,96 @@ export class SargemQuestEditor {
             content.appendChild(optionsLabel);
         }
         else if (node.type === 'image') {
-            this.addTextField(content, 'Image Path', node.data.path || '', 
-                (val) => { node.data.path = val; this.updateNodePreview(node); });
+            // Image path with file picker button
+            const pathContainer = document.createElement('div');
+            pathContainer.style.cssText = 'margin-bottom: 15px;';
+            
+            const pathLabel = document.createElement('label');
+            pathLabel.textContent = 'Image Path';
+            pathLabel.style.cssText = 'display: block; margin-bottom: 5px; color: #cccccc; font-size: 13px;';
+            pathContainer.appendChild(pathLabel);
+            
+            const pathInputContainer = document.createElement('div');
+            pathInputContainer.style.cssText = 'display: flex; gap: 5px;';
+            
+            const pathInput = document.createElement('input');
+            pathInput.type = 'text';
+            pathInput.value = node.data.path || '';
+            pathInput.style.cssText = `
+                flex: 1;
+                padding: 6px;
+                background: #3c3c3c;
+                border: 1px solid #3e3e42;
+                border-radius: 4px;
+                color: #cccccc;
+                font-size: 13px;
+            `;
+            pathInput.oninput = (e) => {
+                node.data.path = e.target.value;
+                this.updateNodePreview(node);
+            };
+            
+            const browseBtn = document.createElement('button');
+            browseBtn.textContent = '📁 Browse';
+            browseBtn.style.cssText = `
+                padding: 6px 12px;
+                background: #0e639c;
+                border: none;
+                border-radius: 4px;
+                color: white;
+                cursor: pointer;
+                font-size: 13px;
+            `;
+            browseBtn.onclick = async () => {
+                // Use Electron file picker if available
+                if (window.electronAPI?.sargemEditor) {
+                    try {
+                        const result = await window.electronAPI.sargemEditor.pickImage();
+                        
+                        if (!result.canceled && result.success) {
+                            // Copy image to quest-images folder
+                            const copyResult = await window.electronAPI.sargemEditor.copyImage(
+                                result.sourcePath, 
+                                result.fileName
+                            );
+                            
+                            if (copyResult.success) {
+                                pathInput.value = copyResult.path;
+                                node.data.path = copyResult.path;
+                                this.updateNodePreview(node);
+                                console.log('✅ Image copied:', copyResult.path);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('❌ File picker error:', error);
+                    }
+                } else {
+                    // Fallback: browser file input
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = 'image/*';
+                    fileInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            // In browser mode, just use the file name
+                            const imagePath = `assets/quest-images/${file.name}`;
+                            pathInput.value = imagePath;
+                            node.data.path = imagePath;
+                            this.updateNodePreview(node);
+                            
+                            console.log('📸 Selected image:', file.name);
+                            console.log('⚠️ Browser mode - manually copy to:', imagePath);
+                        }
+                    };
+                    fileInput.click();
+                }
+            };
+            
+            pathInputContainer.appendChild(pathInput);
+            pathInputContainer.appendChild(browseBtn);
+            pathContainer.appendChild(pathInputContainer);
+            content.appendChild(pathContainer);
+            
             this.addTextField(content, 'Duration (seconds)', node.data.duration || 3, 
                 (val) => { node.data.duration = parseInt(val) || 3; this.updateNodePreview(node); });
         }
@@ -1197,7 +1289,7 @@ export class SargemQuestEditor {
 
         console.log('▶️ Testing quest...');
 
-        // Convert nodes to tutorial format
+        // Convert nodes to quest format
         const questData = {
             id: 'sargem_test_quest',
             name: 'Test Quest',
@@ -1218,8 +1310,8 @@ export class SargemQuestEditor {
         // Show HUD button to return to Sargem
         this.showTestHUD();
 
-        // TODO: Load and run quest via TutorialScriptSystem
-        // this.voxelWorld.tutorialScriptSystem.loadScripts(questData);
+        // 🎯 Run the quest!
+        this.questRunner.startQuest(questData);
     }
 
     /**
@@ -1286,6 +1378,11 @@ export class SargemQuestEditor {
      * Stop test and close quest
      */
     stopTest() {
+        // Stop the quest runner
+        if (this.questRunner) {
+            this.questRunner.stopQuest();
+        }
+
         // Stop all running tutorials
         if (this.voxelWorld?.tutorialScriptSystem) {
             this.voxelWorld.tutorialScriptSystem.stopAll();

@@ -7,8 +7,10 @@
   "homepage": "./",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run copy-help",
+    "build": "vite build && npm run copy-assets",
+    "copy-assets": "npm run copy-help && npm run copy-quest-images",
     "copy-help": "mkdir -p dist/assets/help && cp -r assets/help/*.md dist/assets/help/ 2>/dev/null || true",
+    "copy-quest-images": "mkdir -p dist/assets/quest-images && if [ -d assets/quest-images ]; then cp -r assets/quest-images/* dist/assets/quest-images/ 2>/dev/null || true; fi",
     "preview": "vite preview",
     "start": "electron .",
     "electron": "electron .",

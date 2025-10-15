@@ -189,6 +189,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       const { ipcRenderer } = require('electron');
       return await ipcRenderer.invoke('tutorial-editor:save-default', data);
     }
+  },
+
+  // 🐈‍⬛ SARGEM QUEST EDITOR: Image file picker
+  sargemEditor: {
+    pickImage: async () => {
+      const { ipcRenderer } = require('electron');
+      return await ipcRenderer.invoke('sargem:pick-image');
+    },
+    copyImage: async (sourcePath, fileName) => {
+      const { ipcRenderer } = require('electron');
+      return await ipcRenderer.invoke('sargem:copy-image', { sourcePath, fileName });
+    }
   }
 });
 

@@ -13,7 +13,7 @@ export class NPC {
         this.emoji = config.emoji || '🐈‍⬛'; // Default: Sargem!
         this.position = config.position || new THREE.Vector3(0, 1, 5);
         this.scale = config.scale || 2;
-        this.interactionDistance = config.interactionDistance || 1.5;
+        this.interactionDistance = config.interactionDistance || 2.5; // Increased for easier interaction
         
         // NPC state
         this.isPlayerNearby = false;
@@ -62,8 +62,24 @@ export class NPC {
         this.billboard.userData.npcId = this.id;
         this.billboard.userData.npcInstance = this;
 
-        // Add to scene
+        // Create invisible hitbox for easier clicking (like discovery items)
+        const hitboxSize = 1.5;
+        this.hitbox = new THREE.Mesh(
+            new THREE.BoxGeometry(hitboxSize, hitboxSize, hitboxSize),
+            new THREE.MeshBasicMaterial({
+                transparent: true,
+                opacity: 0, // Completely invisible
+                depthWrite: false
+            })
+        );
+        this.hitbox.position.copy(this.position);
+        this.hitbox.userData.isNPC = true;
+        this.hitbox.userData.npcId = this.id;
+        this.hitbox.userData.npcInstance = this;
+
+        // Add both to scene
         this.voxelWorld.scene.add(this.billboard);
+        this.voxelWorld.scene.add(this.hitbox);
 
         console.log(`👋 Spawned NPC: ${this.name} at`, this.position);
     }
@@ -82,17 +98,21 @@ export class NPC {
 
         // Check distance to player
         const playerPos = this.voxelWorld.player.position;
-        const distance = this.position.distanceTo(playerPos);
+        const distance = this.position.distanceTo(
+            new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z)
+        );
 
         if (distance <= this.interactionDistance) {
             if (!this.isPlayerNearby) {
                 this.isPlayerNearby = true;
                 this.showInteractionPrompt();
+                console.log(`📍 Player near ${this.name} (distance: ${distance.toFixed(2)})`);
             }
         } else {
             if (this.isPlayerNearby) {
                 this.isPlayerNearby = false;
                 this.hideInteractionPrompt();
+                console.log(`📍 Player left ${this.name} (distance: ${distance.toFixed(2)})`);
             }
         }
     }
@@ -160,8 +180,17 @@ export class NPC {
             this.billboard.material.dispose();
             
             this.billboard = null;
-            console.log(`👋 Removed NPC: ${this.name}`);
         }
+
+        // Remove hitbox
+        if (this.hitbox) {
+            this.voxelWorld.scene.remove(this.hitbox);
+            this.hitbox.geometry.dispose();
+            this.hitbox.material.dispose();
+            this.hitbox = null;
+        }
+
+        console.log(`👋 Removed NPC: ${this.name}`);
     }
 
     /**

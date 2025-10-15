@@ -142,6 +142,75 @@ ipcMain.handle('tutorial-editor:save-default', async (event, data) => {
 });
 
 // ========================================
+// 🐈‍⬛ Sargem Quest Editor - Image File Picker
+// ========================================
+
+/**
+ * Copy image file to quest-images folder
+ */
+ipcMain.handle('sargem:copy-image', async (event, { sourcePath, fileName }) => {
+  try {
+    // In production (Electron), copy to dist/assets/quest-images
+    // In dev, copy to assets/quest-images
+    const destDir = isDev
+      ? path.join(__dirname, 'assets', 'quest-images')
+      : path.join(__dirname, 'dist', 'assets', 'quest-images');
+
+    // Ensure quest-images directory exists
+    await fs.mkdir(destDir, { recursive: true });
+
+    const destPath = path.join(destDir, fileName);
+    
+    console.log('📸 Copying image:', sourcePath, '→', destPath);
+
+    // Copy file
+    await fs.copyFile(sourcePath, destPath);
+
+    // Return relative path for use in quest (always assets/quest-images)
+    const relativePath = `assets/quest-images/${fileName}`;
+    console.log('✅ Image copied, relative path:', relativePath);
+    
+    return { success: true, path: relativePath };
+  } catch (error) {
+    console.error('❌ Image copy error:', error);
+    throw error;
+  }
+});
+
+/**
+ * Open file dialog for image selection
+ */
+ipcMain.handle('sargem:pick-image', async (event) => {
+  try {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Quest Image',
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }
+      ],
+      properties: ['openFile']
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { canceled: true };
+    }
+
+    const sourcePath = result.filePaths[0];
+    const fileName = path.basename(sourcePath);
+
+    console.log('🖼️ Selected image:', fileName);
+    
+    return { 
+      success: true, 
+      sourcePath, 
+      fileName 
+    };
+  } catch (error) {
+    console.error('❌ Image picker error:', error);
+    throw error;
+  }
+});
+
+// ========================================
 
 function createWindow() {
   // Use app.getAppPath() to work with asar packaging
