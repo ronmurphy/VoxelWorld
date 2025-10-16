@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greedy Mesher Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        h1 {
+            color: #00ff00;
+        }
+        #output {
+            white-space: pre-wrap;
+            background: #000;
+            padding: 20px;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Greedy Mesher Test Suite</h1>
+    <div id="output">Running tests...</div>
+
+    <script type="module">
+        import { GreedyMesher } from './src/meshing/GreedyMesher.js';
+
+        const output = document.getElementById('output');
+        let log = '';
+
+        // Override console.log to capture output
+        const originalLog = console.log;
+        console.log = (...args) => {
+            const message = args.join(' ');
+            log += message + '\n';
+            output.textContent = log;
+            originalLog(...args);
+        };
+
+        // Test 1: Simple 3x3x1 flat plane of same blocks
+        console.log('🧪 Test 1: 3x3 flat stone plane');
+        const testBlocks1 = [];
+        for (let x = 0; x < 3; x++) {
+            for (let z = 0; z < 3; z++) {
+                testBlocks1.push({ x, y: 0, z, blockType: 'stone', color: 0x696969 });
+            }
+        }
+
+        const result1 = GreedyMesher.generateMesh(testBlocks1, 8);
+        console.log(`Input: 9 blocks`);
+        console.log(`Output: ${result1.vertexCount / 6} quads`);
+        console.log(`Vertices: ${result1.vertexCount}`);
+        console.log('---\n');
+
+        // Test 2: Mixed block types (should NOT merge)
+        console.log('🧪 Test 2: 3x3 mixed stone and grass');
+        const testBlocks2 = [];
+        for (let x = 0; x < 3; x++) {
+            for (let z = 0; z < 3; z++) {
+                const blockType = (x + z) % 2 === 0 ? 'stone' : 'grass';
+                const color = blockType === 'stone' ? 0x696969 : 0x228B22;
+                testBlocks2.push({ x, y: 0, z, blockType, color });
+            }
+        }
+
+        const result2 = GreedyMesher.generateMesh(testBlocks2, 8);
+        console.log(`Input: 9 blocks (checkerboard)`);
+        console.log(`Output: ${result2.vertexCount / 6} quads`);
+        console.log(`Should have MORE quads than Test 1 (can't merge different types)`);
+        console.log('---\n');
+
+        // Test 3: 3D cube of same blocks
+        console.log('🧪 Test 3: 3x3x3 solid stone cube');
+        const testBlocks3 = [];
+        for (let x = 0; x < 3; x++) {
+            for (let y = 0; y < 3; y++) {
+                for (let z = 0; z < 3; z++) {
+                    testBlocks3.push({ x, y, z, blockType: 'stone', color: 0x696969 });
+                }
+            }
+        }
+
+        const result3 = GreedyMesher.generateMesh(testBlocks3, 8);
+        console.log(`Input: 27 blocks`);
+        console.log(`Output: ${result3.vertexCount / 6} quads`);
+        console.log(`Without greedy: 27 cubes × 6 faces = 162 faces`);
+        console.log(`With greedy: Should be ~6 quads (one per cube face)`);
+        console.log('---\n');
+
+        // Test 4: Performance test - Full chunk (8×8×10 = 640 blocks)
+        console.log('🧪 Test 4: Full chunk performance test');
+        const testBlocks4 = [];
+        const startTime = performance.now();
+
+        // Generate a typical chunk: bedrock + stone layers + grass surface
+        for (let x = 0; x < 8; x++) {
+            for (let z = 0; z < 8; z++) {
+                // Bedrock layer
+                testBlocks4.push({ x, y: 0, z, blockType: 'bedrock', color: 0x1a1a1a });
+
+                // Stone layers (1-8)
+                for (let y = 1; y < 9; y++) {
+                    testBlocks4.push({ x, y, z, blockType: 'stone', color: 0x696969 });
+                }
+
+                // Grass surface
+                testBlocks4.push({ x, y: 9, z, blockType: 'grass', color: 0x228B22 });
+            }
+        }
+
+        const result4 = GreedyMesher.generateMesh(testBlocks4, 8);
+        const endTime = performance.now();
+
+        console.log(`Input: ${testBlocks4.length} blocks`);
+        console.log(`Output: ${result4.vertexCount / 6} quads`);
+        console.log(`Processing time: ${(endTime - startTime).toFixed(2)}ms`);
+        console.log(`Without greedy: ${testBlocks4.length * 6} potential faces`);
+        console.log(`Reduction: ${(((testBlocks4.length * 6) - (result4.vertexCount / 6)) / (testBlocks4.length * 6) * 100).toFixed(1)}%`);
+        console.log('---\n');
+
+        console.log('✅ All tests complete!');
+        console.log('\nExpected Results:');
+        console.log('- Test 3 should show ~6 quads (96% reduction from 162 faces)');
+        console.log('- Test 4 should show 50-80% reduction in face count');
+        console.log('- Processing time should be < 10ms for full chunk');
+    </script>
+</body>
+</html>
