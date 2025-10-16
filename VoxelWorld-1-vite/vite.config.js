@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { miniTexturesPlugin } from './vite-plugin-mini-textures.js';
+import { textureAtlasPlugin } from './vite-plugin-texture-atlas.js';
 import assetManifest from './vite-plugin-asset-manifest.js';
 import copyHelpFiles from './vite-plugin-copy-help.js';
 import copyTutorialEditor from './vite-plugin-copy-tutorial-editor.js';
@@ -9,6 +10,7 @@ export default defineConfig({
   // Copy assets folder to dist during build (now includes data subfolder)
   publicDir: 'assets',
   plugins: [
+    textureAtlasPlugin(),   // 🎨 Generate texture atlas (MUST run before miniTextures)
     assetManifest(),        // 📋 Generate asset manifests (fileList.json) at build time
     miniTexturesPlugin(),   // 🎨 Generate 32x32 mini textures at build time
     copyHelpFiles(),        // 📚 Copy help markdown files to dist

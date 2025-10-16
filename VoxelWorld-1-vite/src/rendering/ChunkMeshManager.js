@@ -28,6 +28,7 @@ export class ChunkMeshManager {
         // Atlas texture and material
         this.atlasTexture = null;
         this.atlasMaterial = null;
+        this.atlasReady = false; // Flag to prevent mesh generation before atlas loads
 
         // Performance stats
         this.stats = {
@@ -39,7 +40,7 @@ export class ChunkMeshManager {
 
         console.log('🧊 ChunkMeshManager initialized (greedy meshing enabled)');
 
-        // Load atlas texture and key
+        // Load atlas texture and key (async, sets atlasReady when done)
         this.loadAtlas();
     }
 
@@ -66,11 +67,26 @@ export class ChunkMeshManager {
 
             // Load atlas texture
             const textureLoader = new THREE.TextureLoader();
-            // In Electron, assets are served from the file system at root level
-            const atlasPath = '/art/atlas.png';
+
+            // In Electron, we need to use the correct path
+            // Try different paths based on environment
+            let atlasPath = 'art/atlas.png';
+
+            // For Electron, try absolute path from dist
+            if (isElectron) {
+                atlasPath = window.location.origin + '/art/atlas.png';
+                console.log('🎨 Loading atlas texture from:', atlasPath);
+            }
+
             this.atlasTexture = await textureLoader.loadAsync(atlasPath);
             this.atlasTexture.magFilter = THREE.NearestFilter; // Pixelated look
             this.atlasTexture.minFilter = THREE.NearestFilter;
+
+            console.log('✅ Atlas texture loaded:', {
+                width: this.atlasTexture.image.width,
+                height: this.atlasTexture.image.height,
+                path: atlasPath
+            });
 
             // Create shared material for all chunks
             this.atlasMaterial = new THREE.MeshLambertMaterial({
@@ -79,9 +95,20 @@ export class ChunkMeshManager {
                 side: THREE.FrontSide
             });
 
-            console.log('🎨 Atlas texture and key loaded successfully');
+            // Mark atlas as ready
+            this.atlasReady = true;
+            console.log('✅ Atlas texture and key loaded successfully - ready for meshing!');
+
+            // Regenerate any pending chunks now that atlas is ready
+            if (this.pendingChunkUpdates.size > 0) {
+                console.log(`🔄 Regenerating ${this.pendingChunkUpdates.size} chunks with atlas textures...`);
+                this.processChunkUpdates();
+            }
+
         } catch (error) {
             console.error('❌ Failed to load atlas:', error);
+            console.warn('⚠️  Falling back to vertex colors for chunk rendering');
+            this.atlasReady = true; // Allow rendering with fallback
         }
     }
 
@@ -160,6 +187,12 @@ export class ChunkMeshManager {
         const chunkKey = this.getChunkKey(chunkX, chunkZ);
         this.pendingChunkUpdates.add(chunkKey);
 
+        // Don't process updates until atlas is loaded
+        if (!this.atlasReady) {
+            console.log(`⏳ Chunk ${chunkKey} queued - waiting for atlas to load...`);
+            return;
+        }
+
         // Batch updates to avoid regenerating same chunk multiple times
         if (this.updateTimer) {
             clearTimeout(this.updateTimer);
@@ -228,6 +261,13 @@ export class ChunkMeshManager {
             vertexColors: true,
             side: THREE.FrontSide
         });
+
+        // Debug: Check if atlas material is being used
+        if (!this.atlasMaterial) {
+            console.warn('⚠️ Atlas material not available, using vertex colors fallback');
+        } else {
+            console.log('✅ Using atlas material with texture:', !!this.atlasMaterial.map);
+        }
 
         // Create mesh
         const mesh = new THREE.Mesh(geometry, material);
