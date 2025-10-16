@@ -6433,10 +6433,29 @@ class NebulaVoxelApp {
             this.stopHarvesting();
 
             // ⚡ STAMINA: Calculate stamina cost for harvesting
-            // Base formula: (harvestTime_seconds * 2) rounded up
+            // SURVIVAL REBALANCE: Most gathering is nearly FREE!
             const harvestTimeSeconds = harvestTime / 1000;
-            let staminaCost = Math.ceil(harvestTimeSeconds * 2);
-            
+
+            // Define free gathering blocks (0 stamina)
+            const freeBlocks = ['grass', 'flowers', 'shrub', 'leaf', 'forest_leaves',
+                               'mountain_leaves', 'desert_leaves', 'plains_leaves', 'tundra_leaves'];
+
+            // Define cheap gathering blocks (1-2 stamina)
+            const cheapBlocks = ['sand', 'wood', 'oak_wood', 'pine_wood', 'palm_wood', 'birch_wood'];
+
+            let staminaCost = 0;
+
+            if (freeBlocks.includes(blockData.type)) {
+                // FREE gathering for basic resources
+                staminaCost = 0;
+            } else if (cheapBlocks.includes(blockData.type)) {
+                // Cheap gathering (1-2 stamina)
+                staminaCost = Math.ceil(harvestTimeSeconds * 0.5);
+            } else {
+                // Normal resources (stone, iron, etc.) - original formula
+                staminaCost = Math.ceil(harvestTimeSeconds * 2);
+            }
+
             // 🌲 TREE BONUS: If harvesting a tree, multiply cost by trunk size!
             // Check if this block is part of a registered tree
             const treeId = this.getTreeIdFromBlock(x, y, z);
@@ -10557,7 +10576,8 @@ class NebulaVoxelApp {
             }
 
             // Base speed modified by movementSpeed upgrade (1.0 default, 1.5 with speed boots)
-            const baseSpeed = 4.0 * this.movementSpeed; // Units per second
+            // REDUCED to 60% (2.4) to allow chunk generation time - performance optimization
+            const baseSpeed = 2.4 * this.movementSpeed; // Units per second (was 4.0)
             const jumpSpeed = 9.0; // Jump velocity - increased for 2-block obstacles, was 8.0
             const gravity = 20.0; // Gravity acceleration
             

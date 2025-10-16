@@ -20,14 +20,14 @@ export class StaminaSystem {
         this.maxStamina = 100;
         this.currentStamina = 100;
 
-        // Drain rates (per second) - INCREASED for more frequent rest
-        this.walkingDrain = 2.0;      // 50 seconds of walking (was 200s)
-        this.runningDrain = 8.0;      // 12.5 seconds of sprinting (was 20s)
+        // Drain rates (per second) - REBALANCED for survival gameplay
+        this.walkingDrain = 0.5;      // 200 seconds of walking (free exploration!)
+        this.runningDrain = 5.0;      // 20 seconds of sprinting
         this.idleDrain = 0;            // No drain when standing still
 
-        // Regen rates (per second) - SLOWER recovery = longer cleanup time
-        this.idleRegen = 3.0;          // 33 seconds to full from empty (was 20s)
-        this.slowWalkRegen = 1.0;      // 100 seconds to full while moving slow (was 50s)
+        // Regen rates (per second) - FASTER recovery for survival gameplay
+        this.idleRegen = 20.0;         // 5 seconds to full from empty (fast recovery!)
+        this.slowWalkRegen = 10.0;     // 10 seconds to full while slow walking
 
         // Speed multipliers
         this.normalSpeedMultiplier = 1.0;
