@@ -270,6 +270,17 @@ function createWindow() {
         },
         { type: 'separator' },
         {
+          label: 'Dev Controls',
+          accelerator: 'CmdOrCtrl+D',
+          click: () => {
+            mainWindow.webContents.executeJavaScript(`
+              if (window.voxelWorld && window.voxelWorld.openDevControlPanel) {
+                window.voxelWorld.openDevControlPanel();
+              }
+            `);
+          }
+        },
+        {
           label: 'FPS Counter',
           type: 'checkbox',
           checked: false,

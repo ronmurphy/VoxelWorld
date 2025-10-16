@@ -27,6 +27,7 @@ import { CompanionCodex } from './ui/CompanionCodex.js';
 import { CompanionPortrait } from './ui/CompanionPortrait.js';
 import { TutorialScriptSystem } from './ui/TutorialScriptSystem.js';
 import { SargemQuestEditor } from './ui/SargemQuestEditor.js';
+import { DevControlPanel } from './ui/DevControlPanel.js';
 import { NPCManager } from './entities/NPC.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
@@ -310,6 +311,9 @@ class NebulaVoxelApp {
 
         // 🐈‍⬛ Initialize Sargem Quest Editor (dev tool, StarNode-based)
         this.sargemEditor = new SargemQuestEditor(this);
+
+        // 🛠️ Initialize Dev Control Panel (developer console/modal)
+        this.devControlPanel = new DevControlPanel(this);
 
         // 👥 Initialize NPC Manager
         this.npcManager = new NPCManager(this);
@@ -13484,6 +13488,15 @@ class NebulaVoxelApp {
             this.sargemEditor.open();
         } else {
             console.warn('❌ Sargem editor not initialized');
+        }
+    }
+
+    // 🛠️ DEV CONTROL PANEL - Open developer console/modal
+    openDevControlPanel() {
+        if (this.devControlPanel) {
+            this.devControlPanel.open();
+        } else {
+            console.warn('❌ Dev control panel not initialized');
         }
     }
 
