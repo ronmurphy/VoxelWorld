@@ -572,7 +572,8 @@ export class EnhancedGraphics {
         if (!faceTextures.all && !faceTextures.sides && !faceTextures.topBottom) {
             faceTextures.main = await tryLoadTexture(blockType);
             if (faceTextures.main) {
-                console.log(`🎨 Loaded ${blockType} main texture`);
+                // commented out due to console spam.
+                // console.log(`🎨 Loaded ${blockType} main texture`);
             }
         }
 
@@ -631,7 +632,8 @@ export class EnhancedGraphics {
 
         // Fallback to single main texture
         if (faceTextures.main) {
-            console.log(`📦 Using single texture for ${blockType}`);
+            // commented out due to console spam -- brad
+            // console.log(`📦 Using single texture for ${blockType}`);
             return faceTextures.main;
         }
 
@@ -818,11 +820,12 @@ export class EnhancedGraphics {
             // Only store if we found at least one sprite variant
             if (hasAnySprite) {
                 this.entityImages.set(entityType, entityData);
-                console.log(`✅ Loaded entity: ${entityType}`, {
-                    base: !!entityData.path,
-                    ready: !!entityData.readyPath,
-                    attack: !!entityData.attackPath
-                });
+                // commented out due to console spam - brad
+                // console.log(`✅ Loaded entity: ${entityType}`, {
+                //     base: !!entityData.path,
+                //     ready: !!entityData.readyPath,
+                //     attack: !!entityData.attackPath
+                // });
                 return { entityType, success: true };
             } else {
                 console.warn(`⚠️ No sprites found for entity: ${entityType}`);

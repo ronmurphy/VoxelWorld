@@ -726,6 +726,25 @@
         "maxU": 0.375,
         "maxV": 0.1875
       }
+    },
+    "water-all": {
+      "file": "water-all.png",
+      "col": 6,
+      "row": 2,
+      "x": 768,
+      "y": 256,
+      "width": 128,
+      "height": 128,
+      "originalSize": {
+        "width": 128,
+        "height": 128
+      },
+      "uv": {
+        "minU": 0.375,
+        "minV": 0.125,
+        "maxU": 0.4375,
+        "maxV": 0.1875
+      }
     }
   }
 }

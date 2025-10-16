@@ -1212,7 +1212,8 @@ export class BiomeWorldGen {
                     if (!isGuaranteedSpot && this.hasNearbyTree(worldX, worldZ, chunkX, chunkZ)) {
                         // Skip this tree if too close to another
                         if (this.DEBUG_MODE && Math.random() < 0.01) {
-                            console.log(`🚫 Tree blocked by spacing at (${worldX}, ${worldZ}) in ${biome.name}`);
+                            // commented out due to console spam -- brad
+                            // console.log(`🚫 Tree blocked by spacing at (${worldX}, ${worldZ}) in ${biome.name}`);
                         }
                         continue;
                     }
@@ -1241,7 +1242,8 @@ export class BiomeWorldGen {
                     }
 
                     if (this.DEBUG_MODE) {
-                        console.log(`🌳 PLACED ${treeType} tree #${this.STATS.treesPlaced} at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}${isGuaranteedSpot ? ' [GUARANTEED]' : ''}`);
+                        // commented out due to console spam -- brad
+                        // console.log(`🌳 PLACED ${treeType} tree #${this.STATS.treesPlaced} at (${worldX}, ${actualGroundHeight}, ${worldZ}) in ${biome.name}${isGuaranteedSpot ? ' [GUARANTEED]' : ''}`);
                     }
 
                     // 🗺️ Track tree position for spacing calculations

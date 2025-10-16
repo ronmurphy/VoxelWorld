@@ -66,8 +66,9 @@ export class StaminaSystem {
         // Create stamina UI
         this.createStaminaDisplay();
 
-        console.log('⚡ StaminaSystem initialized: 100/100 stamina (Performance optimization active)');
-        this.logInitialData();
+        // commented out due to console spam -- brad
+        // console.log('⚡ StaminaSystem initialized: 100/100 stamina (Performance optimization active)');
+        // this.logInitialData();
     }
 
     /**

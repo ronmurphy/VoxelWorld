@@ -1110,7 +1110,8 @@ class NebulaVoxelApp {
                 texture = new THREE.CanvasTexture(canvas);
                 texture.magFilter = THREE.LinearFilter;
                 texture.minFilter = THREE.LinearFilter;
-                console.log(`📱 Using emoji fallback for ${type} billboard: ${config.emoji}`);
+                // commented out due to console spam -- brad
+                // console.log(`📱 Using emoji fallback for ${type} billboard: ${config.emoji}`);
             }
 
             const material = new THREE.SpriteMaterial({
@@ -6837,10 +6838,11 @@ class NebulaVoxelApp {
             }, 1000);
         };
 
-        console.log('💡 Utility available: clearAllData() - clears localStorage + IndexedDB and reloads');
-        console.log('💡 Utility available: clearCaches() - 🧹 clears caches but KEEPS saved games');
-        console.log('💡 Utility available: nuclearClear() - 🧨 WIPES EVERYTHING (RAM, disk, caches, workers)');
-        console.log('💡 Utility available: unlockUI() - 🔓 unlocks hotbar, backpack, companion, and workbench');
+        // commented out due to console spam -- brad
+        // console.log('💡 Utility available: clearAllData() - clears localStorage + IndexedDB and reloads');
+        // console.log('💡 Utility available: clearCaches() - 🧹 clears caches but KEEPS saved games');
+        // console.log('💡 Utility available: nuclearClear() - 🧨 WIPES EVERYTHING (RAM, disk, caches, workers)');
+        // console.log('💡 Utility available: unlockUI() - 🔓 unlocks hotbar, backpack, companion, and workbench');
 
         // 🎁 DEBUG UTILITY: Give item to inventory
         // Can be called from browser console: giveItem("stone_hammer")

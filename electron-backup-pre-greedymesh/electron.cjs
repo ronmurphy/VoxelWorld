@@ -1,4 +1,3 @@
-// Import Electron via the CLI entrypoint (this is executed BY electron, so these APIs are available via require)
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
@@ -7,6 +6,8 @@ const isDev = process.env.NODE_ENV === 'development';
 // 🎮 Force high-performance GPU (dGPU) for better performance
 // This helps on laptops with both integrated and dedicated GPUs
 app.commandLine.appendSwitch('force_high_performance_gpu');
+
+// 🔧 Additional GPU-related flags for better performance
 app.commandLine.appendSwitch('disable-gpu-vsync'); // Disable V-Sync for uncapped FPS
 app.commandLine.appendSwitch('ignore-gpu-blacklist'); // Ignore GPU blacklist
 app.commandLine.appendSwitch('enable-gpu-rasterization'); // Use GPU for rasterization
@@ -20,7 +21,6 @@ console.log('   - enable-gpu-rasterization: true');
 // ========================================
 // 🎓 TUTORIAL EDITOR IPC HANDLERS
 // ========================================
-// Note: These must be registered BEFORE app.whenReady()
 
 /**
  * Auto-load tutorialScripts.json from data folder
@@ -342,7 +342,6 @@ function createWindow() {
                           <h4 style="margin: 15px 0 8px 0; color: #333;">🎨 Art & Audio</h4>
                           <p style="margin: 5px 0; padding-left: 15px;"><strong>Artwork:</strong> m0use</p>
                           <p style="margin: 5px 0; padding-left: 15px;"><strong>Music:</strong> Jason Heaberlin</p>
-                          <p style="margin: 5px 0; padding-left: 15px;"><strong>Sfx:</strong> Connor Allen</p>
                         </div>
 
                         <div style="margin: 20px 0;">

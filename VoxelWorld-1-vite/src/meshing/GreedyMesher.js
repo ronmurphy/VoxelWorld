@@ -55,7 +55,8 @@ export class GreedyMesher {
                 `${blockType}-top`,
                 `${blockType}-bottom`,
                 `${blockType}-all`,
-                blockType
+                blockType,
+                `${blockType}-sides` // Fallback to sides if no top/bottom variant
             ];
 
             for (const variant of topBottomVariants) {
@@ -69,7 +70,9 @@ export class GreedyMesher {
             const sideVariants = [
                 `${blockType}-sides`,
                 `${blockType}-all`,
-                blockType
+                blockType,
+                `${blockType}-top-bottom`, // Fallback to top-bottom if no sides variant
+                `${blockType}-top`          // Fallback to top
             ];
 
             for (const variant of sideVariants) {
@@ -83,8 +86,11 @@ export class GreedyMesher {
         // Get UV coordinates
         const texture = this.atlasKey.textures[textureKey];
         if (!texture) {
-            console.warn(`⚠️ No texture found for ${blockType} (tried variants), using bedrock fallback`);
-            return this.atlasKey.textures['bedrock']?.uv || { minU: 0, minV: 0, maxU: 0.0625, maxV: 0.0625 };
+            console.warn(`⚠️ No texture found for ${blockType} (tried variants), using stone fallback`);
+            // Try stone, then bedrock, then hardcoded fallback
+            return this.atlasKey.textures['stone']?.uv ||
+                   this.atlasKey.textures['bedrock']?.uv ||
+                   { minU: 0, minV: 0, maxU: 0.0625, maxV: 0.0625 };
         }
 
         return texture.uv;

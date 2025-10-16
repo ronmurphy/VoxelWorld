@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { GreedyMesher } from '../meshing/GreedyMesher.js';
+import { RuntimeAtlasGenerator } from '../meshing/RuntimeAtlasGenerator.js';
 
 export class ChunkMeshManager {
     constructor(voxelWorld) {
@@ -46,53 +47,54 @@ export class ChunkMeshManager {
 
     /**
      * Load atlas texture and key file
+     * Now uses runtime atlas generation to avoid Electron file:// issues
      */
     async loadAtlas() {
+        console.log('🎨 loadAtlas() called - starting...');
         try {
-            const isElectron = typeof window !== 'undefined' && window.electronAPI;
+            console.log('🎨 Starting runtime atlas generation...');
 
-            // Load atlas key (JSON)
-            let atlasKey;
-            if (isElectron && window.electronAPI.readFile) {
-                // Electron: Use preload API to read file from filesystem
-                console.log('🎨 Loading atlas in Electron mode...');
-                const keyContent = await window.electronAPI.readFile('art/atlas-key.json');
-                atlasKey = JSON.parse(keyContent);
-            } else {
-                // Browser: Use fetch
-                const keyResponse = await fetch('/art/atlas-key.json');
-                atlasKey = await keyResponse.json();
-            }
-            GreedyMesher.loadAtlasKey(atlasKey);
+            // Create runtime atlas generator
+            const generator = new RuntimeAtlasGenerator();
+            console.log('🎨 RuntimeAtlasGenerator created');
 
-            // Load atlas texture
-            const textureLoader = new THREE.TextureLoader();
+            // Get list of texture files
+            console.log('🎨 Getting texture file list...');
+            const textureFiles = await generator.getTextureFileList();
+            console.log(`🎨 Found ${textureFiles.length} texture files to load`);
 
-            // In Electron, we need to use the correct path
-            // Try different paths based on environment
-            let atlasPath = 'art/atlas.png';
+            // Generate atlas from individual textures
+            const { texture, key } = await generator.generateAtlas(textureFiles);
 
-            // For Electron, try absolute path from dist
-            if (isElectron) {
-                atlasPath = window.location.origin + '/art/atlas.png';
-                console.log('🎨 Loading atlas texture from:', atlasPath);
-            }
+            // Store atlas texture and load key into GreedyMesher
+            this.atlasTexture = texture;
+            GreedyMesher.loadAtlasKey({ textures: key }); // Wrap key in {textures: ...} format
 
-            this.atlasTexture = await textureLoader.loadAsync(atlasPath);
-            this.atlasTexture.magFilter = THREE.NearestFilter; // Pixelated look
-            this.atlasTexture.minFilter = THREE.NearestFilter;
-
-            console.log('✅ Atlas texture loaded:', {
+            console.log('✅ Runtime atlas generated:', {
                 width: this.atlasTexture.image.width,
                 height: this.atlasTexture.image.height,
-                path: atlasPath
+                textures: Object.keys(key).length
             });
 
             // Create shared material for all chunks
             this.atlasMaterial = new THREE.MeshLambertMaterial({
                 map: this.atlasTexture,
                 vertexColors: false, // Use texture, not vertex colors
-                side: THREE.FrontSide
+                side: THREE.FrontSide,
+                transparent: false,  // No transparency
+                opacity: 1.0,       // Fully opaque
+                alphaTest: 0.5      // Discard pixels below 50% alpha
+            });
+
+            // Force material to update
+            this.atlasMaterial.needsUpdate = true;
+
+            console.log('🎨 Atlas material created:', {
+                hasMap: !!this.atlasMaterial.map,
+                transparent: this.atlasMaterial.transparent,
+                opacity: this.atlasMaterial.opacity,
+                side: this.atlasMaterial.side,
+                mapImage: this.atlasMaterial.map?.image ? `${this.atlasMaterial.map.image.width}x${this.atlasMaterial.map.image.height}` : 'NO IMAGE'
             });
 
             // Mark atlas as ready
@@ -189,7 +191,8 @@ export class ChunkMeshManager {
 
         // Don't process updates until atlas is loaded
         if (!this.atlasReady) {
-            console.log(`⏳ Chunk ${chunkKey} queued - waiting for atlas to load...`);
+            // commented out due to console spam - brad
+            // console.log(`⏳ Chunk ${chunkKey} queued - waiting for atlas to load...`);
             return;
         }
 
@@ -262,11 +265,19 @@ export class ChunkMeshManager {
             side: THREE.FrontSide
         });
 
-        // Debug: Check if atlas material is being used
+        // Debug: Check if atlas material is being used (only log first chunk)
         if (!this.atlasMaterial) {
             console.warn('⚠️ Atlas material not available, using vertex colors fallback');
-        } else {
-            console.log('✅ Using atlas material with texture:', !!this.atlasMaterial.map);
+        } else if (chunkKey === '0,0' || chunkKey === '1,1') {
+            // Only log for first few chunks to avoid spam
+            console.log(`✅ Chunk ${chunkKey} using atlas material:`, {
+                hasTexture: !!this.atlasMaterial.map,
+                textureLoaded: this.atlasMaterial.map?.image ? 'yes' : 'no',
+                uvCount: meshData.uvs.length / 2,
+                vertexCount: meshData.vertexCount,
+                firstUV: meshData.uvs.length > 0 ? `[${meshData.uvs[0].toFixed(3)}, ${meshData.uvs[1].toFixed(3)}]` : 'none',
+                blocksInChunk: chunkData.blocks.length
+            });
         }
 
         // Create mesh
