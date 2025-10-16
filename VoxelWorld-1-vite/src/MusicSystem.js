@@ -96,29 +96,38 @@ export class MusicSystem {
      */
     async initDayNightMusic(dayTrackPath, nightTrackPath) {
         console.log('🎵 Initializing Day/Night music system...');
-        
+        console.log(`🎵 Electron detected: ${!!window.isElectron?.platform}`);
+        console.log(`🎵 Autoplay enabled: ${this.autoplayEnabled}`);
+
         const isElectron = window.isElectron?.platform;
-        
+
         // Fix paths for electron
-        const fixedDayPath = isElectron && dayTrackPath.startsWith('/') 
-            ? dayTrackPath.substring(1) 
+        const fixedDayPath = isElectron && dayTrackPath.startsWith('/')
+            ? dayTrackPath.substring(1)
             : dayTrackPath;
-        const fixedNightPath = isElectron && nightTrackPath.startsWith('/') 
-            ? nightTrackPath.substring(1) 
+        const fixedNightPath = isElectron && nightTrackPath.startsWith('/')
+            ? nightTrackPath.substring(1)
             : nightTrackPath;
 
-        console.log(`🎵 Day track: "${fixedDayPath}"`);
-        console.log(`🎵 Night track: "${fixedNightPath}"`);
+        console.log(`🎵 Day track path: "${fixedDayPath}"`);
+        console.log(`🎵 Night track path: "${fixedNightPath}"`);
 
         // Create day track (preload but don't play yet)
+        // Use html5: false for Web Audio API (faster loading, better for Electron)
         this.dayTrack = new Howl({
             src: [fixedDayPath],
             loop: true,
             volume: 0, // Start silent
-            html5: true,
+            html5: false, // Web Audio API - faster loading!
             preload: true,
-            onload: () => console.log('🌅 Day track loaded:', fixedDayPath),
-            onloaderror: (id, error) => console.error('🌅 Day track load error:', error)
+            onload: () => {
+                console.log('🌅 ✅ Day track LOADED successfully');
+                console.log(`🌅 State: ${this.dayTrack.state()}, Duration: ${this.dayTrack.duration()}s`);
+            },
+            onloaderror: (id, error) => {
+                console.error('🌅 ❌ Day track load ERROR:', error);
+                console.error('🌅 Failed path:', fixedDayPath);
+            }
         });
 
         // Create night track (preload but don't play yet)
@@ -126,16 +135,44 @@ export class MusicSystem {
             src: [fixedNightPath],
             loop: true,
             volume: 0, // Start silent
-            html5: true,
+            html5: false, // Web Audio API - faster loading!
             preload: true,
-            onload: () => console.log('🌙 Night track loaded:', fixedNightPath),
-            onloaderror: (id, error) => console.error('🌙 Night track load error:', error)
+            onload: () => {
+                console.log('🌙 ✅ Night track LOADED successfully');
+                console.log(`🌙 State: ${this.nightTrack.state()}, Duration: ${this.nightTrack.duration()}s`);
+            },
+            onloaderror: (id, error) => {
+                console.error('🌙 ❌ Night track load ERROR:', error);
+                console.error('🌙 Failed path:', fixedNightPath);
+            }
         });
 
-        // Wait a moment for preloading to start
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Wait for both tracks to load (with timeout)
+        console.log('🎵 Waiting for tracks to load...');
+        const loadTimeout = 10000; // 10 second timeout
+        const startTime = Date.now();
 
-        console.log('🎵 Day/Night music system ready!');
+        while (Date.now() - startTime < loadTimeout) {
+            const dayReady = this.dayTrack.state() === 'loaded';
+            const nightReady = this.nightTrack.state() === 'loaded';
+
+            if (dayReady && nightReady) {
+                console.log('🎵 ✅ Both tracks loaded successfully!');
+                break;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        const finalDayState = this.dayTrack.state();
+        const finalNightState = this.nightTrack.state();
+        console.log(`🎵 Final states: Day=${finalDayState}, Night=${finalNightState}`);
+
+        if (finalDayState !== 'loaded' || finalNightState !== 'loaded') {
+            console.warn('⚠️ Music tracks did not load within timeout!');
+        }
+
+        console.log('🎵 Day/Night music system initialization complete!');
     }
 
     /**
@@ -183,14 +220,37 @@ export class MusicSystem {
         if (!track) return;
 
         console.log(`${emoji} Starting ${mode} music...`);
-        
+
+        // Ensure track is loaded before playing
+        if (track.state() === 'unloaded') {
+            console.warn(`${emoji} Track not loaded yet! Waiting...`);
+            track.once('load', () => {
+                console.log(`${emoji} Track loaded, now playing...`);
+                this.startDayNightTrack(mode);
+            });
+            return;
+        }
+
         // Start playing
-        track.play();
+        const soundId = track.play();
         this.isPlaying = true;
-        
+
+        console.log(`${emoji} Sound ID: ${soundId}, State: ${track.state()}, Playing: ${track.playing()}`);
+
         // Fade in from 0 to target volume
         const targetVolume = this.isMuted ? 0 : this.volume;
         track.fade(0, targetVolume, this.crossfadeDuration);
+
+        // Verify it's actually playing after a moment
+        setTimeout(() => {
+            const isPlaying = track.playing();
+            const vol = track.volume();
+            console.log(`${emoji} Status check: playing=${isPlaying}, volume=${Math.round(vol * 100)}%`);
+            if (!isPlaying) {
+                console.error(`${emoji} ⚠️ Track failed to start! Retrying...`);
+                track.play();
+            }
+        }, 500);
     }
 
     /**
@@ -297,7 +357,8 @@ export class MusicSystem {
                 src: [fixedPath],
                 loop: true,
                 volume: this.isMuted ? 0 : this.volume,
-                html5: true, // Better for streaming music files
+                html5: false, // Web Audio API - faster loading!
+                preload: true,
                 onload: () => {
                     console.log('🎵 Music loaded:', fixedPath);
                 },
