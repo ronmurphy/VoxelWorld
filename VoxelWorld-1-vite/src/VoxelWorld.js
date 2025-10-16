@@ -654,6 +654,16 @@ class NebulaVoxelApp {
                         this.inventory.removeFromInventory(material, materialCost);
                         
                         console.log(`✅ House placed using ${materialCost} ${material} blocks`);
+                        
+                        // 💾 FORCE IMMEDIATE SAVE of house modifications (don't wait for auto-save)
+                        if (this.modificationTracker) {
+                            this.modificationTracker.flushDirtyChunks().then(() => {
+                                console.log('💾 House modifications saved immediately!');
+                            }).catch(err => {
+                                console.error('❌ Failed to save house modifications:', err);
+                            });
+                        }
+                        
                         return; // Exit early - no mesh creation needed
                     } else {
                         console.error('❌ StructureGenerator not available');
@@ -7377,6 +7387,60 @@ class NebulaVoxelApp {
 
                 // Regular mesh - use object position
                 this.targetHighlight.position.copy(hit.object.position);
+
+                // 🏠 Check if simple_house is selected in hotbar to show footprint
+                const selectedSlot = this.hotbarSystem?.getSelectedSlot();
+                const isHouseSelected = selectedSlot && selectedSlot.itemType && selectedSlot.itemType.includes('simple_house');
+                
+                // Track last selection to avoid recreating geometry every frame
+                if (!this.lastReticleState) {
+                    this.lastReticleState = { isHouse: false, length: 0, width: 0 };
+                }
+                
+                if (isHouseSelected) {
+                    // Get house dimensions from workbench or use defaults
+                    const interiorLength = this.workbenchSystem?.selectedShape === 'simple_house' 
+                        ? (this.workbenchSystem.shapeLength || 4)
+                        : 4;
+                    const interiorWidth = this.workbenchSystem?.selectedShape === 'simple_house' 
+                        ? (this.workbenchSystem.shapeWidth || 4)
+                        : 4;
+                    
+                    // Calculate FULL exterior dimensions (interior + 2 walls)
+                    const exteriorLength = interiorLength + 2;  // +1 wall each side
+                    const exteriorWidth = interiorWidth + 2;    // +1 wall each side
+                    
+                    // Only recreate geometry if dimensions changed
+                    if (!this.lastReticleState.isHouse || 
+                        this.lastReticleState.length !== exteriorLength || 
+                        this.lastReticleState.width !== exteriorWidth) {
+                        
+                        // Resize reticle to show FULL house footprint (exterior × exterior × 1 block tall)
+                        this.targetHighlight.geometry.dispose(); // Clean up old geometry
+                        this.targetHighlight.geometry = new THREE.BoxGeometry(
+                            exteriorLength + 0.02,  // Length (X) - FULL exterior
+                            1.02,                   // Height (Y) - 1 block tall footprint
+                            exteriorWidth + 0.02    // Width (Z) - FULL exterior
+                        );
+                        
+                        // Update state to prevent recreation next frame
+                        this.lastReticleState.isHouse = true;
+                        this.lastReticleState.length = exteriorLength;
+                        this.lastReticleState.width = exteriorWidth;
+                        
+                        console.log(`🏠 Reticle footprint: ${exteriorLength}×${exteriorWidth}×1 (${interiorLength}×${interiorWidth} interior + walls)`);
+                    }
+                } else {
+                    // Normal 1×1×1 reticle for regular blocks
+                    // Only reset if currently showing house-sized reticle
+                    if (this.lastReticleState.isHouse) {
+                        this.targetHighlight.geometry.dispose();
+                        this.targetHighlight.geometry = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+                        this.lastReticleState.isHouse = false;
+                        this.lastReticleState.length = 0;
+                        this.lastReticleState.width = 0;
+                    }
+                }
 
                 // Default to green (placement mode)
                 this.targetHighlight.material.color.setHex(0x00ff00);

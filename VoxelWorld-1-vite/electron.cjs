@@ -342,6 +342,7 @@ function createWindow() {
                           <h4 style="margin: 15px 0 8px 0; color: #333;">🎨 Art & Audio</h4>
                           <p style="margin: 5px 0; padding-left: 15px;"><strong>Artwork:</strong> m0use</p>
                           <p style="margin: 5px 0; padding-left: 15px;"><strong>Music:</strong> Jason Heaberlin</p>
+                          <p style="margin: 5px 0; padding-left: 15px;"><strong>Sfx:</strong> Connor Allen</p>
                         </div>
 
                         <div style="margin: 20px 0;">
