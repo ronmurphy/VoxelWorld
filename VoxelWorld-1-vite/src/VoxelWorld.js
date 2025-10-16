@@ -30,6 +30,7 @@ import { SargemQuestEditor } from './ui/SargemQuestEditor.js';
 import { NPCManager } from './entities/NPC.js';
 import { ChunkLODManager } from './rendering/ChunkLODManager.js';
 import { LODDebugOverlay } from './rendering/LODDebugOverlay.js';
+import { ChunkMeshManager } from './rendering/ChunkMeshManager.js';
 import ChristmasSystem from './ChristmasSystem.js';
 import { FarmingSystem } from './FarmingSystem.js';
 import { MusicSystem } from './MusicSystem.js';
@@ -449,46 +450,66 @@ class NebulaVoxelApp {
                 }
             }
 
-            // PHASE 1: Regular mesh rendering with object pooling
-            const geo = this.resourcePool.getGeometry('cube');
+            // 🧊 GREEDY MESHING: Use chunk-based rendering if enabled
+            if (this.useGreedyMeshing && this.chunkMeshManager) {
+                // Get block color for greedy meshing
+                const blockColor = customColor || (this.materials[type]?.color?.getHex ? this.materials[type].color.getHex() : 0x888888);
 
-            let mat;
-            if (customColor) {
-                // Create custom material with height-based color
-                const baseMaterial = new THREE.MeshLambertMaterial({
-                    map: this.materials[type].map,
-                    color: customColor
-                });
-                // Try to enhance with texture if available
-                mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
-            } else {
-                // Use darker material for player-placed blocks, normal for generated
-                const baseMaterial = playerPlaced ? this.playerMaterials[type] : this.materials[type];
-                // Try to enhance with texture if available
-                mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
-            }
+                // Add to chunk mesh system
+                this.chunkMeshManager.addBlock(x, y, z, type, blockColor);
 
-            const cube = new THREE.Mesh(geo, mat);
-            cube.position.set(x, y, z);
-            cube.userData = { type, playerPlaced };
-            
-            // 🚀 BVH: Build acceleration structure for this mesh
-            if (cube.geometry && !cube.geometry.boundsTree) {
-                cube.geometry.computeBoundsTree();
-            }
-            
-            this.scene.add(cube);
-
-            // Create billboard sprite for special items
-            let billboard = null;
-            if (this.shouldUseBillboard(type)) {
-                billboard = this.createBillboard(x, y, z, type);
-                if (billboard) {
-                    this.scene.add(billboard);
+                // Store block data (without individual mesh)
+                let billboard = null;
+                if (this.shouldUseBillboard(type)) {
+                    billboard = this.createBillboard(x, y, z, type);
+                    if (billboard) {
+                        this.scene.add(billboard);
+                    }
                 }
-            }
 
-            this.world[key] = { type, mesh: cube, playerPlaced, billboard };
+                this.world[key] = { type, mesh: null, playerPlaced, billboard, greedyMeshed: true };
+            } else {
+                // TRADITIONAL: Regular mesh rendering with object pooling
+                const geo = this.resourcePool.getGeometry('cube');
+
+                let mat;
+                if (customColor) {
+                    // Create custom material with height-based color
+                    const baseMaterial = new THREE.MeshLambertMaterial({
+                        map: this.materials[type].map,
+                        color: customColor
+                    });
+                    // Try to enhance with texture if available
+                    mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
+                } else {
+                    // Use darker material for player-placed blocks, normal for generated
+                    const baseMaterial = playerPlaced ? this.playerMaterials[type] : this.materials[type];
+                    // Try to enhance with texture if available
+                    mat = this.enhancedGraphics.getEnhancedBlockMaterial(type, baseMaterial);
+                }
+
+                const cube = new THREE.Mesh(geo, mat);
+                cube.position.set(x, y, z);
+                cube.userData = { type, playerPlaced };
+
+                // 🚀 BVH: Build acceleration structure for this mesh
+                if (cube.geometry && !cube.geometry.boundsTree) {
+                    cube.geometry.computeBoundsTree();
+                }
+
+                this.scene.add(cube);
+
+                // Create billboard sprite for special items
+                let billboard = null;
+                if (this.shouldUseBillboard(type)) {
+                    billboard = this.createBillboard(x, y, z, type);
+                    if (billboard) {
+                        this.scene.add(billboard);
+                    }
+                }
+
+                this.world[key] = { type, mesh: cube, playerPlaced, billboard };
+            }
 
             // 🌊 Track ALL water blocks for minimap (to show rivers and lakes clearly)
             if (type === 'water' && !playerPlaced) {
@@ -1505,8 +1526,12 @@ class NebulaVoxelApp {
                     }
                 }
 
-                // PHASE 1: Handle regular mesh blocks
-                if (blockData.mesh) {
+                // 🧊 GREEDY MESHING: Remove from chunk mesh system if enabled
+                if (this.useGreedyMeshing && this.chunkMeshManager && blockData.greedyMeshed) {
+                    this.chunkMeshManager.removeBlock(x, y, z);
+                }
+                // TRADITIONAL: Handle regular mesh blocks
+                else if (blockData.mesh) {
                     this.scene.remove(blockData.mesh);
                     if (blockData.mesh.geometry) {
                         blockData.mesh.geometry.dispose();
@@ -8199,6 +8224,15 @@ class NebulaVoxelApp {
         // 🔍 Initialize LOD Debug Overlay (toggle with 'L' key)
         this.lodDebugOverlay = new LODDebugOverlay(this);
 
+        // 🧊 Initialize Greedy Meshing System
+        this.useGreedyMeshing = true; // ENABLED - texture atlas now implemented!
+        this.chunkMeshManager = this.useGreedyMeshing ? new ChunkMeshManager(this) : null;
+        if (this.useGreedyMeshing) {
+            console.log('🧊 Greedy Meshing ENABLED - Optimized chunk rendering active');
+        } else {
+            console.log('🧊 Greedy Meshing DISABLED - Using traditional textured blocks');
+        }
+
         // 🌫️ Update fog now that LOD manager exists (fixes fog distance calculation)
         this.updateFog();
         // �🎮 Get user's GPU preference (default to low-power for broader compatibility)
@@ -13527,6 +13561,32 @@ class NebulaVoxelApp {
         const stats = this.lodManager.getStats();
         console.table(stats);
         return stats;
+    }
+
+    // 🧊 GREEDY MESHING - Get performance stats
+    getGreedyMeshStats() {
+        if (!this.chunkMeshManager) {
+            console.warn('❌ Greedy Meshing not enabled');
+            return null;
+        }
+        const stats = this.chunkMeshManager.getStats();
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🧊 GREEDY MESHING STATS:');
+        console.log(`   Total Chunks: ${stats.totalChunks}`);
+        console.log(`   Total Blocks: ${stats.totalBlocks}`);
+        console.log(`   Draw Calls: ${stats.totalDrawCalls} (was ${stats.totalBlocks})`);
+        console.log(`   Reduction: ${((1 - stats.totalDrawCalls / Math.max(stats.totalBlocks, 1)) * 100).toFixed(1)}%`);
+        console.log(`   Avg Mesh Time: ${stats.avgMeshTime}`);
+        console.log(`   Total Mesh Time: ${stats.meshGenerationTime.toFixed(2)}ms`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        return stats;
+    }
+
+    // 🧊 Toggle greedy meshing on/off
+    toggleGreedyMeshing() {
+        console.warn('⚠️ Toggling greedy meshing requires game restart!');
+        console.log(`Current state: ${this.useGreedyMeshing ? 'ENABLED' : 'DISABLED'}`);
+        console.log('To toggle: Set this.useGreedyMeshing in VoxelWorld.js line 8204');
     }
 
     // Create mobile virtual joysticks

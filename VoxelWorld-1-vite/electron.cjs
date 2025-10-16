@@ -5,18 +5,11 @@ const isDev = process.env.NODE_ENV === 'development';
 
 // 🎮 Force high-performance GPU (dGPU) for better performance
 // This helps on laptops with both integrated and dedicated GPUs
-app.commandLine.appendSwitch('force_high_performance_gpu');
-
-// 🔧 Additional GPU-related flags for better performance
-app.commandLine.appendSwitch('disable-gpu-vsync'); // Disable V-Sync for uncapped FPS
-app.commandLine.appendSwitch('ignore-gpu-blacklist'); // Ignore GPU blacklist
-app.commandLine.appendSwitch('enable-gpu-rasterization'); // Use GPU for rasterization
-
-console.log('🎮 Electron GPU flags enabled:');
-console.log('   - force_high_performance_gpu: true');
-console.log('   - disable-gpu-vsync: true');
-console.log('   - ignore-gpu-blacklist: true');
-console.log('   - enable-gpu-rasterization: true');
+// TEMPORARILY DISABLED - causing startup crash, will fix later
+// app.commandLine.appendSwitch('force_high_performance_gpu');
+// app.commandLine.appendSwitch('disable-gpu-vsync');
+// app.commandLine.appendSwitch('ignore-gpu-blacklist');
+// app.commandLine.appendSwitch('enable-gpu-rasterization');
 
 // ========================================
 // 🎓 TUTORIAL EDITOR IPC HANDLERS

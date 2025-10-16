@@ -17,6 +17,79 @@
  */
 
 export class GreedyMesher {
+    // Atlas key loaded from atlas-key.json
+    static atlasKey = null;
+
+    /**
+     * Load atlas key for UV coordinate mapping
+     * @param {Object} atlasKeyData - Atlas key JSON data
+     */
+    static loadAtlasKey(atlasKeyData) {
+        this.atlasKey = atlasKeyData;
+        console.log(`🎨 Atlas key loaded: ${Object.keys(atlasKeyData.textures).length} textures`);
+    }
+
+    /**
+     * Get UV coordinates for a block type from atlas (face-aware)
+     * @param {string} blockType - Block type name (e.g., "oak_wood")
+     * @param {Array} normal - Face normal [x, y, z] to determine which texture variant to use
+     * @returns {Object} UV coordinates {minU, minV, maxU, maxV}
+     */
+    static getBlockUV(blockType, normal = [0, 1, 0]) {
+        if (!this.atlasKey) {
+            console.warn(`⚠️ Atlas key not loaded, using fallback UVs`);
+            return { minU: 0, minV: 0, maxU: 0.0625, maxV: 0.0625 };
+        }
+
+        // Determine face type based on normal direction
+        const isTopOrBottom = Math.abs(normal[1]) > 0.9; // Y-axis faces (top/bottom)
+        const isSide = !isTopOrBottom; // X or Z axis faces (sides)
+
+        // Try to find the appropriate texture variant
+        let textureKey = blockType;
+
+        if (isTopOrBottom) {
+            // Try variations for top/bottom faces (in priority order)
+            const topBottomVariants = [
+                `${blockType}-top-bottom`,
+                `${blockType}-top`,
+                `${blockType}-bottom`,
+                `${blockType}-all`,
+                blockType
+            ];
+
+            for (const variant of topBottomVariants) {
+                if (this.atlasKey.textures[variant]) {
+                    textureKey = variant;
+                    break;
+                }
+            }
+        } else {
+            // Try variations for side faces (in priority order)
+            const sideVariants = [
+                `${blockType}-sides`,
+                `${blockType}-all`,
+                blockType
+            ];
+
+            for (const variant of sideVariants) {
+                if (this.atlasKey.textures[variant]) {
+                    textureKey = variant;
+                    break;
+                }
+            }
+        }
+
+        // Get UV coordinates
+        const texture = this.atlasKey.textures[textureKey];
+        if (!texture) {
+            console.warn(`⚠️ No texture found for ${blockType} (tried variants), using bedrock fallback`);
+            return this.atlasKey.textures['bedrock']?.uv || { minU: 0, minV: 0, maxU: 0.0625, maxV: 0.0625 };
+        }
+
+        return texture.uv;
+    }
+
     /**
      * Generate greedy meshed geometry data from block array
      * @param {Array} blocks - Array of {x, y, z, blockType, color}
@@ -170,6 +243,7 @@ export class GreedyMesher {
                                 [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]],
                                 [pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]],
                                 [pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]],
+                                currentBlock.type,
                                 currentBlock.color,
                                 q
                             );
@@ -181,6 +255,7 @@ export class GreedyMesher {
                                 [pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]],
                                 [pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]],
                                 [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]],
+                                currentBlock.type,
                                 currentBlock.color,
                                 q
                             );
@@ -260,10 +335,13 @@ export class GreedyMesher {
     }
 
     /**
-     * Add quad face to mesh arrays
+     * Add quad face to mesh arrays with atlas UV mapping
      */
-    static addQuad(positions, normals, colors, uvs, v1, v2, v3, v4, color, normal) {
-        // Convert hex color to RGB (0-1 range)
+    static addQuad(positions, normals, colors, uvs, v1, v2, v3, v4, blockType, color, normal) {
+        // Get UV coordinates from atlas for this block type (face-aware!)
+        const atlasUV = this.getBlockUV(blockType, normal);
+
+        // Convert hex color to RGB (0-1 range) - for tinting if needed
         const r = ((color >> 16) & 0xFF) / 255;
         const g = ((color >> 8) & 0xFF) / 255;
         const b = (color & 0xFF) / 255;
@@ -277,7 +355,15 @@ export class GreedyMesher {
             colors.push(r, g, b);
         }
 
-        // UVs for texture mapping
-        uvs.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+        // UVs for texture mapping from atlas
+        // Map quad corners to atlas texture region
+        uvs.push(
+            atlasUV.minU, atlasUV.minV,  // v1: bottom-left
+            atlasUV.maxU, atlasUV.minV,  // v2: bottom-right
+            atlasUV.maxU, atlasUV.maxV,  // v3: top-right
+            atlasUV.minU, atlasUV.minV,  // v1: bottom-left (repeat for second triangle)
+            atlasUV.maxU, atlasUV.maxV,  // v3: top-right
+            atlasUV.minU, atlasUV.maxV   // v4: top-left
+        );
     }
 }
