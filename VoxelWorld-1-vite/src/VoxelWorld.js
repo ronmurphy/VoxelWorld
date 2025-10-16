@@ -8841,7 +8841,8 @@ class NebulaVoxelApp {
 
         // 🏛️ PILLAR TREE FIX: Convert stone pillars under trees to registered trunk blocks
         this.fixTreePillars = (treeId, x, y, z, woodType) => {
-            console.log(`🏛️ Scanning for pillars under tree ${treeId} at (${x}, ${y}, ${z})`);
+            // commented out due to console spam -- brad
+            // console.log(`🏛️ Scanning for pillars under tree ${treeId} at (${x}, ${y}, ${z})`);
             let pillarBlocksConverted = 0;
 
             // Search downward from tree base to find actual ground
@@ -10477,17 +10478,18 @@ class NebulaVoxelApp {
                     this.player.position.z ** 2
                 ).toFixed(0);
                 
-                console.log('📊 Performance Stats:', {
-                    distanceFromSpawn: `${distanceFromSpawn} blocks`,
-                    waterPositions: this.waterPositions.length,
-                    pumpkinPositions: this.pumpkinPositions.length,
-                    worldItemPositions: this.worldItemPositions.length,
-                    treePositions: this.treePositions.length,
-                    activeBillboards: this.activeBillboards.length,
-                    explosionEffects: this.explosionEffects?.length || 0,
-                    ghostBillboards: this.ghostBillboards.size,
-                    worldBlocks: Object.keys(this.world).length
-                });
+                // commented out due to console spam -- brad
+                // console.log('📊 Performance Stats:', {
+                //     distanceFromSpawn: `${distanceFromSpawn} blocks`,
+                //     waterPositions: this.waterPositions.length,
+                //     pumpkinPositions: this.pumpkinPositions.length,
+                //     worldItemPositions: this.worldItemPositions.length,
+                //     treePositions: this.treePositions.length,
+                //     activeBillboards: this.activeBillboards.length,
+                //     explosionEffects: this.explosionEffects?.length || 0,
+                //     ghostBillboards: this.ghostBillboards.size,
+                //     worldBlocks: Object.keys(this.world).length
+                // });
                 lastPerfLog = currentTime;
             }
 

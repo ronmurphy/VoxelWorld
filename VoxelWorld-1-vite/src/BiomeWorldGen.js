@@ -1117,7 +1117,8 @@ export class BiomeWorldGen {
 
                 // Add generator info to debug logging
                 if (this.DEBUG_MODE && (worldX + worldZ) % 256 === 0) {
-                    console.log(`🎛️ Generated terrain: ${terrainData.generator} at (${worldX}, ${worldZ}) → height ${height}`);
+                    // commented out due to console spam -- brad
+                    // console.log(`🎛️ Generated terrain: ${terrainData.generator} at (${worldX}, ${worldZ}) → height ${height}`);
                 }
 
                 // Track problematic heights
@@ -1163,7 +1164,8 @@ export class BiomeWorldGen {
 
                     // Validation: Ensure blocks are actually placed
                     if (this.DEBUG_MODE && (worldX + worldZ) % 512 === 0) {
-                        console.log(`✅ Successfully placed terrain stack at (${worldX}, ${finalHeight}, ${worldZ})`);
+                        // commented out due to console spam -- brad
+                        // console.log(`✅ Successfully placed terrain stack at (${worldX}, ${finalHeight}, ${worldZ})`);
                     }
                 } catch (error) {
                     console.error(`🚨 FAILED to place terrain at (${worldX}, ${finalHeight}, ${worldZ}):`, error);
@@ -1187,7 +1189,8 @@ export class BiomeWorldGen {
 
                 // Debug logging for successful block placement (only in debug mode, reduced frequency)
                 if (this.DEBUG_MODE && (worldX + worldZ) % 128 === 0) {
-                    console.log(`✅ Placed terrain at (${worldX}, ${finalHeight}, ${worldZ}) | ${biome.name} | height: ${height} -> ${finalHeight}`);
+                    // commented out due to console spam -- brad
+                    // console.log(`✅ Placed terrain at (${worldX}, ${finalHeight}, ${worldZ}) | ${biome.name} | height: ${height} -> ${finalHeight}`);
                 }
 
                 // � WATER GENERATION: Fill empty spaces at y=1, y=2, y=3 with water blocks

@@ -564,7 +564,8 @@ export class EnhancedGraphics {
             }
 
             if (faceTextures.all || faceTextures.sides || faceTextures.topBottom || faceTextures.top || faceTextures.bottom) {
-                console.log(`🎨 Loaded ${blockType} multi-face textures (all=${!!faceTextures.all})`);
+                // commented out due to console spam -- brad
+                // console.log(`🎨 Loaded ${blockType} multi-face textures (all=${!!faceTextures.all})`);
             }
         }
 
@@ -572,7 +573,7 @@ export class EnhancedGraphics {
         if (!faceTextures.all && !faceTextures.sides && !faceTextures.topBottom) {
             faceTextures.main = await tryLoadTexture(blockType);
             if (faceTextures.main) {
-                // commented out due to console spam.
+                // commented out due to console spam. -- brad
                 // console.log(`🎨 Loaded ${blockType} main texture`);
             }
         }
@@ -624,8 +625,8 @@ export class EnhancedGraphics {
                     sideTexture,   // +Z (front)
                     sideTexture    // -Z (back)
                 ];
-
-                console.log(`🎯 Created multi-face texture for ${blockType}: top=${!!topTexture}, bottom=${!!bottomTexture}, sides=${!!sideTexture}`);
+                // commented out due to console spam -- brad
+                // console.log(`🎯 Created multi-face texture for ${blockType}: top=${!!topTexture}, bottom=${!!bottomTexture}, sides=${!!sideTexture}`);
                 return cubeTextures;
             }
         }
